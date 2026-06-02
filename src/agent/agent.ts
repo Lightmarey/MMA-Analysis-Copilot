@@ -5,6 +5,7 @@ import { WolframBackend } from "../wolfram/backend.js";
 import { formatToolResult, formatToolResultMarkdown, isWolframToolName, runLocalTool, toolDefinitions } from "./tools.js";
 import { analyzeProblem, buildPreplanContext, classifyDifficulty, createPreplan, decomposeProblem } from "./planning.js";
 import type { AgentToolName, LocalToolName } from "./tools.js";
+import type { WolframResponse } from "../wolfram/types.js";
 
 const SYSTEM_PROMPT = `You are a careful mathematical assistant.
 
@@ -25,7 +26,7 @@ Rules:
 
 export type AgentCallbacks = {
   onToolCall?: (name: string, args: Record<string, unknown>) => void;
-  onToolResult?: (name: string, markdown: string) => void;
+  onToolResult?: (name: string, markdown: string, result: WolframResponse) => void;
   onRoute?: (difficulty: "simple" | "complex", model: string) => void;
   onPlan?: (context: string) => void;
 };
@@ -113,7 +114,7 @@ export class MathAgent {
         const toolMarkdown = formatToolResultMarkdown(name, result);
         if (toolMarkdown) {
           collected.push(toolMarkdown);
-          callbacks.onToolResult?.(name, toolMarkdown);
+          callbacks.onToolResult?.(name, toolMarkdown, result);
         }
 
         this.messages.push({

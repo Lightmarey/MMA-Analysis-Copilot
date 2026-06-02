@@ -12,9 +12,10 @@
     "dev": "tsx src/cli/main.ts",
     "doctor": "tsx src/cli/main.ts doctor",
     "smoke:wolfram": "tsx src/cli/main.ts --direct-wolfram \"2+2\"",
-    "test": "npm run check && npm run test:planning && npm run test:input",
+    "test": "npm run check && npm run test:planning && npm run test:input && npm run test:report",
     "test:planning": "tsx test/planning.test.ts",
     "test:input": "tsx test/input.test.ts",
+    "test:report": "tsx test/report.test.ts",
     "test:wolfram": "tsx test/wolfram-tools.test.ts"
   },
   "dependencies": {

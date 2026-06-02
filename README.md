@@ -67,8 +67,10 @@ npm run dev -- --batch questions.md --output output/batch-run --trace
 ```
 
 Batch files are split on lines containing only `---`. Saved trace reports
-include routing, preplanning context, tool arguments, and compact tool results.
-Questions may inline local text files with `@path/to/file.md`.
+include routing, preplanning context, tool arguments, compact tool results, and
+a verification summary that surfaces Wolfram-returned conditions and
+preplanned proof checks. Questions may inline local text files with
+`@path/to/file.md`.
 
 Theorem guidance is loaded from built-ins plus `theorems/*.json` by default,
 then filtered to analysis-related domains. Current default coverage includes

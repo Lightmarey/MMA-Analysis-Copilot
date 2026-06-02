@@ -10,19 +10,10 @@ import { MathAgent } from "../agent/agent.js";
 import { toolDefinitions } from "../agent/tools.js";
 import { findDefaultWolframCommand, WolframBackend } from "../wolfram/backend.js";
 import { expandAtPaths } from "./input.js";
+import { formatMarkdownReport, formatQuestionMarkdown } from "./report.js";
+import type { ChatRun, TraceEvent } from "./report.js";
 
 const program = new Command();
-
-type TraceEvent =
-  | { type: "route"; difficulty: "simple" | "complex"; model: string }
-  | { type: "plan"; context: string }
-  | { type: "tool_call"; name: string; args: Record<string, unknown> }
-  | { type: "tool_result"; name: string; markdown: string };
-
-type ChatRun = {
-  answer: string;
-  trace: TraceEvent[];
-};
 
 program
   .name("wma")
@@ -114,8 +105,8 @@ async function askOnceWithTrace(question: string, printTrace: boolean): Promise<
         trace.push({ type: "tool_call", name, args });
         if (printTrace) console.error(chalk.dim(`tool ${name} ${JSON.stringify(args)}`));
       },
-      onToolResult(name, markdown) {
-        trace.push({ type: "tool_result", name, markdown });
+      onToolResult(name, markdown, result) {
+        trace.push({ type: "tool_result", name, markdown, result });
       }
     });
     return { answer, trace };
@@ -323,80 +314,6 @@ async function readStdin(): Promise<string> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
   }
   return Buffer.concat(chunks).toString("utf8");
-}
-
-function formatQuestionMarkdown(question: string, answer: string, elapsedMs?: number): string {
-  const lines = [
-    "# Wolfram Math Agent Answer",
-    "",
-    elapsedMs === undefined ? "" : `Elapsed: ${(elapsedMs / 1000).toFixed(1)}s`,
-    "",
-    "## Question",
-    "",
-    question,
-    "",
-    "## Answer",
-    "",
-    answer.trim(),
-    ""
-  ];
-  return lines.filter((line, index) => line !== "" || lines[index - 1] !== "").join("\n");
-}
-
-function formatMarkdownReport(question: string, run: ChatRun, elapsedMs?: number): string {
-  const route = run.trace.find((event): event is Extract<TraceEvent, { type: "route" }> => event.type === "route");
-  const plan = run.trace.find((event): event is Extract<TraceEvent, { type: "plan" }> => event.type === "plan");
-  const lines = [
-    "# Wolfram Math Agent Report",
-    "",
-    elapsedMs === undefined ? "" : `Elapsed: ${(elapsedMs / 1000).toFixed(1)}s`,
-    "",
-    "## Question",
-    "",
-    question,
-    "",
-    "## Route",
-    "",
-    route ? `- Difficulty: ${route.difficulty}\n- Model: ${route.model}` : "- Not recorded",
-    "",
-    "## Preplanning",
-    "",
-    plan ? fenced(plan.context, "text") : "Not recorded.",
-    "",
-    "## Tool Trace",
-    "",
-    formatTrace(run.trace),
-    "",
-    "## Answer",
-    "",
-    run.answer.trim(),
-    ""
-  ];
-  return lines.filter((line, index) => line !== "" || lines[index - 1] !== "").join("\n");
-}
-
-function formatTrace(trace: TraceEvent[]): string {
-  const lines: string[] = [];
-  let toolIndex = 0;
-  for (const event of trace) {
-    if (event.type === "tool_call") {
-      toolIndex += 1;
-      lines.push(`### Tool ${toolIndex}: ${event.name}`);
-      lines.push("");
-      lines.push(fenced(JSON.stringify(event.args, null, 2), "json"));
-      lines.push("");
-      continue;
-    }
-    if (event.type === "tool_result") {
-      lines.push(event.markdown || "(no display result)");
-      lines.push("");
-    }
-  }
-  return lines.length ? lines.join("\n").trim() : "No tool calls recorded.";
-}
-
-function fenced(content: string, language: string): string {
-  return `\`\`\`${language}\n${content.trim()}\n\`\`\``;
 }
 
 function printInlinedPaths(paths: string[]): void {
