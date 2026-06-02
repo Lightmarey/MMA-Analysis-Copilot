@@ -53,11 +53,24 @@ Interactive mode:
 npm run dev
 ```
 
+Single-question file input, stdin, and batch mode:
+
+```powershell
+npm run dev -- --file question.md --output output/answer.md --trace
+Get-Content question.md | npm run dev -- --output output/answer.md --trace
+npm run dev -- --batch questions.md --output output/batch-run --trace
+```
+
+Batch files are split on lines containing only `---`. Saved trace reports
+include routing, preplanning context, tool arguments, and compact tool results.
+Questions may inline local text files with `@path/to/file.md`.
+
 Useful checks:
 
 ```powershell
 npm run check
 npm run test:planning
+npm run test:input
 npm run test:wolfram
 npm run smoke:wolfram
 ```

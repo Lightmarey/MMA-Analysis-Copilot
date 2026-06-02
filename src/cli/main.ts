@@ -9,24 +9,48 @@ import { config } from "../config.js";
 import { MathAgent } from "../agent/agent.js";
 import { toolDefinitions } from "../agent/tools.js";
 import { findDefaultWolframCommand, WolframBackend } from "../wolfram/backend.js";
+import { expandAtPaths } from "./input.js";
 
 const program = new Command();
+
+type TraceEvent =
+  | { type: "route"; difficulty: "simple" | "complex"; model: string }
+  | { type: "plan"; context: string }
+  | { type: "tool_call"; name: string; args: Record<string, unknown> }
+  | { type: "tool_result"; name: string; markdown: string };
+
+type ChatRun = {
+  answer: string;
+  trace: TraceEvent[];
+};
 
 program
   .name("wma")
   .description("Wolfram-backed math agent CLI")
   .argument("[question...]", "question to ask")
   .option("-o, --output <path>", "write final Markdown answer to a file")
+  .option("-f, --file <path>", "read a single question from a file")
+  .option("-b, --batch <path>", "process a batch file; split questions with ---")
+  .option("--trace", "include route, preplanning, and tool trace in saved Markdown")
   .option("--direct-wolfram", "evaluate the question as raw Wolfram Language code without LLM")
-  .action(async (questionParts: string[], options: { output?: string; directWolfram?: boolean }) => {
-    const question = questionParts.join(" ").trim();
+  .action(async (
+    questionParts: string[],
+    options: { output?: string; file?: string; batch?: string; trace?: boolean; directWolfram?: boolean }
+  ) => {
+    if (options.batch && !options.directWolfram) {
+      await runBatch(options.batch, options.output, options.trace ?? false);
+      return;
+    }
+    const question = await resolveQuestion(questionParts.join(" ").trim(), options.file);
     if (options.directWolfram) {
       await runDirectWolfram(question);
       return;
     }
     if (question) {
-      const answer = await askOnce(question);
-      await maybeWrite(options.output, answer);
+      const expanded = await expandAtPaths(question, config.rootDir);
+      printInlinedPaths(expanded.inlinedPaths);
+      const run = await askOnce(expanded.text);
+      await maybeWrite(options.output, options.trace ? formatMarkdownReport(expanded.text, run) : run.answer);
       return;
     }
     await repl();
@@ -67,23 +91,100 @@ try {
   process.exitCode = 1;
 }
 
-async function askOnce(question: string): Promise<string> {
+async function askOnce(question: string): Promise<ChatRun> {
+  const run = await askOnceWithTrace(question, true);
+  console.log();
+  console.log(run.answer);
+  return run;
+}
+
+async function askOnceWithTrace(question: string, printTrace: boolean): Promise<ChatRun> {
   const agent = new MathAgent();
+  const trace: TraceEvent[] = [];
   try {
     const answer = await agent.chat(question, {
       onRoute(difficulty, model) {
-        console.error(chalk.dim(`route ${difficulty} -> ${model}`));
+        trace.push({ type: "route", difficulty, model });
+        if (printTrace) console.error(chalk.dim(`route ${difficulty} -> ${model}`));
+      },
+      onPlan(context) {
+        trace.push({ type: "plan", context });
       },
       onToolCall(name, args) {
-        console.error(chalk.dim(`tool ${name} ${JSON.stringify(args)}`));
+        trace.push({ type: "tool_call", name, args });
+        if (printTrace) console.error(chalk.dim(`tool ${name} ${JSON.stringify(args)}`));
+      },
+      onToolResult(name, markdown) {
+        trace.push({ type: "tool_result", name, markdown });
       }
     });
-    console.log();
-    console.log(answer);
-    return answer;
+    return { answer, trace };
   } finally {
     agent.close();
   }
+}
+
+async function runBatch(batchPath: string, outputPath: string | undefined, includeTrace: boolean): Promise<void> {
+  const content = await fs.readFile(batchPath, "utf8");
+  const questions = content.split(/^---\s*$/m).map(part => part.trim()).filter(Boolean);
+  if (!questions.length) {
+    throw new Error(`No questions found in ${batchPath}`);
+  }
+
+  const outputDir = outputPath || path.join("output", `batch-${Date.now()}`);
+  await fs.mkdir(outputDir, { recursive: true });
+  console.error(chalk.cyan(`Batch: ${questions.length} questions -> ${outputDir}`));
+
+  const summary: string[] = [
+    "# Wolfram Math Agent Batch",
+    "",
+    `Source: ${batchPath}`,
+    `Questions: ${questions.length}`,
+    "",
+    "---",
+    ""
+  ];
+
+  for (const [idx, question] of questions.entries()) {
+    const number = idx + 1;
+    const label = String(number).padStart(3, "0");
+    const started = Date.now();
+    console.error(chalk.bold.cyan(`Question ${number}/${questions.length}`));
+    console.error(chalk.dim(question.slice(0, 120)));
+
+    let run: ChatRun;
+    let failed = "";
+    let questionForReport = question;
+    try {
+      const expanded = await expandAtPaths(question, config.rootDir);
+      printInlinedPaths(expanded.inlinedPaths);
+      questionForReport = expanded.text;
+      run = await askOnceWithTrace(expanded.text, true);
+    } catch (error) {
+      failed = error instanceof Error ? error.message : String(error);
+      run = {
+        answer: `**Error:** ${failed}`,
+        trace: []
+      };
+    }
+    const elapsedMs = Date.now() - started;
+    const report = includeTrace ? formatMarkdownReport(questionForReport, run, elapsedMs) : formatQuestionMarkdown(questionForReport, run.answer, elapsedMs);
+    const fileName = `q${label}.md`;
+    const filePath = path.join(outputDir, fileName);
+    await fs.writeFile(filePath, report, "utf8");
+
+    summary.push(`## Question ${number}`);
+    summary.push("");
+    summary.push(question.length > 240 ? `${question.slice(0, 237)}...` : question);
+    summary.push("");
+    summary.push(`- File: [${fileName}](${fileName})`);
+    summary.push(`- Elapsed: ${(elapsedMs / 1000).toFixed(1)}s`);
+    summary.push(`- Status: ${failed ? "error" : "ok"}`);
+    summary.push("");
+  }
+
+  await fs.writeFile(path.join(outputDir, "summary.md"), summary.join("\n"), "utf8");
+  console.error(chalk.green(`Batch complete: ${path.join(outputDir, "summary.md")}`));
 }
 
 async function repl(): Promise<void> {
@@ -127,7 +228,9 @@ async function repl(): Promise<void> {
       }
 
       try {
-        const answer = await agent.chat(line, {
+        const expanded = await expandAtPaths(line, config.rootDir);
+        printInlinedPaths(expanded.inlinedPaths);
+        const answer = await agent.chat(expanded.text, {
           onRoute(difficulty, model) {
             console.log(chalk.dim(`route ${difficulty} -> ${model}`));
           },
@@ -199,4 +302,105 @@ async function maybeWrite(path: string | undefined, content: string): Promise<vo
 function pathModuleDir(target: string): string {
   const dir = path.dirname(target);
   return dir === "." ? "" : dir;
+}
+
+async function resolveQuestion(positional: string, filePath: string | undefined): Promise<string> {
+  if (filePath) {
+    return (await fs.readFile(filePath, "utf8")).trim();
+  }
+  if (positional.trim()) {
+    return positional.trim();
+  }
+  if (!input.isTTY) {
+    return (await readStdin()).trim();
+  }
+  return "";
+}
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of input) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+function formatQuestionMarkdown(question: string, answer: string, elapsedMs?: number): string {
+  const lines = [
+    "# Wolfram Math Agent Answer",
+    "",
+    elapsedMs === undefined ? "" : `Elapsed: ${(elapsedMs / 1000).toFixed(1)}s`,
+    "",
+    "## Question",
+    "",
+    question,
+    "",
+    "## Answer",
+    "",
+    answer.trim(),
+    ""
+  ];
+  return lines.filter((line, index) => line !== "" || lines[index - 1] !== "").join("\n");
+}
+
+function formatMarkdownReport(question: string, run: ChatRun, elapsedMs?: number): string {
+  const route = run.trace.find((event): event is Extract<TraceEvent, { type: "route" }> => event.type === "route");
+  const plan = run.trace.find((event): event is Extract<TraceEvent, { type: "plan" }> => event.type === "plan");
+  const lines = [
+    "# Wolfram Math Agent Report",
+    "",
+    elapsedMs === undefined ? "" : `Elapsed: ${(elapsedMs / 1000).toFixed(1)}s`,
+    "",
+    "## Question",
+    "",
+    question,
+    "",
+    "## Route",
+    "",
+    route ? `- Difficulty: ${route.difficulty}\n- Model: ${route.model}` : "- Not recorded",
+    "",
+    "## Preplanning",
+    "",
+    plan ? fenced(plan.context, "text") : "Not recorded.",
+    "",
+    "## Tool Trace",
+    "",
+    formatTrace(run.trace),
+    "",
+    "## Answer",
+    "",
+    run.answer.trim(),
+    ""
+  ];
+  return lines.filter((line, index) => line !== "" || lines[index - 1] !== "").join("\n");
+}
+
+function formatTrace(trace: TraceEvent[]): string {
+  const lines: string[] = [];
+  let toolIndex = 0;
+  for (const event of trace) {
+    if (event.type === "tool_call") {
+      toolIndex += 1;
+      lines.push(`### Tool ${toolIndex}: ${event.name}`);
+      lines.push("");
+      lines.push(fenced(JSON.stringify(event.args, null, 2), "json"));
+      lines.push("");
+      continue;
+    }
+    if (event.type === "tool_result") {
+      lines.push(event.markdown || "(no display result)");
+      lines.push("");
+    }
+  }
+  return lines.length ? lines.join("\n").trim() : "No tool calls recorded.";
+}
+
+function fenced(content: string, language: string): string {
+  return `\`\`\`${language}\n${content.trim()}\n\`\`\``;
+}
+
+function printInlinedPaths(paths: string[]): void {
+  for (const inlinedPath of paths) {
+    console.error(chalk.dim(`inlined ${inlinedPath}`));
+  }
 }
