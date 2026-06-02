@@ -11,6 +11,7 @@ import { toolDefinitions } from "../agent/tools.js";
 import { findDefaultWolframCommand, WolframBackend } from "../wolfram/backend.js";
 import { expandAtPaths } from "./input.js";
 import { formatMarkdownReport, formatQuestionMarkdown } from "./report.js";
+import { applyRuntimeOptions } from "./runtime.js";
 import type { ChatRun, TraceEvent } from "./report.js";
 
 const program = new Command();
@@ -22,12 +23,15 @@ program
   .option("-o, --output <path>", "write final Markdown answer to a file")
   .option("-f, --file <path>", "read a single question from a file")
   .option("-b, --batch <path>", "process a batch file; split questions with ---")
+  .option("-t, --temperature <number>", "override model temperature for this run", Number.parseFloat)
+  .option("-n, --max-iterations <number>", "override maximum tool-calling iterations for this run", parsePositiveInteger)
   .option("--trace", "include route, preplanning, and tool trace in saved Markdown")
   .option("--direct-wolfram", "evaluate the question as raw Wolfram Language code without LLM")
   .action(async (
     questionParts: string[],
-    options: { output?: string; file?: string; batch?: string; trace?: boolean; directWolfram?: boolean }
+    options: { output?: string; file?: string; batch?: string; trace?: boolean; directWolfram?: boolean; temperature?: number; maxIterations?: number }
   ) => {
+    applyRuntimeOptions(options);
     if (options.batch && !options.directWolfram) {
       await runBatch(options.batch, options.output, options.trace ?? false);
       return;
@@ -58,7 +62,7 @@ program
 
 program
   .command("doctor")
-  .description("show environment and Wolfram worker configuration")
+  .description("show environment and Wolfram backend configuration")
   .action(async () => {
     const command = findDefaultWolframCommand();
     console.log(`${chalk.bold("Root:")} ${config.rootDir}`);
@@ -71,6 +75,8 @@ program
     console.log(`${chalk.bold("Flash model:")} ${config.flashModel}`);
     console.log(`${chalk.bold("Pro model:")} ${config.proModel}`);
     console.log(`${chalk.bold("Preplanning:")} ${config.preplanEnabled ? "enabled" : "disabled"}`);
+    console.log(`${chalk.bold("Max iterations:")} ${config.maxIterations}`);
+    console.log(`${chalk.bold("Temperature:")} ${config.temperature}`);
     console.log(`${chalk.bold("OPENAI_API_KEY:")} ${config.openaiApiKey ? "set" : "missing"}`);
     console.log(`${chalk.bold("OPENAI_BASE_URL:")} ${config.openaiBaseUrl ?? "(default)"}`);
   });
@@ -264,7 +270,7 @@ async function runDirectWolfram(code: string): Promise<void> {
 
 function banner(): void {
   console.log(chalk.cyan.bold("Wolfram Math Agent"));
-  console.log(chalk.dim(`model=${config.model} route=${config.autoRoute ? "auto" : "off"} worker=${config.wolframWorkerPath}`));
+  console.log(chalk.dim(`model=${config.model} route=${config.autoRoute ? "auto" : "off"} backend=${config.wolframBackendMode}`));
   console.log(chalk.dim("Commands: /help /tools /reset /last /save [path] /quit"));
   console.log();
 }
@@ -320,4 +326,12 @@ function printInlinedPaths(paths: string[]): void {
   for (const inlinedPath of paths) {
     console.error(chalk.dim(`inlined ${inlinedPath}`));
   }
+}
+
+function parsePositiveInteger(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error("Expected a positive integer");
+  }
+  return parsed;
 }

@@ -34,6 +34,8 @@ WOLFRAM_AGENT_FLASH_MODEL=...
 WOLFRAM_AGENT_PRO_MODEL=...
 WOLFRAM_AGENT_AUTO_ROUTE=true
 WOLFRAM_AGENT_PREPLAN_ENABLED=true
+WOLFRAM_AGENT_MAX_ITERATIONS=20
+WOLFRAM_AGENT_TEMPERATURE=0
 WOLFRAM_THEOREM_SOURCE=merge
 WOLFRAM_THEOREM_EXTERNAL_PATH=
 WOLFRAM_COMMAND=C:\Program Files\Wolfram Research\WolframScript\wolframscript.exe
@@ -61,6 +63,7 @@ Single-question file input, stdin, and batch mode:
 npm run dev -- --file question.md --output output/answer.md --trace
 Get-Content question.md | npm run dev -- --output output/answer.md --trace
 npm run dev -- --batch questions.md --output output/batch-run --trace
+npm run dev -- -t 0 -n 12 --trace "Determine whether Sum[1/k^p,{k,1,Infinity}] converges."
 ```
 
 Batch files are split on lines containing only `---`. Saved trace reports
