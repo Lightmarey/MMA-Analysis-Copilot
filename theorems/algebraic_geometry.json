@@ -1,0 +1,36 @@
+{
+  "domain": "algebraic_geometry",
+  "theorems": [
+    {
+      "id": "weil_zeta_curve_json",
+      "name": "Weil zeta function for curves",
+      "domains": ["algebraic_geometry", "finite_fields"],
+      "keywords": ["curve", "finite field", "point count", "zeta", "projective", "nonzero points", "Frobenius"],
+      "signals": ["\\\\mathbb\\{F\\}", "F_\\{?\\d+\\^?\\d+\\}?", "GF\\(", "points.*curve", "curve.*over"],
+      "reduces": "reduce point counting over large extension fields to Frobenius/zeta data over a small base field",
+      "prerequisites": ["genus of the curve", "Frobenius characteristic polynomial or zeta numerator"],
+      "invariant_hints": ["genus of the curve", "Frobenius characteristic polynomial", "zeta numerator", "small base-field point counts"],
+      "verification_hints": ["check the final count against the Hasse-Weil bound", "verify consistency with small base-field point counts", "confirm the extension-field count follows the Frobenius recurrence"],
+      "confidence": "high",
+      "preferred_recipe": ["verify smoothness and compute genus", "compute point counts over the base field extensions needed for Frobenius data", "derive the zeta numerator", "evaluate the extension-field count", "check Hasse-Weil bound"],
+      "avoid_patterns": ["do not enumerate all points over a huge extension field", "do not build the projective space over a large extension field unless unavoidable"],
+      "wolfram_hint": "Wolfram can help with polynomial algebra and recurrences, but exact finite-field curve zeta computation may need a specialized CAS sidecar.",
+      "cas_hint": "Use a finite-field curve zeta/counting backend when available; for now use theorem-first reasoning and small-field consistency checks."
+    },
+    {
+      "id": "klein_quartic_automorphisms_json",
+      "name": "Klein quartic and PSL(2,7) symmetry",
+      "domains": ["algebraic_geometry", "group_theory", "finite_fields"],
+      "keywords": ["Klein", "quartic", "x^3y+y^3z+z^3x", "PSL", "automorphism", "genus 3"],
+      "signals": ["x\\^3.*y.*y\\^3.*z.*z\\^3.*x", "Klein.*quartic"],
+      "reduces": "use genus 3 and symmetry/Frobenius structure instead of brute-force point enumeration",
+      "prerequisites": ["characteristic of the base field", "smoothness in the target characteristic"],
+      "invariant_hints": ["genus = 3", "characteristic of the base field", "smoothness", "automorphism structure", "Weil polynomial"],
+      "verification_hints": ["verify smoothness in the target characteristic", "check the Weil polynomial against small-field point counts", "confirm compatibility with the final point count"],
+      "confidence": "high",
+      "preferred_recipe": ["confirm smoothness", "use genus = 3", "compute only enough small extension counts to recover Frobenius data", "lift to the requested extension degree"],
+      "avoid_patterns": ["do not brute-force enumerate points over large extension fields"],
+      "cas_hint": "For a Sage-compatible backend: C.count_points(3) over GF(p), then use Newton identities for the Weil polynomial."
+    }
+  ]
+}

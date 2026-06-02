@@ -1,3 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 export type TheoremEntry = {
   id: string;
   name: string;
@@ -67,7 +71,24 @@ export type Preplan = {
 
 export type RouteDifficulty = "simple" | "complex";
 
-const THEOREMS: TheoremEntry[] = [
+export type Subproblem = {
+  id: string;
+  statement: string;
+  dependsOn: string[];
+  domain: string;
+};
+
+export type ProblemDecomposition = {
+  objects: string[];
+  subproblems: Subproblem[];
+  finalTarget: string;
+  dependencyOrder: string[];
+};
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const builtinTheoremDir = path.resolve(projectRoot, "theorems");
+
+const FALLBACK_THEOREMS: TheoremEntry[] = [
   {
     id: "dominated_convergence",
     name: "Dominated convergence theorem",
@@ -321,7 +342,38 @@ export function classifyDifficulty(problem: string, analysis = analyzeProblem(pr
   return "simple";
 }
 
-export function buildPreplanContext(analysis: ProblemAnalysis, plan: Preplan): string {
+export function decomposeProblem(problem: string, analysis = analyzeProblem(problem)): ProblemDecomposition | null {
+  if (!analysis.structuralComplexity.isComplex && problem.length < 500) return null;
+  const statements = problem
+    .split(SENTENCE_SPLIT_RE)
+    .map(part => part.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+  const objects = extractObjects(problem, analysis);
+  const subproblems = statements.map((statement, index) => ({
+    id: `sp${index + 1}`,
+    statement,
+    dependsOn: index === 0 ? [] : [`sp${index}`],
+    domain: inferStatementDomain(statement, analysis)
+  }));
+  if (!subproblems.length && objects.length) {
+    subproblems.push({
+      id: "sp1",
+      statement: `Identify and normalize the mathematical objects: ${objects.join(", ")}`,
+      dependsOn: [],
+      domain: analysis.detectedDomains[0] ?? "general"
+    });
+  }
+  if (!subproblems.length) return null;
+  return {
+    objects,
+    subproblems,
+    finalTarget: inferFinalTarget(problem, subproblems),
+    dependencyOrder: subproblems.map(item => item.id)
+  };
+}
+
+export function buildPreplanContext(analysis: ProblemAnalysis, plan: Preplan, decomposition?: ProblemDecomposition | null): string {
   const theoremNames = analysis.suggestedTheorems.map(item => item.theorem);
   const highConfidence = analysis.softConstraints
     .filter(item => item.confidence === "high" || item.score >= 4)
@@ -337,6 +389,19 @@ export function buildPreplanContext(analysis: ProblemAnalysis, plan: Preplan): s
     if (highConfidence.avoidPatterns.length) lines.push(`- avoid_patterns: ${highConfidence.avoidPatterns.join(" | ")}`);
     if (highConfidence.wolframHint) lines.push(`- wolfram_hint: ${highConfidence.wolframHint}`);
     if (highConfidence.casHint) lines.push(`- cas_hint: ${highConfidence.casHint}`);
+    lines.push("");
+  }
+
+  if (decomposition?.subproblems.length) {
+    lines.push("Problem decomposition:");
+    for (const subproblem of decomposition.subproblems) {
+      const deps = subproblem.dependsOn.length ? subproblem.dependsOn.join(", ") : "none";
+      lines.push(`- [${subproblem.id}] ${subproblem.statement} (depends: ${deps}; domain: ${subproblem.domain})`);
+    }
+    lines.push(`- final_target: ${decomposition.finalTarget}`);
+    lines.push(`- dependency_order: ${decomposition.dependencyOrder.join(" -> ")}`);
+    if (decomposition.objects.length) lines.push(`- objects: ${decomposition.objects.join(", ")}`);
+    lines.push("- decomposition_rule: solve subproblems in dependency order; do not use later objects before earlier dependencies are established.");
     lines.push("");
   }
 
@@ -463,7 +528,7 @@ function matchTheorems(text: string): TheoremSuggestion[] {
   const lowered = text.toLowerCase();
   const scored: Array<{ score: number; theorem: TheoremEntry }> = [];
 
-  for (const theorem of THEOREMS) {
+  for (const theorem of loadTheorems()) {
     let score = 0;
     for (const keyword of theorem.keywords) {
       if (lowered.includes(keyword.toLowerCase())) score += 1;
@@ -493,6 +558,106 @@ function matchTheorems(text: string): TheoremSuggestion[] {
     confidence: normalizeConfidence(theorem.confidence, score),
     score
   }));
+}
+
+export function loadTheorems(): TheoremEntry[] {
+  const sourceMode = (process.env.WOLFRAM_THEOREM_SOURCE || process.env.AI4MATH_THEOREM_SOURCE || "merge").trim().toLowerCase();
+  const externalPath = (process.env.WOLFRAM_THEOREM_EXTERNAL_PATH || process.env.AI4MATH_THEOREM_EXTERNAL_PATH || "").trim();
+  const loaded: TheoremEntry[] = [];
+
+  if (sourceMode !== "external") {
+    loaded.push(...FALLBACK_THEOREMS);
+    loaded.push(...loadTheoremDirectory(builtinTheoremDir));
+  }
+  if (sourceMode !== "builtin" && externalPath) {
+    loaded.push(...loadTheoremPayload(readTextIfExists(externalPath)));
+  }
+  if (!loaded.length) {
+    loaded.push(...FALLBACK_THEOREMS);
+  }
+  return dedupeTheorems(loaded);
+}
+
+function loadTheoremDirectory(directory: string): TheoremEntry[] {
+  try {
+    return fs.readdirSync(directory)
+      .filter(fileName => fileName.endsWith(".json"))
+      .flatMap(fileName => loadTheoremPayload(readTextIfExists(path.join(directory, fileName))));
+  } catch {
+    return [];
+  }
+}
+
+function readTextIfExists(filePath: string): string {
+  try {
+    return fs.readFileSync(filePath, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function loadTheoremPayload(payload: string): TheoremEntry[] {
+  if (!payload.trim()) return [];
+  try {
+    const parsed = JSON.parse(payload) as unknown;
+    const entries = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === "object" && Array.isArray((parsed as { theorems?: unknown }).theorems)
+        ? (parsed as { theorems: unknown[] }).theorems
+        : [];
+    return entries.map(normalizeTheoremEntry).filter((entry): entry is TheoremEntry => entry !== null);
+  } catch {
+    return [];
+  }
+}
+
+function normalizeTheoremEntry(raw: unknown): TheoremEntry | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const id = readString(record.id);
+  const name = readString(record.name);
+  if (!id || !name) return null;
+  return {
+    id,
+    name,
+    domains: readStringArray(record.domains),
+    keywords: readStringArray(record.keywords),
+    signals: readStringArray(record.signals),
+    reduces: readString(record.reduces),
+    prerequisites: readStringArray(record.prerequisites),
+    invariantHints: readStringArray(record.invariantHints ?? record.invariant_hints),
+    verificationHints: readStringArray(record.verificationHints ?? record.verification_hints),
+    preferredRecipe: readStringArray(record.preferredRecipe ?? record.preferred_recipe),
+    avoidPatterns: readStringArray(record.avoidPatterns ?? record.avoid_patterns),
+    wolframHint: readString(record.wolframHint ?? record.wolfram_hint),
+    casHint: readString(record.casHint ?? record.cas_hint ?? record.sage_hint),
+    confidence: readConfidence(record.confidence)
+  };
+}
+
+function dedupeTheorems(theorems: TheoremEntry[]): TheoremEntry[] {
+  const deduped: TheoremEntry[] = [];
+  const seen = new Set<string>();
+  for (const theorem of theorems) {
+    if (seen.has(theorem.id)) continue;
+    seen.add(theorem.id);
+    deduped.push(theorem);
+  }
+  return deduped;
+}
+
+function readString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string").map(item => item.trim()).filter(Boolean);
+}
+
+function readConfidence(value: unknown): TheoremEntry["confidence"] {
+  if (value === "low" || value === "medium" || value === "high") return value;
+  return undefined;
 }
 
 function normalizeConfidence(prior: TheoremEntry["confidence"], score: number): TheoremSuggestion["confidence"] {
@@ -572,6 +737,7 @@ function inferRecommendedTools(problem: string, analysis: ProblemAnalysis): stri
   const tools: string[] = [];
   if (analysis.workflow.theoryFirst || analysis.suggestedTheorems.length) tools.push("theorem_advisor");
   if (/integral|integrate|\u79ef\u5206|\u222b/.test(lowered)) tools.push("wolfram_integrate");
+  if (/derivative|differentiate|d\/d|partial|\u6c42\u5bfc|\u5bfc\u6570|\u504f\u5bfc/.test(lowered)) tools.push("wolfram_differentiate");
   if (/limit|lim\b|\u6781\u9650/.test(lowered)) tools.push("wolfram_limit");
   if (/series|taylor|laurent|asymptotic|\u5c55\u5f00|\u7ea7\u6570/.test(lowered)) tools.push("wolfram_series");
   if (/sum|summation|sigma|\u6c42\u548c|\u03a3/.test(lowered)) tools.push("wolfram_sum");
@@ -579,6 +745,8 @@ function inferRecommendedTools(problem: string, analysis: ProblemAnalysis): stri
   if (/laplace|fourier|mellin|z[-\s]?transform|\u53d8\u6362/.test(lowered)) tools.push("wolfram_transform");
   if (/residue|contour|pole|\u7559\u6570|\u56f4\u9053/.test(lowered)) tools.push("wolfram_residue");
   if (/solve|equation|\u65b9\u7a0b|\u4e0d\u7b49\u5f0f/.test(lowered)) tools.push("wolfram_solve");
+  if (/expand|factor|apart|together|cancel|collect|\u5c55\u5f00|\u56e0\u5f0f|\u56e0\u5f0f\u5206\u89e3|\u901a\u5206|\u5408\u5e76\u540c\u7c7b/.test(lowered)) tools.push("wolfram_algebra");
+  if (/matrix|determinant|eigen|rank|inverse|row reduce|\u77e9\u9635|\u884c\u5217\u5f0f|\u7279\u5f81\u503c|\u9006\u77e9\u9635/.test(lowered)) tools.push("wolfram_matrix");
   if (/simplify|prove identity|identity|\u5316\u7b80|\u6052\u7b49/.test(lowered)) tools.push("wolfram_simplify");
   if (!tools.length) tools.push("wolfram_simplify", "wolfram_eval");
   return [...new Set(tools)];
@@ -591,6 +759,45 @@ function inferProblemType(problem: string, analysis: ProblemAnalysis): string {
   if (/matrix|eigen|linear/.test(lowered)) return "linear_algebra";
   if (/probability|expectation|variance|\u6982\u7387/.test(lowered)) return "probability";
   return "general";
+}
+
+function extractObjects(problem: string, analysis: ProblemAnalysis): string[] {
+  const objects: string[] = [];
+  const namedAssignments = [...problem.matchAll(/\b([A-Z][A-Za-z0-9_]*|[a-z]_\{?\d+\}?|[a-z]_\d+)\s*(?:=|:=|is|be)\s*([^.;\n]+)/g)]
+    .slice(0, 10)
+    .map(match => `${match[1]} = ${match[2].trim()}`);
+  appendUnique(objects, namedAssignments);
+
+  const functions = [...problem.matchAll(/\b([A-Za-z][A-Za-z0-9_]*)\s*\(([^)]{1,40})\)/g)]
+    .slice(0, 10)
+    .map(match => `${match[1]}(${match[2]})`);
+  appendUnique(objects, functions);
+  appendUnique(objects, analysis.suggestedInvariants.slice(0, 8));
+  return objects.slice(0, 16);
+}
+
+function inferStatementDomain(statement: string, analysis: ProblemAnalysis): string {
+  const lowered = statement.toLowerCase();
+  if (/finite\s+field|curve|frobenius|zeta|GF\(|F_\{?/.test(statement)) return "algebraic_geometry";
+  if (/maass|mock|theta|modular|eta|q-series|hecke|cm\s+point/i.test(statement)) return "modular_forms";
+  if (/residue|contour|pole|rouche|holomorphic|meromorphic/i.test(statement)) return "complex_analysis";
+  if (/integral|limit|series|sum|convergen/i.test(lowered)) return "analysis";
+  if (/matrix|eigen|operator|linear/i.test(statement)) return "linear_algebra";
+  if (/probability|expectation|variance|distribution/i.test(statement)) return "probability";
+  return analysis.detectedDomains[0] ?? "general";
+}
+
+function inferFinalTarget(problem: string, subproblems: Subproblem[]): string {
+  const targetPatterns = [
+    /\b(?:compute|find|determine|prove|show)\b([^.;\n]+)/gi,
+    /(?:\u6c42|\u8ba1\u7b97|\u8bc1\u660e|\u5224\u65ad)([^\u3002\uff1b;\n]+)/g
+  ];
+  for (const pattern of targetPatterns) {
+    const matches = [...problem.matchAll(pattern)];
+    const last = matches.at(-1);
+    if (last?.[0]) return last[0].trim();
+  }
+  return subproblems.at(-1)?.statement ?? "solve the original problem";
 }
 
 function defaultStrategy(analysis: ProblemAnalysis): string {

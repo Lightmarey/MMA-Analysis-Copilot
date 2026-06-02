@@ -49,7 +49,7 @@ WMAHandleRequest[req_Association] := Module[
   {
     id, tool, args, timeoutMs, start, expr, var, lower, upper, assumptions,
     operation, point, direction, method, result, order, funcs, transform,
-    targetVar
+    targetVar, matrix
   },
   id = Lookup[req, "id", Null];
   tool = Lookup[req, "tool", ""];
@@ -100,6 +100,22 @@ WMAHandleRequest[req_Association] := Module[
     Return[WMAFormatResult[id, "Integrate", start, result]];
   ];
 
+  If[tool === "wolfram_differentiate",
+    expr = WMAParseInput[Lookup[args, "expr", ""]];
+    var = WMAParseInput[Lookup[args, "variable", "x"]];
+    order = WMAParseInteger[Lookup[args, "order", 1], 1];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
+    result = WMAWithTime[
+      Assuming[assumptions,
+        With[{v = var, ord = Max[1, order]},
+          D[expr, {v, ord}]
+        ]
+      ],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, "Differentiate", start, result]];
+  ];
+
   If[tool === "wolfram_limit",
     expr = WMAParseInput[Lookup[args, "expr", ""]];
     var = WMAParseInput[Lookup[args, "variable", "x"]];
@@ -140,6 +156,52 @@ WMAHandleRequest[req_Association] := Module[
       timeoutMs
     ];
     Return[WMAFormatResult[id, method, start, result]];
+  ];
+
+  If[tool === "wolfram_algebra",
+    expr = WMAParseInput[Lookup[args, "expr", ""]];
+    operation = Lookup[args, "operation", "Factor"];
+    var = WMAParseInput[Lookup[args, "variable", ""]];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
+    result = WMAWithTime[
+      Assuming[assumptions,
+        Switch[operation,
+          "Expand", Expand[expr],
+          "Apart", Apart[expr],
+          "Together", Together[expr],
+          "Cancel", Cancel[expr],
+          "Collect", If[var === $Failed, Collect[expr, Variables[expr]], With[{v = var}, Collect[expr, v]]],
+          _, Factor[expr]
+        ]
+      ],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, operation, start, result]];
+  ];
+
+  If[tool === "wolfram_matrix",
+    matrix = WMAParseInput[Lookup[args, "matrix", ""]];
+    operation = Lookup[args, "operation", "Det"];
+    var = WMAParseInput[Lookup[args, "variable", "lambda"]];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
+    result = WMAWithTime[
+      Assuming[assumptions,
+        With[{m = matrix, v = If[var === $Failed, Symbol["lambda"], var]},
+          Switch[operation,
+            "Inverse", Inverse[m],
+            "Eigenvalues", Eigenvalues[m],
+            "Eigensystem", Eigensystem[m],
+            "CharacteristicPolynomial", CharacteristicPolynomial[m, v],
+            "RowReduce", RowReduce[m],
+            "MatrixRank", MatrixRank[m],
+            "Tr", Tr[m],
+            _, Det[m]
+          ]
+        ]
+      ],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, operation, start, result]];
   ];
 
   If[tool === "wolfram_series",

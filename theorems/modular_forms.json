@@ -1,0 +1,50 @@
+{
+  "domain": "modular_forms",
+  "theorems": [
+    {
+      "id": "mock_theta_radial_limits",
+      "name": "Radial limits of mock theta functions",
+      "domains": ["modular_forms", "number_theory", "q_series"],
+      "keywords": ["mock theta", "radial limit", "Ramanujan", "q-series", "root of unity", "upper half plane"],
+      "signals": ["mock.*theta", "radial", "lim.*y.*0", "q-series", "root\\s+of\\s+unity"],
+      "reduces": "replace divergent radial-limit numerics by a finite roots-of-unity formula",
+      "prerequisites": ["identify the mock theta function type", "extract the rational point h/k", "identify the shadow or modular completion"],
+      "invariant_hints": ["root-of-unity order", "cyclotomic field", "finite radial-limit sum", "minimal polynomial of the resulting algebraic value"],
+      "verification_hints": ["verify algebraicity", "check minimal polynomial irreducibility", "compare with low-precision numerical radial approach only as a sanity check"],
+      "confidence": "high",
+      "preferred_recipe": ["identify the q-series", "extract h/k", "work in an exact cyclotomic field", "apply the finite radial-limit formula", "compute the algebraic value before minpoly"],
+      "avoid_patterns": ["do not shrink epsilon repeatedly near a root of unity", "do not truncate a divergent q-series at floating-point q"],
+      "cas_hint": "A future exact algebraic-number sidecar should evaluate the finite cyclotomic sum and compute minpoly."
+    },
+    {
+      "id": "eta_quotient_evaluation",
+      "name": "Eta-quotient evaluation at rational points",
+      "domains": ["modular_forms", "number_theory"],
+      "keywords": ["eta function", "Dedekind eta", "eta quotient", "eta-quotient", "q-product", "cusp"],
+      "signals": ["eta", "Dedekind", "eta[-\\s]?quotient", "q[-\\s]?product", "cusp"],
+      "reduces": "turn eta-products at rational points into exact finite products or modular transformations",
+      "prerequisites": ["eta-quotient formula", "rational point h/k", "normalization convention"],
+      "invariant_hints": ["level", "weight", "cusp width", "root-of-unity order", "q-power normalization"],
+      "verification_hints": ["verify algebraicity", "check consistency with modular transformations", "check branch and normalization conventions"],
+      "confidence": "high",
+      "preferred_recipe": ["rewrite as eta-quotient", "extract h/k and cusp width", "evaluate exactly in cyclotomic arithmetic", "only then combine with other q-series values"],
+      "avoid_patterns": ["do not approximate an infinite product near a root of unity", "do not vary truncation lengths as a substitute for exact cusp analysis"],
+      "cas_hint": "Use exact cyclotomic arithmetic for finite products; Wolfram can simplify the resulting algebraic expressions when represented symbolically."
+    },
+    {
+      "id": "harmonic_weak_maass_construction",
+      "name": "Construction of harmonic weak Maass forms and CM evaluations",
+      "domains": ["modular_forms", "number_theory"],
+      "keywords": ["harmonic weak Maass", "weak Maass form", "Maass form", "holomorphic part", "CM point", "Hecke translate", "Catalan constant", "L(2,chi)", "trace"],
+      "signals": ["harmonic.*weak.*maass", "maass\\s+form", "holomorphic\\s+part", "CM\\s+point", "hecke.*translat", "trace.*to.*Q", "catalan.*constant", "L\\(2.*chi"],
+      "reduces": "this is a construction/research task: first choose and justify a theoretical construction, then use CAS only for targeted verification",
+      "prerequisites": ["target weight and level", "CM discriminant and point", "target L-value or period", "candidate construction method"],
+      "invariant_hints": ["weight", "level", "character", "principal part at cusps", "CM discriminant", "Hecke action on the holomorphic part"],
+      "verification_hints": ["verify harmonicity", "verify the principal part at cusps", "check the CM evaluation numerically", "verify rationality of traced coefficients for small Hecke indices"],
+      "confidence": "high",
+      "preferred_recipe": ["write the theoretical construction first", "choose Poincare series, xi-preimage, Eisenstein derivative, or theta lift", "derive the holomorphic part expansion", "use CAS for coefficient and CM checks only"],
+      "avoid_patterns": ["do not blindly explore modular-form spaces with repeated CAS calls", "do not try to discover the Maass form numerically"],
+      "cas_hint": "Theory-first. Use a CAS only after specifying the construction, e.g. to verify q-expansion coefficients or numerical CM evaluations."
+    }
+  ]
+}

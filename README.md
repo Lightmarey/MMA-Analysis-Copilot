@@ -6,7 +6,8 @@ This branch implements a small TypeScript agent shell inspired by `ai4math`:
 
 - OpenAI-compatible tool-calling loop.
 - Local theorem/preplanning/routing layer inspired by `ai4math`.
-- Wolfram tools for simplify, integrate, limit, solve, series, sum, ODEs, transforms, and residues.
+- JSON-extensible theorem/tactic library.
+- Wolfram tools for simplify, algebra, differentiate, integrate, limit, solve, matrix operations, series, sum, ODEs, transforms, and residues.
 - Optional persistent Wolfram worker over JSON lines.
 - Markdown output for terminal and future notebook frontends.
 - No CAS-specific rendering in the CLI.
@@ -31,6 +32,8 @@ WOLFRAM_AGENT_FLASH_MODEL=...
 WOLFRAM_AGENT_PRO_MODEL=...
 WOLFRAM_AGENT_AUTO_ROUTE=true
 WOLFRAM_AGENT_PREPLAN_ENABLED=true
+WOLFRAM_THEOREM_SOURCE=merge
+WOLFRAM_THEOREM_EXTERNAL_PATH=
 WOLFRAM_COMMAND=C:\Program Files\Wolfram Research\WolframScript\wolframscript.exe
 ```
 
@@ -64,6 +67,10 @@ npm run dev -- --batch questions.md --output output/batch-run --trace
 Batch files are split on lines containing only `---`. Saved trace reports
 include routing, preplanning context, tool arguments, and compact tool results.
 Questions may inline local text files with `@path/to/file.md`.
+
+Theorem guidance is loaded from built-ins plus `theorems/*.json` by default.
+Set `WOLFRAM_THEOREM_EXTERNAL_PATH` to merge in a custom theorem file, or set
+`WOLFRAM_THEOREM_SOURCE=external` to use only that external file.
 
 Useful checks:
 

@@ -21,8 +21,11 @@ const wolframToolNames = new Set<string>([
   "wolfram_eval",
   "wolfram_simplify",
   "wolfram_integrate",
+  "wolfram_differentiate",
   "wolfram_limit",
   "wolfram_solve",
+  "wolfram_algebra",
+  "wolfram_matrix",
   "wolfram_series",
   "wolfram_sum",
   "wolfram_dsolve",
@@ -70,6 +73,16 @@ export const toolDefinitions: ToolDefinition[] = [
     }
   ),
   defineTool(
+    "wolfram_differentiate",
+    "Differentiate a Wolfram Language expression, optionally multiple times.",
+    {
+      expr: { type: "string", description: "Expression in Wolfram Language InputForm syntax." },
+      variable: { type: "string", description: "Differentiation variable." },
+      order: { type: "integer", description: "Derivative order, usually a positive integer." },
+      assumptions: { type: "string", description: "Wolfram assumptions, or empty string." }
+    }
+  ),
+  defineTool(
     "wolfram_limit",
     "Compute a limit with optional assumptions.",
     {
@@ -87,6 +100,26 @@ export const toolDefinitions: ToolDefinition[] = [
       equations: { type: "string", description: "Equation, inequality, or list of equations in Wolfram syntax." },
       variables: { type: "string", description: "Variable or list of variables in Wolfram syntax." },
       method: { type: "string", enum: ["Solve", "Reduce", "NSolve", "FindInstance"], description: "Solving method." },
+      assumptions: { type: "string", description: "Wolfram assumptions, or empty string." }
+    }
+  ),
+  defineTool(
+    "wolfram_algebra",
+    "Perform algebraic expression transformations such as Expand, Factor, Apart, Together, Cancel, and Collect.",
+    {
+      expr: { type: "string", description: "Expression in Wolfram Language InputForm syntax." },
+      operation: { type: "string", enum: ["Expand", "Factor", "Apart", "Together", "Cancel", "Collect"], description: "Algebraic operation." },
+      variable: { type: "string", description: "Optional variable for Collect, or empty string." },
+      assumptions: { type: "string", description: "Wolfram assumptions, or empty string." }
+    }
+  ),
+  defineTool(
+    "wolfram_matrix",
+    "Compute matrix determinant, inverse, eigenvalues/eigensystem, characteristic polynomial, row reduction, rank, or trace.",
+    {
+      matrix: { type: "string", description: "Matrix in Wolfram list syntax, e.g. {{1,2},{3,4}}." },
+      operation: { type: "string", enum: ["Det", "Inverse", "Eigenvalues", "Eigensystem", "CharacteristicPolynomial", "RowReduce", "MatrixRank", "Tr"], description: "Matrix operation." },
+      variable: { type: "string", description: "Variable for CharacteristicPolynomial, or empty string." },
       assumptions: { type: "string", description: "Wolfram assumptions, or empty string." }
     }
   ),

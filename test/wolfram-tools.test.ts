@@ -32,6 +32,33 @@ try {
   assert.equal(limit.ok, true);
   assert.equal(limit.output, "1");
 
+  const derivative = await backend.call("wolfram_differentiate", {
+    expr: "x^3 Sin[x]",
+    variable: "x",
+    order: 1,
+    assumptions: ""
+  });
+  assert.equal(derivative.ok, true);
+  assert.match(derivative.output ?? "", /3\*x\^2\*Sin\[x\]/);
+
+  const algebra = await backend.call("wolfram_algebra", {
+    expr: "x^4 - 1",
+    operation: "Factor",
+    variable: "",
+    assumptions: ""
+  });
+  assert.equal(algebra.ok, true);
+  assert.match(algebra.output ?? "", /-1 \+ x/);
+
+  const matrix = await backend.call("wolfram_matrix", {
+    matrix: "{{1, 2}, {3, 4}}",
+    operation: "Det",
+    variable: "",
+    assumptions: ""
+  });
+  assert.equal(matrix.ok, true);
+  assert.equal(matrix.output, "-2");
+
   const series = await backend.call("wolfram_series", {
     expr: "Sin[x]",
     variable: "x",

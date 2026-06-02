@@ -3,7 +3,7 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import { config } from "../config.js";
 import { WolframBackend } from "../wolfram/backend.js";
 import { formatToolResult, formatToolResultMarkdown, isWolframToolName, runLocalTool, toolDefinitions } from "./tools.js";
-import { analyzeProblem, buildPreplanContext, classifyDifficulty, createPreplan } from "./planning.js";
+import { analyzeProblem, buildPreplanContext, classifyDifficulty, createPreplan, decomposeProblem } from "./planning.js";
 import type { AgentToolName, LocalToolName } from "./tools.js";
 
 const SYSTEM_PROMPT = `You are a careful mathematical assistant.
@@ -53,6 +53,7 @@ export class MathAgent {
   async chat(userMessage: string, callbacks: AgentCallbacks = {}): Promise<string> {
     const analysis = analyzeProblem(userMessage);
     const preplan = createPreplan(userMessage, analysis);
+    const decomposition = decomposeProblem(userMessage, analysis);
     const difficulty = classifyDifficulty(userMessage, analysis);
     const effectiveModel = config.autoRoute
       ? difficulty === "simple"
@@ -63,7 +64,7 @@ export class MathAgent {
 
     this.messages.push({ role: "user", content: userMessage });
     if (config.preplanEnabled) {
-      const preplanContext = buildPreplanContext(analysis, preplan);
+      const preplanContext = buildPreplanContext(analysis, preplan, decomposition);
       callbacks.onPlan?.(preplanContext);
       this.messages.push({ role: "system", content: preplanContext });
     }
@@ -85,6 +86,14 @@ export class MathAgent {
 
       if (message.content) {
         collected.push(message.content);
+      }
+
+      if (choice.finish_reason === "length") {
+        this.messages.push({
+          role: "user",
+          content: "Continue from the previous truncated answer. Do not repeat content already written."
+        });
+        continue;
       }
 
       if (!message.tool_calls?.length) {
