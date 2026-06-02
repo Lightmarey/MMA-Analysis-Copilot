@@ -10,7 +10,7 @@ This branch implements a small TypeScript agent shell inspired by `ai4math`:
 - Local theorem/preplanning/routing layer inspired by `ai4math`.
 - JSON-extensible theorem/tactic library, filtered by default to analysis-related domains.
 - Wolfram tools for analysis-first work: simplify, algebraic cleanup, differentiate, integrate, limit, solve/reduce, series, sums, convergence checks, ODEs, transforms, and residues.
-- Optional persistent Wolfram worker over JSON lines.
+- Reliable oneshot Wolfram subprocess backend.
 - Markdown output for terminal and future notebook frontends.
 - No CAS-specific rendering in the CLI.
 
@@ -43,14 +43,11 @@ When auto routing is enabled, simple questions use `WOLFRAM_AGENT_FLASH_MODEL`
 and complex or theory-first questions use `WOLFRAM_AGENT_PRO_MODEL`. If those
 are unset, both fall back to `WOLFRAM_AGENT_MODEL`.
 
-The default Wolfram backend mode is `oneshot`: each tool call runs a short
+The supported Wolfram backend mode is `oneshot`: each tool call runs a short
 `wolframscript -code ...` process. This is slower than a persistent kernel but
-works reliably for the first CLI/TUI version. The experimental JSONL worker is
-kept behind:
-
-```text
-WOLFRAM_BACKEND_MODE=worker
-```
+is the verified delivery path for the current CLI/TUI version. The old JSONL
+worker mode is not supported in this release because `wolframscript` and
+`WolframKernel` stdin behavior was not reliable enough for a stable agent loop.
 
 Interactive mode:
 

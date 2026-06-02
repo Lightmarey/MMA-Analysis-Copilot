@@ -43,6 +43,9 @@ export class WolframBackend {
   }
 
   async call(tool: WolframToolName, args: Record<string, unknown>, timeoutMs = config.wolframWorkerTimeoutMs): Promise<WolframResponse> {
+    if (config.wolframBackendMode === "worker") {
+      throw new Error("WOLFRAM_BACKEND_MODE=worker is not supported in this release. Use the default oneshot backend.");
+    }
     if (config.wolframBackendMode !== "worker") {
       return await this.callOneshot(tool, args, timeoutMs);
     }
@@ -275,7 +278,7 @@ function workerArgs(command: string, workerPath: string): string[] {
 
   const base = path.basename(command).toLowerCase();
   if (base.includes("wolframscript")) {
-    return [];
+    return ["-file", workerPath];
   }
   if (base.includes("wolframkernel")) {
     return ["-noprompt"];
@@ -288,5 +291,5 @@ function shouldBootstrapFromStdin(command: string): boolean {
     return process.env.WOLFRAM_BOOTSTRAP_STDIN.trim().toLowerCase() !== "false";
   }
   const base = path.basename(command).toLowerCase();
-  return base.includes("wolframkernel") || base.includes("wolframscript");
+  return base.includes("wolframkernel");
 }

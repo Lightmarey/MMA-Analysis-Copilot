@@ -63,7 +63,7 @@ program
     const command = findDefaultWolframCommand();
     console.log(`${chalk.bold("Root:")} ${config.rootDir}`);
     console.log(`${chalk.bold("Protocol:")} ${config.wolframProtocolPath}`);
-    console.log(`${chalk.bold("Worker:")} ${config.wolframWorkerPath}`);
+    console.log(`${chalk.bold("Worker:")} unsupported in this release`);
     console.log(`${chalk.bold("Wolfram command:")} ${command || "(not found)"}`);
     console.log(`${chalk.bold("Wolfram backend mode:")} ${config.wolframBackendMode}`);
     console.log(`${chalk.bold("Model:")} ${config.model}`);
