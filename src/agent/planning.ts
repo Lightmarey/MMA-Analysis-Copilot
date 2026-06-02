@@ -683,6 +683,7 @@ function inferRecommendedTools(problem: string, analysis: ProblemAnalysis): stri
   if (/limit|lim\b|\u6781\u9650/.test(lowered)) tools.push("wolfram_limit");
   if (/series|taylor|laurent|asymptotic|\u5c55\u5f00|\u7ea7\u6570/.test(lowered)) tools.push("wolfram_series");
   if (/sum|summation|sigma|\u6c42\u548c|\u03a3/.test(lowered)) tools.push("wolfram_sum");
+  if (/convergen|divergen|converges|diverges|test\s+for|判别|收敛|发散/.test(lowered)) tools.push("wolfram_convergence");
   if (/ode|differential equation|dsolve|\u5fae\u5206\u65b9\u7a0b/.test(lowered)) tools.push("wolfram_dsolve");
   if (/laplace|fourier|mellin|z[-\s]?transform|\u53d8\u6362/.test(lowered)) tools.push("wolfram_transform");
   if (/residue|contour|pole|\u7559\u6570|\u56f4\u9053/.test(lowered)) tools.push("wolfram_residue");

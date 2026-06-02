@@ -18,6 +18,11 @@ assert.ok(residueAnalysis.suggestedTheorems.some(item => item.theorem === "Resid
 assert.ok(residuePlan.recommendedTools.includes("wolfram_residue"));
 assert.match(buildPreplanContext(residueAnalysis, residuePlan), /workflow_order: theorem -> invariants -> verification/);
 
+const convergenceProblem = "Determine whether Sum[1/k^p, {k, 1, Infinity}] converges and state the condition on p.";
+const convergencePlan = createPreplan(convergenceProblem);
+assert.ok(convergencePlan.recommendedTools.includes("wolfram_convergence"));
+assert.ok(convergencePlan.recommendedTools.includes("wolfram_sum"));
+
 const simpleProblem = "Simplify Sin[x]^2 + Cos[x]^2.";
 const simpleAnalysis = analyzeProblem(simpleProblem);
 assert.equal(classifyDifficulty(simpleProblem, simpleAnalysis), "simple");

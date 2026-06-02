@@ -28,6 +28,7 @@ const wolframToolNames = new Set<string>([
   "wolfram_matrix",
   "wolfram_series",
   "wolfram_sum",
+  "wolfram_convergence",
   "wolfram_dsolve",
   "wolfram_transform",
   "wolfram_residue"
@@ -142,6 +143,18 @@ export const toolDefinitions: ToolDefinition[] = [
       variable: { type: "string", description: "Summation variable." },
       lower: { type: "string", description: "Lower bound, or empty string for an indefinite sum." },
       upper: { type: "string", description: "Upper bound, e.g. n or Infinity, or empty string." },
+      assumptions: { type: "string", description: "Wolfram assumptions, or empty string." }
+    }
+  ),
+  defineTool(
+    "wolfram_convergence",
+    "Check analysis convergence conditions for infinite sums or parameter-dependent definite integrals.",
+    {
+      expr: { type: "string", description: "Summand or integrand in Wolfram Language InputForm syntax." },
+      variable: { type: "string", description: "Summation or integration variable." },
+      lower: { type: "string", description: "Lower bound, or empty string for an indefinite sum convergence check." },
+      upper: { type: "string", description: "Upper bound, e.g. Infinity, or empty string." },
+      operation: { type: "string", enum: ["SumConvergence", "IntegralConditions"], description: "Use SumConvergence for series; use IntegralConditions to return GenerateConditions from a definite integral." },
       assumptions: { type: "string", description: "Wolfram assumptions, or empty string." }
     }
   ),

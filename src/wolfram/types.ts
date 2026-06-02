@@ -9,6 +9,7 @@ export type WolframToolName =
   | "wolfram_matrix"
   | "wolfram_series"
   | "wolfram_sum"
+  | "wolfram_convergence"
   | "wolfram_dsolve"
   | "wolfram_transform"
   | "wolfram_residue";

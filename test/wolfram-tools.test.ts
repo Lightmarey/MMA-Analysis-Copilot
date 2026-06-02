@@ -92,6 +92,29 @@ try {
   assert.match(sum.output ?? "", /n/);
   assert.doesNotMatch(sum.output ?? "", /k\*n/);
 
+  const sumConvergence = await backend.call("wolfram_convergence", {
+    expr: "1/k^p",
+    variable: "k",
+    lower: "1",
+    upper: "Infinity",
+    operation: "SumConvergence",
+    assumptions: ""
+  });
+  assert.equal(sumConvergence.ok, true);
+  assert.equal(sumConvergence.output, "Re[p] > 1");
+
+  const integralConditions = await backend.call("wolfram_convergence", {
+    expr: "x^a",
+    variable: "x",
+    lower: "0",
+    upper: "1",
+    operation: "IntegralConditions",
+    assumptions: ""
+  });
+  assert.equal(integralConditions.ok, true);
+  assert.equal(integralConditions.output, "(1 + a)^(-1)");
+  assert.match(integralConditions.conditions ?? "", /Re\[a\] > -1/);
+
   const residue = await backend.call("wolfram_residue", {
     expr: "1/(z - a)",
     variable: "z",

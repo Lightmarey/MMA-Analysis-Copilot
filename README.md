@@ -1,15 +1,15 @@
 # Wolfram Math Agent
 
 A Wolfram Engine backed math-agent CLI/TUI experiment focused on analysis
-workflows: limits, integration, series, ODEs, transforms, residues, and the
-theorem/invariant checks that usually surround them.
+workflows: limits, integration, convergence tests, series, ODEs, transforms,
+residues, and the theorem/invariant checks that usually surround them.
 
 This branch implements a small TypeScript agent shell inspired by `ai4math`:
 
 - OpenAI-compatible tool-calling loop.
 - Local theorem/preplanning/routing layer inspired by `ai4math`.
 - JSON-extensible theorem/tactic library, filtered by default to analysis-related domains.
-- Wolfram tools for analysis-first work: simplify, algebraic cleanup, differentiate, integrate, limit, solve/reduce, series, sums, ODEs, transforms, and residues.
+- Wolfram tools for analysis-first work: simplify, algebraic cleanup, differentiate, integrate, limit, solve/reduce, series, sums, convergence checks, ODEs, transforms, and residues.
 - Optional persistent Wolfram worker over JSON lines.
 - Markdown output for terminal and future notebook frontends.
 - No CAS-specific rendering in the CLI.
@@ -80,7 +80,9 @@ that external file.
 Wolfram results keep assumptions visible. If a tool returns
 `ConditionalExpression[value, condition]`, the protocol exposes `output` for
 the value, `conditions` for the condition, and `rawOutput` for the original
-Wolfram expression.
+Wolfram expression. Use `wolfram_convergence` for direct p-series and related
+sum convergence checks, and for extracting generated conditions from
+parameter-dependent definite integrals.
 
 For now the project keeps Wolfram capabilities as in-project structured tools
 rather than a separate MCP server. That is the better short-term fit while the

@@ -262,6 +262,39 @@ WMAHandleRequest[req_Association] := Module[
     Return[WMAFormatResult[id, "Sum", start, result]];
   ];
 
+  If[tool === "wolfram_convergence",
+    expr = WMAParseInput[Lookup[args, "expr", ""]];
+    var = WMAParseInput[Lookup[args, "variable", "k"]];
+    lower = Lookup[args, "lower", ""];
+    upper = Lookup[args, "upper", ""];
+    operation = Lookup[args, "operation", "SumConvergence"];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
+    result = WMAWithTime[
+      Assuming[assumptions,
+        With[{v = var, lo = WMAParseInput[lower], hi = WMAParseInput[upper]},
+          Switch[operation,
+            "IntegralConditions",
+              If[StringLength[StringTrim[lower]] > 0 && StringLength[StringTrim[upper]] > 0,
+                Integrate[expr, {v, lo, hi}, GenerateConditions -> True],
+                $Failed
+              ],
+            _,
+              Which[
+                StringLength[StringTrim[lower]] > 0 && StringLength[StringTrim[upper]] > 0,
+                  SumConvergence[expr, {v, lo, hi}],
+                StringLength[StringTrim[upper]] > 0,
+                  SumConvergence[expr, {v, hi}],
+                True,
+                  SumConvergence[expr, v]
+              ]
+          ]
+        ]
+      ],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, operation, start, result]];
+  ];
+
   If[tool === "wolfram_dsolve",
     expr = WMAParseInput[Lookup[args, "equations", ""]];
     funcs = WMAParseInput[Lookup[args, "functions", ""]];
