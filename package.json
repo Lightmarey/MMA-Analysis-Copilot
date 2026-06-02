@@ -12,6 +12,7 @@
     "dev": "tsx src/cli/main.ts",
     "doctor": "tsx src/cli/main.ts doctor",
     "smoke:wolfram": "tsx src/cli/main.ts --direct-wolfram \"2+2\"",
+    "verify": "npm run test && npm run test:wolfram && npm run build && npm run doctor",
     "test": "npm run check && npm run test:planning && npm run test:input && npm run test:report && npm run test:backend && npm run test:runtime",
     "test:planning": "tsx test/planning.test.ts",
     "test:input": "tsx test/input.test.ts",

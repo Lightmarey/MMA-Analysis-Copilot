@@ -21,7 +21,7 @@ npm install
 npm run build
 npm run doctor
 npm run smoke:wolfram
-npm run dev -- "FullSimplify[Sin[x]^2 + Cos[x]^2]"
+npm run verify
 ```
 
 Set these environment variables as needed:
@@ -60,11 +60,15 @@ npm run dev
 Single-question file input, stdin, and batch mode:
 
 ```powershell
+npm run dev -- --direct-wolfram "FullSimplify[Sin[x]^2 + Cos[x]^2]"
 npm run dev -- --file question.md --output output/answer.md --trace
 Get-Content question.md | npm run dev -- --output output/answer.md --trace
 npm run dev -- --batch questions.md --output output/batch-run --trace
 npm run dev -- -t 0 -n 12 --trace "Determine whether Sum[1/k^p,{k,1,Infinity}] converges."
 ```
+
+Natural-language agent mode requires `OPENAI_API_KEY`; direct Wolfram mode only
+requires a working local Wolfram Engine command.
 
 Batch files are split on lines containing only `---`. Saved trace reports
 include routing, preplanning context, tool arguments, compact tool results, and
@@ -101,4 +105,5 @@ npm run test:planning
 npm run test:input
 npm run test:wolfram
 npm run smoke:wolfram
+npm run verify
 ```
