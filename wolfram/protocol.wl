@@ -1,12 +1,33 @@
 $HistoryLength = 0;
 
-ClearAll[WMASafeString, WMASafeTeX, WMAParseInput, WMAElapsedMs, WMAWithTime, WMAFormatResult, WMAHandleRequest];
+ClearAll[
+  WMASafeString, WMASafeTeX, WMAParseInput, WMAParseAssumptions,
+  WMAParseInteger, WMAElapsedMs, WMAWithTime, WMAFormatResult,
+  WMAHandleRequest
+];
 
 WMASafeString[expr_] := Quiet@Check[ToString[expr, InputForm, PageWidth -> Infinity], ToString[Unevaluated[expr], InputForm]];
 WMASafeTeX[expr_] := Quiet@Check[ToString[TeXForm[expr], PageWidth -> Infinity], ""];
 
-WMAParseInput[s_String] := Quiet@Check[ToExpression[s, InputForm], $Failed];
-WMAParseInput[_] := $Failed;
+WMAParseInput[s_String] := Module[{trimmed},
+  trimmed = StringTrim[s];
+  If[trimmed === "", Return[$Failed]];
+  Quiet@Check[ToExpression[trimmed, InputForm], $Failed]
+];
+WMAParseInput[expr_] := expr;
+
+WMAParseAssumptions[s_String] := Module[{trimmed, parsed},
+  trimmed = StringTrim[s];
+  If[trimmed === "", Return[True]];
+  parsed = WMAParseInput[trimmed];
+  If[parsed === $Failed, True, parsed]
+];
+WMAParseAssumptions[_] := True;
+
+WMAParseInteger[value_, default_Integer] := Module[{parsed},
+  parsed = Quiet@Check[If[IntegerQ[value], value, ToExpression[ToString[value], InputForm]], default];
+  If[IntegerQ[parsed], parsed, default]
+];
 
 WMAElapsedMs[start_] := Round[1000.0 (AbsoluteTime[] - start)];
 
@@ -25,7 +46,11 @@ WMAFormatResult[id_, title_, start_, result_] := Which[
 ];
 
 WMAHandleRequest[req_Association] := Module[
-  {id, tool, args, timeoutMs, start, expr, var, lower, upper, assumptions, operation, point, direction, method, result},
+  {
+    id, tool, args, timeoutMs, start, expr, var, lower, upper, assumptions,
+    operation, point, direction, method, result, order, funcs, transform,
+    targetVar
+  },
   id = Lookup[req, "id", Null];
   tool = Lookup[req, "tool", ""];
   args = Lookup[req, "args", <||>];
@@ -39,7 +64,7 @@ WMAHandleRequest[req_Association] := Module[
 
   If[tool === "wolfram_simplify",
     expr = WMAParseInput[Lookup[args, "expr", ""]];
-    assumptions = WMAParseInput[Lookup[args, "assumptions", "True"]];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
     operation = Lookup[args, "operation", "FullSimplify"];
     result = WMAWithTime[
       Switch[operation,
@@ -58,12 +83,16 @@ WMAHandleRequest[req_Association] := Module[
     var = WMAParseInput[Lookup[args, "variable", "x"]];
     lower = Lookup[args, "lower", ""];
     upper = Lookup[args, "upper", ""];
-    assumptions = WMAParseInput[Lookup[args, "assumptions", "True"]];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
     result = WMAWithTime[
       Assuming[assumptions,
         If[StringLength[StringTrim[lower]] > 0 && StringLength[StringTrim[upper]] > 0,
-          Integrate[expr, {var, WMAParseInput[lower], WMAParseInput[upper]}, GenerateConditions -> True],
-          Integrate[expr, var, GenerateConditions -> True]
+          With[{v = var, lo = WMAParseInput[lower], hi = WMAParseInput[upper]},
+            Integrate[expr, {v, lo, hi}, GenerateConditions -> True]
+          ],
+          With[{v = var},
+            Integrate[expr, v, GenerateConditions -> True]
+          ]
         ]
       ],
       timeoutMs
@@ -75,14 +104,16 @@ WMAHandleRequest[req_Association] := Module[
     expr = WMAParseInput[Lookup[args, "expr", ""]];
     var = WMAParseInput[Lookup[args, "variable", "x"]];
     point = WMAParseInput[Lookup[args, "point", "0"]];
-    assumptions = WMAParseInput[Lookup[args, "assumptions", "True"]];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
     direction = Lookup[args, "direction", ""];
     result = WMAWithTime[
       Assuming[assumptions,
-        Switch[direction,
-          "FromAbove", Limit[expr, var -> point, Direction -> -1],
-          "FromBelow", Limit[expr, var -> point, Direction -> 1],
-          _, Limit[expr, var -> point]
+        With[{v = var, pt = point},
+          Switch[direction,
+            "FromAbove", Limit[expr, v -> pt, Direction -> -1],
+            "FromBelow", Limit[expr, v -> pt, Direction -> 1],
+            _, Limit[expr, v -> pt]
+          ]
         ]
       ],
       timeoutMs
@@ -94,19 +125,125 @@ WMAHandleRequest[req_Association] := Module[
     expr = WMAParseInput[Lookup[args, "equations", ""]];
     var = WMAParseInput[Lookup[args, "variables", ""]];
     method = Lookup[args, "method", "Solve"];
-    assumptions = WMAParseInput[Lookup[args, "assumptions", "True"]];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
     result = WMAWithTime[
       Assuming[assumptions,
-        Switch[method,
-          "Reduce", Reduce[expr, var],
-          "NSolve", NSolve[expr, var],
-          "FindInstance", FindInstance[expr, var],
-          _, Solve[expr, var]
+        With[{v = var},
+          Switch[method,
+            "Reduce", Reduce[expr, v],
+            "NSolve", NSolve[expr, v],
+            "FindInstance", FindInstance[expr, v],
+            _, Solve[expr, v]
+          ]
         ]
       ],
       timeoutMs
     ];
     Return[WMAFormatResult[id, method, start, result]];
+  ];
+
+  If[tool === "wolfram_series",
+    expr = WMAParseInput[Lookup[args, "expr", ""]];
+    var = WMAParseInput[Lookup[args, "variable", "x"]];
+    point = WMAParseInput[Lookup[args, "point", "0"]];
+    order = WMAParseInteger[Lookup[args, "order", 5], 5];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
+    result = WMAWithTime[
+      Assuming[assumptions,
+        With[{v = var, pt = point, ord = order},
+          Normal@Series[expr, {v, pt, ord}]
+        ]
+      ],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, "Series", start, result]];
+  ];
+
+  If[tool === "wolfram_sum",
+    expr = WMAParseInput[Lookup[args, "expr", ""]];
+    var = WMAParseInput[Lookup[args, "variable", "k"]];
+    lower = Lookup[args, "lower", ""];
+    upper = Lookup[args, "upper", ""];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
+    result = WMAWithTime[
+      Assuming[assumptions,
+        With[{v = var, lo = WMAParseInput[lower], hi = WMAParseInput[upper]},
+          Which[
+            StringLength[StringTrim[lower]] > 0 && StringLength[StringTrim[upper]] > 0,
+              Sum[expr, {v, lo, hi}, GenerateConditions -> True],
+            StringLength[StringTrim[upper]] > 0,
+              Sum[expr, {v, hi}, GenerateConditions -> True],
+            True,
+              Sum[expr, {v}, GenerateConditions -> True]
+          ]
+        ]
+      ],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, "Sum", start, result]];
+  ];
+
+  If[tool === "wolfram_dsolve",
+    expr = WMAParseInput[Lookup[args, "equations", ""]];
+    funcs = WMAParseInput[Lookup[args, "functions", ""]];
+    var = WMAParseInput[Lookup[args, "variable", "x"]];
+    method = Lookup[args, "method", "DSolve"];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
+    result = WMAWithTime[
+      Assuming[assumptions,
+        With[{v = var, f = funcs},
+          Switch[method,
+            "DSolveValue", DSolveValue[expr, f, v],
+            "NDSolve", NDSolve[expr, f, v],
+            _, DSolve[expr, f, v]
+          ]
+        ]
+      ],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, method, start, result]];
+  ];
+
+  If[tool === "wolfram_transform",
+    expr = WMAParseInput[Lookup[args, "expr", ""]];
+    var = WMAParseInput[Lookup[args, "variable", "t"]];
+    targetVar = WMAParseInput[Lookup[args, "targetVariable", "s"]];
+    transform = Lookup[args, "transform", "LaplaceTransform"];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
+    result = WMAWithTime[
+      Assuming[assumptions,
+        With[{v = var, tv = targetVar},
+          Switch[transform,
+            "InverseLaplaceTransform", InverseLaplaceTransform[expr, tv, v],
+            "FourierTransform", FourierTransform[expr, v, tv],
+            "InverseFourierTransform", InverseFourierTransform[expr, tv, v],
+            "MellinTransform", MellinTransform[expr, v, tv],
+            "InverseMellinTransform", InverseMellinTransform[expr, tv, v],
+            "ZTransform", ZTransform[expr, v, tv],
+            "InverseZTransform", InverseZTransform[expr, tv, v],
+            _, LaplaceTransform[expr, v, tv]
+          ]
+        ]
+      ],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, transform, start, result]];
+  ];
+
+  If[tool === "wolfram_residue",
+    expr = WMAParseInput[Lookup[args, "expr", ""]];
+    var = WMAParseInput[Lookup[args, "variable", "z"]];
+    point = WMAParseInput[Lookup[args, "point", "0"]];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
+    result = WMAWithTime[
+      Assuming[assumptions,
+        With[{v = var, pt = point},
+          Residue[expr, {v, pt}]
+        ]
+      ],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, "Residue", start, result]];
   ];
 
   <|"id" -> id, "ok" -> False, "error" -> "Unknown tool: " <> ToString[tool], "elapsedMs" -> WMAElapsedMs[start]|>

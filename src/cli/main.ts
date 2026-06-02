@@ -52,6 +52,10 @@ program
     console.log(`${chalk.bold("Wolfram command:")} ${command || "(not found)"}`);
     console.log(`${chalk.bold("Wolfram backend mode:")} ${config.wolframBackendMode}`);
     console.log(`${chalk.bold("Model:")} ${config.model}`);
+    console.log(`${chalk.bold("Auto route:")} ${config.autoRoute ? "enabled" : "disabled"}`);
+    console.log(`${chalk.bold("Flash model:")} ${config.flashModel}`);
+    console.log(`${chalk.bold("Pro model:")} ${config.proModel}`);
+    console.log(`${chalk.bold("Preplanning:")} ${config.preplanEnabled ? "enabled" : "disabled"}`);
     console.log(`${chalk.bold("OPENAI_API_KEY:")} ${config.openaiApiKey ? "set" : "missing"}`);
     console.log(`${chalk.bold("OPENAI_BASE_URL:")} ${config.openaiBaseUrl ?? "(default)"}`);
   });
@@ -67,6 +71,9 @@ async function askOnce(question: string): Promise<string> {
   const agent = new MathAgent();
   try {
     const answer = await agent.chat(question, {
+      onRoute(difficulty, model) {
+        console.error(chalk.dim(`route ${difficulty} -> ${model}`));
+      },
       onToolCall(name, args) {
         console.error(chalk.dim(`tool ${name} ${JSON.stringify(args)}`));
       }
@@ -121,6 +128,9 @@ async function repl(): Promise<void> {
 
       try {
         const answer = await agent.chat(line, {
+          onRoute(difficulty, model) {
+            console.log(chalk.dim(`route ${difficulty} -> ${model}`));
+          },
           onToolCall(name, args) {
             console.log(chalk.dim(`tool ${name} ${JSON.stringify(args)}`));
           }
@@ -160,7 +170,7 @@ async function runDirectWolfram(code: string): Promise<void> {
 
 function banner(): void {
   console.log(chalk.cyan.bold("Wolfram Math Agent"));
-  console.log(chalk.dim(`model=${config.model} worker=${config.wolframWorkerPath}`));
+  console.log(chalk.dim(`model=${config.model} route=${config.autoRoute ? "auto" : "off"} worker=${config.wolframWorkerPath}`));
   console.log(chalk.dim("Commands: /help /tools /reset /last /save [path] /quit"));
   console.log();
 }

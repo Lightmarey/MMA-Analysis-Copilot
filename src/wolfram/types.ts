@@ -3,7 +3,12 @@ export type WolframToolName =
   | "wolfram_simplify"
   | "wolfram_integrate"
   | "wolfram_limit"
-  | "wolfram_solve";
+  | "wolfram_solve"
+  | "wolfram_series"
+  | "wolfram_sum"
+  | "wolfram_dsolve"
+  | "wolfram_transform"
+  | "wolfram_residue";
 
 export type WolframRequest = {
   id: string;

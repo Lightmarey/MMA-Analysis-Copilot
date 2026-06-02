@@ -11,7 +11,10 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx src/cli/main.ts",
     "doctor": "tsx src/cli/main.ts doctor",
-    "smoke:wolfram": "tsx src/cli/main.ts --direct-wolfram \"2+2\""
+    "smoke:wolfram": "tsx src/cli/main.ts --direct-wolfram \"2+2\"",
+    "test": "npm run check && npm run test:planning",
+    "test:planning": "tsx test/planning.test.ts",
+    "test:wolfram": "tsx test/wolfram-tools.test.ts"
   },
   "dependencies": {
     "chalk": "^5.6.2",
