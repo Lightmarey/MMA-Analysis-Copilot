@@ -3,13 +3,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { analyzeProblem, buildPreplanContext, classifyDifficulty, createPreplan, decomposeProblem, loadTheorems } from "../src/agent/planning.js";
 
-const finiteFieldProblem = String.raw`Count projective points on x^3 y + y^3 z + z^3 x = 0 over F_{5^18}.`;
-const finiteFieldAnalysis = analyzeProblem(finiteFieldProblem);
-assert.equal(finiteFieldAnalysis.scale, "infeasible_brute_force");
-assert.equal(finiteFieldAnalysis.workflow.theoryFirst, true);
-assert.equal(classifyDifficulty(finiteFieldProblem, finiteFieldAnalysis), "complex");
-assert.ok(finiteFieldAnalysis.suggestedInvariants.some(item => item.includes("field characteristic p = 5")));
-assert.ok(finiteFieldAnalysis.verificationChecks.some(item => item.includes("Hasse-Weil")));
+const dctProblem = "Show that the limit may pass under the integral because f_n converges pointwise and is dominated by Exp[-x] on [0, Infinity).";
+const dctAnalysis = analyzeProblem(dctProblem);
+assert.ok(dctAnalysis.suggestedTheorems.some(item => item.theorem === "Dominated convergence theorem"));
+assert.equal(dctAnalysis.workflow.theoryFirst, true);
+assert.equal(classifyDifficulty(dctProblem, dctAnalysis), "complex");
+assert.ok(dctAnalysis.suggestedInvariants.some(item => item.includes("dominating function")));
+assert.ok(dctAnalysis.verificationChecks.some(item => item.includes("integrability of the bound")));
 
 const residueProblem = "Evaluate a contour integral by finding the residues of 1/(z^2 + 1) at its poles.";
 const residueAnalysis = analyzeProblem(residueProblem);
@@ -23,9 +23,9 @@ const simpleAnalysis = analyzeProblem(simpleProblem);
 assert.equal(classifyDifficulty(simpleProblem, simpleAnalysis), "simple");
 
 const longProblem = (
-  "Define F(z) as a mock theta q-series. Let ell_1 be the smallest prime satisfying several constraints. " +
-  "Given that ell_2 is defined from a class number condition, define alpha by a radial limit at ell_1/(4 ell_2). " +
-  "Then compute the minimal polynomial of alpha and determine the final Omega."
+  "Let f_n(x) be a sequence of measurable functions on [0, Infinity). Suppose f_n converges pointwise almost everywhere to f. " +
+  "Assume |f_n(x)| is dominated by g(x) and g is integrable, then compute the limit of the integrals. " +
+  "Furthermore, define a related contour integral with poles at I and -I, and determine the residue contribution."
 ).repeat(3);
 const longAnalysis = analyzeProblem(longProblem);
 const decomposition = decomposeProblem(longProblem, longAnalysis);
@@ -37,8 +37,10 @@ assert.match(longContext, /Problem decomposition/);
 assert.match(longContext, /dependency_order: sp1 -> sp2/);
 
 const theoremIds = new Set(loadTheorems().map(theorem => theorem.id));
-assert.ok(theoremIds.has("mock_theta_radial_limits"));
-assert.ok(theoremIds.has("harmonic_weak_maass_construction"));
+assert.ok(theoremIds.has("dominated_convergence"));
+assert.ok(theoremIds.has("cauchy_integral_formula"));
+assert.equal(theoremIds.has("mock_theta_radial_limits"), false);
+assert.equal(theoremIds.has("finite_field_curve_zeta"), false);
 
 await fs.mkdir(path.join(process.cwd(), "output"), { recursive: true });
 const tempDir = await fs.mkdtemp(path.join(process.cwd(), "output", "wma-theorems-"));
@@ -48,7 +50,7 @@ try {
     theorems: [{
       id: "external_marker",
       name: "External marker theorem",
-      domains: ["external_domain"],
+      domains: ["analysis"],
       keywords: ["special marker"],
       signals: ["special marker"],
       invariant_hints: ["external invariant"],

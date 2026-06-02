@@ -1,13 +1,15 @@
 # Wolfram Math Agent
 
-A Wolfram Engine backed math-agent CLI/TUI experiment.
+A Wolfram Engine backed math-agent CLI/TUI experiment focused on analysis
+workflows: limits, integration, series, ODEs, transforms, residues, and the
+theorem/invariant checks that usually surround them.
 
 This branch implements a small TypeScript agent shell inspired by `ai4math`:
 
 - OpenAI-compatible tool-calling loop.
 - Local theorem/preplanning/routing layer inspired by `ai4math`.
-- JSON-extensible theorem/tactic library.
-- Wolfram tools for simplify, algebra, differentiate, integrate, limit, solve, matrix operations, series, sum, ODEs, transforms, and residues.
+- JSON-extensible theorem/tactic library, filtered by default to analysis-related domains.
+- Wolfram tools for analysis-first work: simplify, algebraic cleanup, differentiate, integrate, limit, solve/reduce, series, sums, ODEs, transforms, and residues.
 - Optional persistent Wolfram worker over JSON lines.
 - Markdown output for terminal and future notebook frontends.
 - No CAS-specific rendering in the CLI.
@@ -68,9 +70,24 @@ Batch files are split on lines containing only `---`. Saved trace reports
 include routing, preplanning context, tool arguments, and compact tool results.
 Questions may inline local text files with `@path/to/file.md`.
 
-Theorem guidance is loaded from built-ins plus `theorems/*.json` by default.
-Set `WOLFRAM_THEOREM_EXTERNAL_PATH` to merge in a custom theorem file, or set
-`WOLFRAM_THEOREM_SOURCE=external` to use only that external file.
+Theorem guidance is loaded from built-ins plus `theorems/*.json` by default,
+then filtered to analysis-related domains. Current default coverage includes
+real/measure analysis, functional analysis, complex analysis, asymptotics, and
+special functions. Set `WOLFRAM_THEOREM_EXTERNAL_PATH` to merge in a custom
+analysis theorem file, or set `WOLFRAM_THEOREM_SOURCE=external` to use only
+that external file.
+
+Wolfram results keep assumptions visible. If a tool returns
+`ConditionalExpression[value, condition]`, the protocol exposes `output` for
+the value, `conditions` for the condition, and `rawOutput` for the original
+Wolfram expression.
+
+For now the project keeps Wolfram capabilities as in-project structured tools
+rather than a separate MCP server. That is the better short-term fit while the
+analysis tool schemas, condition handling, and theorem-routing behavior are
+still changing. Once those interfaces stabilize, the same tool layer can be
+extracted into a Wolfram MCP so other agents can call it without depending on
+this CLI.
 
 Useful checks:
 

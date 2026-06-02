@@ -36,13 +36,30 @@ WMAWithTime[expr_, timeoutMs_Integer] := Module[{seconds},
   TimeConstrained[Quiet@Check[expr, $Failed], seconds, $TimedOut]
 ];
 
-WMAFormatResult[id_, title_, start_, result_] := Which[
-  result === $TimedOut,
-    <|"id" -> id, "ok" -> False, "title" -> title, "error" -> "Wolfram evaluation timed out", "elapsedMs" -> WMAElapsedMs[start]|>,
-  result === $Failed,
-    <|"id" -> id, "ok" -> False, "title" -> title, "error" -> "Wolfram evaluation failed", "elapsedMs" -> WMAElapsedMs[start]|>,
-  True,
-    <|"id" -> id, "ok" -> True, "title" -> title, "output" -> WMASafeString[result], "latex" -> WMASafeTeX[result], "elapsedMs" -> WMAElapsedMs[start]|>
+WMAFormatResult[id_, title_, start_, result_] := Module[{value, condition},
+  Which[
+    result === $TimedOut,
+      <|"id" -> id, "ok" -> False, "title" -> title, "error" -> "Wolfram evaluation timed out", "elapsedMs" -> WMAElapsedMs[start]|>,
+    result === $Failed,
+      <|"id" -> id, "ok" -> False, "title" -> title, "error" -> "Wolfram evaluation failed", "elapsedMs" -> WMAElapsedMs[start]|>,
+    MatchQ[result, ConditionalExpression[_, _]],
+      value = result[[1]];
+      condition = result[[2]];
+      <|
+        "id" -> id,
+        "ok" -> True,
+        "title" -> title,
+        "output" -> WMASafeString[value],
+        "latex" -> WMASafeTeX[value],
+        "conditions" -> WMASafeString[condition],
+        "conditionLatex" -> WMASafeTeX[condition],
+        "rawOutput" -> WMASafeString[result],
+        "rawLatex" -> WMASafeTeX[result],
+        "elapsedMs" -> WMAElapsedMs[start]
+      |>,
+    True,
+      <|"id" -> id, "ok" -> True, "title" -> title, "output" -> WMASafeString[result], "latex" -> WMASafeTeX[result], "elapsedMs" -> WMAElapsedMs[start]|>
+  ]
 ];
 
 WMAHandleRequest[req_Association] := Module[

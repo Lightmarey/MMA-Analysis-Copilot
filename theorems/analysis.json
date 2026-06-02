@@ -1,0 +1,43 @@
+{
+  "theorems": [
+    {
+      "id": "cauchy_integral_formula",
+      "name": "Cauchy integral formula",
+      "domains": ["complex_analysis"],
+      "keywords": ["cauchy integral formula", "holomorphic", "contour integral", "derivative formula"],
+      "signals": ["Cauchy\\s+integral", "holomorphic.*contour", "f\\^\\(n\\)"],
+      "reduces": "convert contour integrals of holomorphic functions into point values or derivatives",
+      "prerequisites": ["holomorphicity on and inside the contour", "point inside the contour"],
+      "invariantHints": ["contour orientation", "singularity location", "derivative order"],
+      "verificationHints": ["check the contour encloses the evaluation point", "check holomorphicity on the relevant domain"],
+      "preferredRecipe": ["identify the kernel order", "verify the contour hypothesis", "apply Cauchy integral formula", "simplify the derivative"],
+      "wolframHint": "Use wolfram_residue or wolfram_differentiate to verify the equivalent derivative form."
+    },
+    {
+      "id": "dirichlet_test",
+      "name": "Dirichlet test",
+      "domains": ["analysis", "series"],
+      "keywords": ["dirichlet test", "oscillatory series", "bounded partial sums", "monotone to zero"],
+      "signals": ["Dirichlet\\s+test", "bounded\\s+partial\\s+sums", "monotone.*zero"],
+      "reduces": "prove convergence of oscillatory series or integrals by separating cancellation from monotone decay",
+      "prerequisites": ["bounded partial sums or primitive", "monotone factor tending to zero"],
+      "invariantHints": ["partial-sum bound", "decay rate", "monotonicity"],
+      "verificationHints": ["verify monotonicity eventually", "verify the bounded partial sums condition"],
+      "preferredRecipe": ["isolate the oscillatory factor", "bound partial sums", "prove monotone decay", "apply Dirichlet"],
+      "wolframHint": "Use wolfram_sum for candidate partial sums and wolfram_limit for the decay factor."
+    },
+    {
+      "id": "implicit_function_theorem",
+      "name": "Implicit function theorem",
+      "domains": ["analysis", "real_analysis"],
+      "keywords": ["implicit function theorem", "jacobian", "locally solve", "nonzero derivative"],
+      "signals": ["implicit\\s+function", "Jacobian", "locally\\s+solve", "nonzero\\s+derivative"],
+      "reduces": "turn a nonlinear equation into a locally defined differentiable function under a nondegenerate derivative condition",
+      "prerequisites": ["continuous differentiability", "invertible relevant derivative or Jacobian"],
+      "invariantHints": ["Jacobian determinant", "base point", "local domain"],
+      "verificationHints": ["check the equation holds at the base point", "check the relevant Jacobian determinant is nonzero"],
+      "preferredRecipe": ["identify dependent and independent variables", "compute the Jacobian block", "verify nondegeneracy", "differentiate the implicit relation if needed"],
+      "wolframHint": "Use wolfram_differentiate and wolfram_solve or wolfram_simplify to verify the Jacobian condition."
+    }
+  ]
+}

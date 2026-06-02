@@ -216,6 +216,9 @@ export function formatToolResult(toolName: string, args: unknown, result: Wolfra
   const lines = [`Tool ${toolName} result:`];
   if (result.output) lines.push(toolName === "theorem_advisor" ? `JSON: ${result.output}` : `InputForm: ${result.output}`);
   if (result.latex) lines.push(`LaTeX: ${result.latex}`);
+  if (result.conditions) lines.push(`Conditions: ${result.conditions}`);
+  if (result.conditionLatex) lines.push(`Conditions LaTeX: ${result.conditionLatex}`);
+  if (result.rawOutput) lines.push(`Raw InputForm: ${result.rawOutput}`);
   if (result.messages?.length) lines.push(`Messages: ${result.messages.join(" | ")}`);
   lines.push(`Arguments: ${JSON.stringify(args)}`);
   return lines.join("\n");
@@ -230,10 +233,14 @@ export function formatToolResultMarkdown(toolName: string, result: WolframRespon
 
   const title = result.title || toolName;
   if (result.latex) {
-    return `> ${title}: $${result.latex}$`;
+    return result.conditionLatex
+      ? `> ${title}: $${result.latex}$ under $${result.conditionLatex}$`
+      : `> ${title}: $${result.latex}$`;
   }
   if (result.output) {
-    return `> ${title}: \`${result.output}\``;
+    return result.conditions
+      ? `> ${title}: \`${result.output}\` under \`${result.conditions}\``
+      : `> ${title}: \`${result.output}\``;
   }
   return "";
 }

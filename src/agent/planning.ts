@@ -87,6 +87,26 @@ export type ProblemDecomposition = {
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const builtinTheoremDir = path.resolve(projectRoot, "theorems");
+const ANALYSIS_DOMAINS = new Set([
+  "analysis",
+  "real_analysis",
+  "measure_theory",
+  "integration",
+  "sequences",
+  "series",
+  "functional_analysis",
+  "normed_spaces",
+  "banach_spaces",
+  "compactness",
+  "operator_theory",
+  "complex_analysis",
+  "normal_families",
+  "asymptotics",
+  "special_functions",
+  "differential_equations",
+  "ode",
+  "transforms"
+]);
 
 const FALLBACK_THEOREMS: TheoremEntry[] = [
   {
@@ -245,34 +265,15 @@ const FALLBACK_THEOREMS: TheoremEntry[] = [
     verificationHints: ["check conditions returned by Wolfram", "test a generic numeric parameter point when appropriate"],
     wolframHint: "Use wolfram_transform, wolfram_integrate, wolfram_simplify, and wolfram_series with explicit assumptions."
   },
-  {
-    id: "finite_field_curve_zeta",
-    name: "Weil zeta function for curves",
-    domains: ["algebraic_geometry", "finite_fields", "number_theory"],
-    keywords: ["finite field", "projective curve", "points over", "weil zeta", "frobenius", "hasse-weil"],
-    signals: ["F_\\{?\\d+\\^\\{?\\d+\\}?\\}?", "GF\\(\\s*\\d+\\s*\\^\\s*\\d+\\s*\\)", "points?.*finite\\s+field"],
-    reduces: "avoid brute-force point enumeration over large extension fields",
-    prerequisites: ["field characteristic", "extension degree", "genus or Frobenius data"],
-    invariantHints: ["field characteristic", "extension degree", "genus", "Frobenius characteristic polynomial"],
-    verificationHints: ["Hasse-Weil bound", "small extension consistency"],
-    preferredRecipe: ["identify base field", "compute zeta/Frobenius data over a small field", "lift to extension degree", "verify Hasse-Weil bound"],
-    avoidPatterns: ["do not enumerate every point over a huge extension field"],
-    confidence: "high"
-  }
 ];
 
 const CONSTRAINT_RE = /\b(such that|given that|subject to|let|define|denote|suppose|assume|where)\b|\u6ee1\u8db3|\u4f7f\u5f97|\u6761\u4ef6/gim;
 const MULTISTEP_RE = /\b(then|subsequently|furthermore|compute|find|determine)\b|\u8fdb\u4e00\u6b65|\u7136\u540e|\u518d[\u6c42\u7b97\u8ba1]/gim;
 const POLY_DEGREE_RE = /[a-zA-Z]\s*\^\s*\{?(\d+)\}?/g;
-const LARGE_POWER_RE = /(\d+)\s*\^\s*(\d+)/g;
 const SENTENCE_SPLIT_RE = /[.;\n\u3002\uff1b]+/g;
 
 const COMPLEX_ROUTING_PATTERNS = [
-  /galois|groebner|mordell[-\s]?weil/i,
-  /elliptic\s*curve|finite\s*field|number\s*field|GF\(/i,
   /proof|prove|show\s+that|\u8bc1\u660e|\u6c42\u8bc1/i,
-  /class\s*number|sylow|character\s+table|\u7279\u5f81\u6807/i,
-  /harmonic\s+weak\s+maass|maass\s+form|hecke|cm\s+point/i,
   /normal\s+family|hahn[-\s]?banach|open\s+mapping|spectral\s+theorem/i,
   /contour\s+integral|rouche|residue\s+theorem/i
 ];
@@ -285,9 +286,9 @@ export function analyzeProblem(problem: string, detectedObjects = ""): ProblemAn
   const suggestedInvariants = suggestInvariants(scaleInfo, matched);
   const verificationChecks = uniqueFlatMap(matched, item => item.verificationHints);
   const scale = scaleInfo.scale;
-  const theoryFirst = scale === "heavy" || scale === "infeasible_brute_force";
+  const theoryFirst = scale === "heavy" || scale === "infeasible_brute_force" || shouldPrioritizeAnalysisTheory(combined, matched);
   const structuralComplexity = assessStructuralComplexity(combined, detectedDomains.length, matched);
-  const shouldUseTheoryFirst = theoryFirst || structuralComplexity.reasons.includes("constructive modular-form research task");
+  const shouldUseTheoryFirst = theoryFirst || structuralComplexity.reasons.includes("analysis theorem-first task");
   const allowBruteforce = (scale === "trivial" || scale === "moderate") && !shouldUseTheoryFirst;
   const softConstraints = matched.filter(item => item.preferredRecipe.length > 0 || item.avoidPatterns.length > 0 || item.wolframHint);
   const recommendedApproach = buildRecommendedApproach(scale, matched, suggestedInvariants, verificationChecks, shouldUseTheoryFirst);
@@ -440,50 +441,6 @@ export function theoremAdvisorTool(args: Record<string, unknown>) {
 }
 
 function estimateScale(text: string): Record<string, string | number> & { scale: ProblemAnalysis["scale"] } {
-  const finiteField = extractFiniteField(text);
-  if (finiteField) {
-    const [p, n] = finiteField;
-    const q = p ** n;
-    if (q > 1e9) {
-      return {
-        finite_field: `F_{${p}^{${n}}}`,
-        field_characteristic: p,
-        field_extension_degree: n,
-        field_size: q,
-        field_size_sci: q.toExponential(2),
-        reason: `field size ${q.toExponential(2)} makes point enumeration infeasible`,
-        scale: "infeasible_brute_force"
-      };
-    }
-    if (q > 1e6) {
-      return {
-        finite_field: `F_{${p}^{${n}}}`,
-        field_characteristic: p,
-        field_extension_degree: n,
-        field_size: q,
-        field_size_sci: q.toExponential(2),
-        reason: `field size ${q.toExponential(2)} is expensive for direct enumeration`,
-        scale: "heavy"
-      };
-    }
-    if (q > 1e3) {
-      return {
-        finite_field: `F_{${p}^{${n}}}`,
-        field_characteristic: p,
-        field_extension_degree: n,
-        field_size: q,
-        scale: "moderate"
-      };
-    }
-    return {
-      finite_field: `F_{${p}^{${n}}}`,
-      field_characteristic: p,
-      field_extension_degree: n,
-      field_size: q,
-      scale: "trivial"
-    };
-  }
-
   const degrees = [...text.matchAll(POLY_DEGREE_RE)].map(match => Number.parseInt(match[1], 10));
   if (degrees.length) {
     const maxDegree = Math.max(...degrees);
@@ -496,32 +453,6 @@ function estimateScale(text: string): Record<string, string | number> & { scale:
     }
   }
   return { scale: "moderate" };
-}
-
-function extractFiniteField(text: string): [number, number] | null {
-  const patterns = [
-    /(?:GF|F)\s*\(\s*(\d+)\s*\^\s*(\d+)\s*\)/i,
-    /\\mathbb\{F\}_\{?(\d+)\^\{?(\d+)\}?\}?/i,
-    /F_\{?(\d+)\^\{?(\d+)\}?\}?/i,
-    /(?:GF|F)\s*\(\s*(\d+)\s*\)/i,
-    /F_(\d+)/i
-  ];
-  for (const pattern of patterns) {
-    const match = pattern.exec(text);
-    if (!match) continue;
-    const p = Number.parseInt(match[1], 10);
-    const n = match[2] ? Number.parseInt(match[2], 10) : 1;
-    if (Number.isFinite(p) && Number.isFinite(n)) return [p, n];
-  }
-
-  for (const match of text.matchAll(LARGE_POWER_RE)) {
-    const base = Number.parseInt(match[1], 10);
-    const exponent = Number.parseInt(match[2], 10);
-    if (base >= 2 && base <= 100 && exponent >= 2) {
-      return [base, exponent];
-    }
-  }
-  return null;
 }
 
 function matchTheorems(text: string): TheoremSuggestion[] {
@@ -575,7 +506,7 @@ export function loadTheorems(): TheoremEntry[] {
   if (!loaded.length) {
     loaded.push(...FALLBACK_THEOREMS);
   }
-  return dedupeTheorems(loaded);
+  return dedupeTheorems(loaded).filter(isAnalysisTheorem);
 }
 
 function loadTheoremDirectory(directory: string): TheoremEntry[] {
@@ -669,9 +600,6 @@ function normalizeConfidence(prior: TheoremEntry["confidence"], score: number): 
 
 function suggestInvariants(scaleInfo: Record<string, string | number>, matched: TheoremSuggestion[]): string[] {
   const invariants: string[] = [];
-  if (scaleInfo.field_characteristic) invariants.push(`field characteristic p = ${scaleInfo.field_characteristic}`);
-  if (scaleInfo.field_extension_degree) invariants.push(`extension degree n = ${scaleInfo.field_extension_degree}`);
-  if (scaleInfo.field_size) invariants.push(`field size q = ${scaleInfo.field_size}`);
   if (scaleInfo.max_polynomial_degree) invariants.push(`max polynomial degree = ${scaleInfo.max_polynomial_degree}`);
   appendUnique(invariants, uniqueFlatMap(matched, item => [...item.invariantHints, ...item.prerequisites]));
   return invariants;
@@ -688,7 +616,7 @@ function assessStructuralComplexity(text: string, domainCount: number, matched: 
   if (domainCount >= 3) reasons.push(`multi-domain (${domainCount} domains)`);
   if (constraintCount >= 3) reasons.push(`many constraints (${constraintCount})`);
   if (multistepCount >= 2) reasons.push(`multi-step (${multistepCount} steps)`);
-  if (requiresTheoryFirstConstruction(text, matched)) reasons.push("constructive modular-form research task");
+  if (requiresTheoryFirstConstruction(text, matched)) reasons.push("analysis theorem-first task");
 
   return {
     isComplex: reasons.length >= 2,
@@ -700,10 +628,24 @@ function assessStructuralComplexity(text: string, domainCount: number, matched: 
 }
 
 function requiresTheoryFirstConstruction(text: string, matched: TheoremSuggestion[]): boolean {
-  const patterns = [/construct/i, /maass/i, /hecke/i, /cm\s+point/i, /catalan/i, /holomorphic/i];
+  const patterns = [/uniform/i, /compact/i, /dominat/i, /holomorphic/i, /contour/i, /asymptotic/i, /weak/i];
   const signalCount = patterns.filter(pattern => pattern.test(text)).length;
-  const hasModular = matched.some(item => item.domains.includes("modular_forms"));
-  return signalCount >= 3 || (signalCount >= 2 && hasModular);
+  const hasAnalysisTheorem = matched.some(item => item.domains.some(domain => ANALYSIS_DOMAINS.has(domain)));
+  return signalCount >= 3 || (signalCount >= 2 && hasAnalysisTheorem);
+}
+
+function shouldPrioritizeAnalysisTheory(text: string, matched: TheoremSuggestion[]): boolean {
+  if (!matched.length) return false;
+  const asksForJustification = /\b(prove|show|justify|establish)\b|\u8bc1\u660e|\u6c42\u8bc1|\u8bf4\u660e/.test(text);
+  return matched.some(item => (
+    item.score >= 2 &&
+    item.domains.some(domain => ANALYSIS_DOMAINS.has(domain)) &&
+    (asksForJustification || item.preferredRecipe.length > 0 || item.verificationHints.length >= 2)
+  ));
+}
+
+function isAnalysisTheorem(theorem: TheoremEntry): boolean {
+  return theorem.domains.some(domain => ANALYSIS_DOMAINS.has(domain));
 }
 
 function buildRecommendedApproach(
@@ -757,7 +699,6 @@ function inferProblemType(problem: string, analysis: ProblemAnalysis): string {
   const lowered = problem.toLowerCase();
   if (/integral|limit|series|sum|\u79ef\u5206|\u6781\u9650|\u7ea7\u6570|\u6c42\u548c/.test(lowered)) return "analysis";
   if (/matrix|eigen|linear/.test(lowered)) return "linear_algebra";
-  if (/probability|expectation|variance|\u6982\u7387/.test(lowered)) return "probability";
   return "general";
 }
 
@@ -778,12 +719,9 @@ function extractObjects(problem: string, analysis: ProblemAnalysis): string[] {
 
 function inferStatementDomain(statement: string, analysis: ProblemAnalysis): string {
   const lowered = statement.toLowerCase();
-  if (/finite\s+field|curve|frobenius|zeta|GF\(|F_\{?/.test(statement)) return "algebraic_geometry";
-  if (/maass|mock|theta|modular|eta|q-series|hecke|cm\s+point/i.test(statement)) return "modular_forms";
   if (/residue|contour|pole|rouche|holomorphic|meromorphic/i.test(statement)) return "complex_analysis";
   if (/integral|limit|series|sum|convergen/i.test(lowered)) return "analysis";
   if (/matrix|eigen|operator|linear/i.test(statement)) return "linear_algebra";
-  if (/probability|expectation|variance|distribution/i.test(statement)) return "probability";
   return analysis.detectedDomains[0] ?? "general";
 }
 

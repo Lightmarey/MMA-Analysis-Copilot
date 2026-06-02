@@ -22,6 +22,18 @@ try {
   assert.equal(integral.ok, true);
   assert.equal(integral.output, "2");
 
+  const conditionalIntegral = await backend.call("wolfram_integrate", {
+    expr: "x^a",
+    variable: "x",
+    lower: "0",
+    upper: "1",
+    assumptions: ""
+  });
+  assert.equal(conditionalIntegral.ok, true);
+  assert.equal(conditionalIntegral.output, "(1 + a)^(-1)");
+  assert.match(conditionalIntegral.conditions ?? "", /Re\[a\] > -1/);
+  assert.match(conditionalIntegral.rawOutput ?? "", /ConditionalExpression/);
+
   const limit = await backend.call("wolfram_limit", {
     expr: "Sin[x]/x",
     variable: "x",

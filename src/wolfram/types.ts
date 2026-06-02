@@ -26,6 +26,10 @@ export type WolframResponse = {
   title?: string;
   output?: string;
   latex?: string;
+  conditions?: string;
+  conditionLatex?: string;
+  rawOutput?: string;
+  rawLatex?: string;
   error?: string;
   messages?: string[];
   elapsedMs?: number;
