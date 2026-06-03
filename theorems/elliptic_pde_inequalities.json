@@ -1,0 +1,87 @@
+{
+  "theorems": [
+    {
+      "id": "elliptic_maximum_principle",
+      "name": "Elliptic maximum principle",
+      "domains": ["elliptic_pde", "partial_differential_equations", "inequalities"],
+      "keywords": ["maximum principle", "elliptic equation", "subharmonic", "superharmonic", "boundary maximum"],
+      "signals": ["maximum\\s+principle", "elliptic.*boundary", "subharmonic|superharmonic"],
+      "reduces": "control an interior extremum of an elliptic solution by boundary values once the sign and ellipticity hypotheses are checked",
+      "prerequisites": ["uniform ellipticity or Laplace-type operator", "appropriate sign condition on Lu", "boundary value control", "connected bounded domain when needed"],
+      "invariantHints": ["operator sign convention", "ellipticity constants", "boundary supremum or infimum"],
+      "verificationHints": ["check the PDE inequality has the correct sign", "check boundary values dominate the claimed bound", "check regularity assumptions for the chosen maximum principle"],
+      "preferredRecipe": ["identify the elliptic operator and sign convention", "verify ellipticity and regularity", "compare with boundary values", "apply maximum principle"],
+      "avoidPatterns": ["do not apply the maximum principle before fixing the sign convention for the operator"],
+      "wolframHint": "Use wolfram_differentiate and wolfram_simplify to verify Lu and boundary inequalities for explicit candidates."
+    },
+    {
+      "id": "hopf_boundary_point_lemma",
+      "name": "Hopf boundary point lemma",
+      "domains": ["elliptic_pde", "partial_differential_equations", "inequalities"],
+      "keywords": ["Hopf lemma", "boundary point lemma", "normal derivative", "strict maximum", "strict minimum"],
+      "signals": ["Hopf\\s+lemma", "normal\\s+derivative", "boundary\\s+point\\s+lemma"],
+      "reduces": "turn a nonconstant boundary extremum for an elliptic inequality into a strict sign condition on the outward normal derivative",
+      "prerequisites": ["strong maximum principle setting", "interior sphere or suitable boundary regularity", "nonconstant solution", "boundary extremum point"],
+      "invariantHints": ["outward normal direction", "boundary regularity", "strict extremum type"],
+      "verificationHints": ["check the solution is not constant", "check the boundary point satisfies the geometric hypothesis", "check the normal derivative orientation"],
+      "preferredRecipe": ["apply maximum principle first", "verify boundary geometry", "compute or identify the normal derivative sign", "state orientation carefully"],
+      "avoidPatterns": ["do not infer the sign of the normal derivative without specifying inward versus outward normal"],
+      "wolframHint": "Use wolfram_differentiate to compute explicit normal derivatives and wolfram_simplify to check their sign under assumptions."
+    },
+    {
+      "id": "sobolev_poincare_inequality",
+      "name": "Sobolev-Poincare inequality",
+      "domains": ["inequalities", "sobolev_spaces", "elliptic_pde"],
+      "keywords": ["Poincare inequality", "Sobolev inequality", "Sobolev-Poincare", "zero boundary", "mean zero"],
+      "signals": ["Poincare\\s+inequality", "Sobolev[-\\s]?Poincare", "mean\\s+zero|zero\\s+boundary"],
+      "reduces": "bound a function norm by a derivative norm under zero boundary, compact support, or mean-zero hypotheses",
+      "prerequisites": ["domain and boundary assumptions", "zero trace or mean-zero normalization", "appropriate Sobolev exponent range"],
+      "invariantHints": ["domain constant", "Sobolev exponent", "normalization condition"],
+      "verificationHints": ["check the normalization condition", "check the exponent is in the valid range", "track dependence of constants on the domain"],
+      "preferredRecipe": ["identify the function space", "verify zero trace or mean-zero condition", "choose the correct exponent", "apply the inequality"],
+      "avoidPatterns": ["do not use Poincare without a normalization condition"],
+      "wolframHint": "Use wolfram_integrate to verify explicit norm integrals and wolfram_simplify to compare exponents in model examples."
+    },
+    {
+      "id": "calderon_zygmund_estimate",
+      "name": "Calderon-Zygmund elliptic estimate",
+      "domains": ["elliptic_pde", "partial_differential_equations", "inequalities"],
+      "keywords": ["Calderon-Zygmund", "elliptic estimate", "W2p estimate", "second derivative estimate", "Lp estimate"],
+      "signals": ["Calder[oó]n[-\\s]?Zygmund", "W\\^?2,?p|W2p", "second\\s+derivative.*L\\^?p"],
+      "reduces": "control second derivatives of an elliptic solution by the right-hand side and lower-order norms under ellipticity and regularity hypotheses",
+      "prerequisites": ["uniform ellipticity", "coefficient regularity appropriate to the estimate", "boundary or interior estimate setting", "right-hand side in Lp"],
+      "invariantHints": ["ellipticity constants", "Lp exponent", "interior versus boundary domain"],
+      "verificationHints": ["check coefficient regularity", "check whether the estimate is interior or global", "track lower-order terms and boundary conditions"],
+      "preferredRecipe": ["identify estimate type", "verify ellipticity and coefficient assumptions", "place f in Lp", "state the resulting W2p bound"],
+      "avoidPatterns": ["do not use a global boundary estimate when only an interior estimate is justified"],
+      "wolframHint": "Use wolfram_differentiate for explicit second derivatives and wolfram_integrate for simple Lp norm checks."
+    },
+    {
+      "id": "cauchy_schwarz_inequality",
+      "name": "Cauchy-Schwarz inequality",
+      "domains": ["inequalities", "analysis"],
+      "keywords": ["Cauchy-Schwarz", "Cauchy inequality", "inner product", "L2 estimate"],
+      "signals": ["Cauchy[-\\s]?Schwarz", "inner\\s+product.*norm", "L\\^?2\\s+estimate"],
+      "reduces": "bound an inner product or integral product by the product of L2 norms",
+      "prerequisites": ["inner-product or L2 setting", "finite relevant norms"],
+      "invariantHints": ["L2 norms", "inner product term", "equality condition"],
+      "verificationHints": ["check both factors are square-integrable", "state equality conditions only when needed"],
+      "preferredRecipe": ["identify the inner product", "compute or bound each norm", "apply Cauchy-Schwarz", "simplify constants"],
+      "wolframHint": "Use wolfram_integrate for explicit L2 norm integrals and wolfram_simplify for the resulting bound."
+    },
+    {
+      "id": "young_inequality_products",
+      "name": "Young inequality for products",
+      "domains": ["inequalities", "analysis", "elliptic_pde"],
+      "keywords": ["Young inequality", "epsilon inequality", "absorb term", "product estimate"],
+      "signals": ["Young\\s+inequality", "epsilon\\s+inequality", "absorb\\s+term"],
+      "reduces": "split a product term into absorbable and controlled parts, typically with an epsilon parameter",
+      "prerequisites": ["positive epsilon parameter", "matching conjugate exponents or quadratic form"],
+      "invariantHints": ["epsilon parameter", "absorbable coercive term", "remaining constant"],
+      "verificationHints": ["check epsilon is chosen small enough to absorb the target term", "track dependence of constants on epsilon"],
+      "preferredRecipe": ["identify product term", "choose epsilon", "apply Young inequality", "absorb into left-hand side"],
+      "avoidPatterns": ["do not hide epsilon-dependent constants when they matter for iteration or compactness"],
+      "wolframHint": "Use wolfram_simplify or wolfram_solve to verify algebraic inequalities involving epsilon under positivity assumptions."
+    }
+  ]
+}

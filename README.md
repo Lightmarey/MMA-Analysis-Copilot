@@ -195,9 +195,41 @@ This avoids rewriting accumulated theorem/function knowledge. The MCP layer is
 mostly a transport and registration adapter around the existing schemas and
 handlers.
 
+## Theorem Authoring
+
+The theorem library lives in `theorems/*.json`. Entries are tactical guidance,
+not full proofs. A good theorem entry tells the agent:
+
+- when the theorem should be considered (`keywords`, `signals`)
+- what hypotheses must be checked (`prerequisites`)
+- which quantities matter (`invariantHints`)
+- what must be verified before the final answer (`verificationHints`)
+- what Wolfram tools may verify side conditions (`wolframHint`)
+
+Generate a draft:
+
+```powershell
+npm run theorem:generate -- --name "Maximum principle" --domain elliptic_pde --domain inequalities --keyword "maximum principle" --output output/maximum-principle.json
+```
+
+Lint theorem files:
+
+```powershell
+npm run theorem:lint
+```
+
+The generator intentionally creates a draft, not production-ready knowledge.
+Review the hypotheses, verification targets, sign conventions, and
+`wolframHint` before moving generated entries into `theorems/`.
+
+Current scoped additions cover elliptic PDE and inequalities, including maximum
+principles, Hopf lemma, Sobolev-Poincare, Calderon-Zygmund estimates,
+Cauchy-Schwarz, and Young product estimates.
+
 ## Verification
 
 ```powershell
+npm run theorem:lint
 npm run check
 npm run test
 npm run test:wolfram

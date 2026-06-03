@@ -106,6 +106,12 @@ const ANALYSIS_DOMAINS = new Set([
   "special_functions",
   "differential_equations",
   "ode",
+  "partial_differential_equations",
+  "pde",
+  "elliptic_pde",
+  "inequalities",
+  "sobolev_spaces",
+  "weak_solutions",
   "transforms"
 ]);
 
@@ -152,7 +158,7 @@ const FALLBACK_THEOREMS: TheoremEntry[] = [
     id: "uniform_convergence",
     name: "Uniform convergence tests",
     domains: ["analysis", "sequences", "series"],
-    keywords: ["uniform convergence", "weierstrass m-test", "uniformly", "power series"],
+    keywords: ["uniform convergence", "uniformly convergent", "weierstrass m-test", "power series"],
     signals: ["uniform\\s+conver", "M-test|Weierstrass"],
     reduces: "control convergence independently of the variable",
     prerequisites: ["uniform bound or explicit sup norm estimate"],
@@ -486,7 +492,7 @@ function matchTheorems(text: string): TheoremSuggestion[] {
     preferredRecipe: theorem.preferredRecipe ?? [],
     avoidPatterns: theorem.avoidPatterns ?? [],
     wolframHint: theorem.wolframHint ?? "",
-    casHint: theorem.casHint ?? theorem.wolframHint ?? "",
+    casHint: theorem.casHint || theorem.wolframHint || "",
     confidence: normalizeConfidence(theorem.confidence, score),
     score
   }));
@@ -679,6 +685,10 @@ function inferRecommendedTools(problem: string, analysis: ProblemAnalysis): stri
   const lowered = problem.toLowerCase();
   const tools: string[] = [];
   if (analysis.workflow.theoryFirst || analysis.suggestedTheorems.length) tools.push("theorem_advisor");
+  for (const theorem of analysis.suggestedTheorems) {
+    appendUnique(tools, [...theorem.wolframHint.matchAll(/\bwolfram_[a-z_]+\b/g)].map(match => match[0]));
+    appendUnique(tools, [...theorem.casHint.matchAll(/\bwolfram_[a-z_]+\b/g)].map(match => match[0]));
+  }
   if (/integral|integrate|\u79ef\u5206|\u222b/.test(lowered)) tools.push("wolfram_integrate");
   if (/derivative|differentiate|d\/d|partial|\u6c42\u5bfc|\u5bfc\u6570|\u504f\u5bfc/.test(lowered)) tools.push("wolfram_differentiate");
   if (/limit|lim\b|\u6781\u9650/.test(lowered)) tools.push("wolfram_limit");
@@ -697,7 +707,17 @@ function inferRecommendedTools(problem: string, analysis: ProblemAnalysis): stri
 }
 
 function inferProblemType(problem: string, analysis: ProblemAnalysis): string {
-  if (analysis.detectedDomains.length) return analysis.detectedDomains[0];
+  const preferredDomain = [
+    "elliptic_pde",
+    "partial_differential_equations",
+    "inequalities",
+    "sobolev_spaces",
+    "weak_solutions",
+    "complex_analysis",
+    "functional_analysis",
+    "analysis"
+  ].find(domain => analysis.detectedDomains.includes(domain));
+  if (preferredDomain) return preferredDomain;
   const lowered = problem.toLowerCase();
   if (/integral|limit|series|sum|\u79ef\u5206|\u6781\u9650|\u7ea7\u6570|\u6c42\u548c/.test(lowered)) return "analysis";
   if (/matrix|eigen|linear/.test(lowered)) return "linear_algebra";
