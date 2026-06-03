@@ -284,6 +284,7 @@ const COMPLEX_ROUTING_PATTERNS = [
   /normal\s+family|hahn[-\s]?banach|open\s+mapping|spectral\s+theorem/i,
   /contour\s+integral|rouche|residue\s+theorem/i
 ];
+const INEQUALITY_ENGINE_RE = /\b(inequality|estimate|bound|absorb|epsilon|young|holder|hoelder|h[oö]lder|cauchy[-\s]?schwarz|poincare|sobolev|interpolation)\b|\u4e0d\u7b49\u5f0f|\u4f30\u8ba1|\u5438\u6536|\u5c0f\u53c2\u6570|\u5927\u53c2\u6570|\u5e9e\u52a0\u83b1|\u63d2\u503c|\u8d6b\u5c14\u5fb7/i;
 
 export function analyzeProblem(problem: string, detectedObjects = ""): ProblemAnalysis {
   const combined = `${problem} ${detectedObjects}`.trim();
@@ -345,6 +346,7 @@ export function classifyDifficulty(problem: string, analysis = analyzeProblem(pr
   if (analysis.scale === "heavy" || analysis.scale === "infeasible_brute_force") return "complex";
   if (analysis.workflow.theoryFirst) return "complex";
   if (COMPLEX_ROUTING_PATTERNS.some(pattern => pattern.test(problem))) return "complex";
+  if (INEQUALITY_ENGINE_RE.test(problem)) return "complex";
   const matchedTheorems = analysis.suggestedTheorems.length;
   if (matchedTheorems >= 2 && analysis.detectedDomains.length >= 2) return "complex";
   return "simple";
@@ -689,6 +691,7 @@ function inferRecommendedTools(problem: string, analysis: ProblemAnalysis): stri
     appendUnique(tools, [...theorem.wolframHint.matchAll(/\bwolfram_[a-z_]+\b/g)].map(match => match[0]));
     appendUnique(tools, [...theorem.casHint.matchAll(/\bwolfram_[a-z_]+\b/g)].map(match => match[0]));
   }
+  if (INEQUALITY_ENGINE_RE.test(problem)) tools.push("inequality_engine");
   if (/integral|integrate|\u79ef\u5206|\u222b/.test(lowered)) tools.push("wolfram_integrate");
   if (/derivative|differentiate|d\/d|partial|\u6c42\u5bfc|\u5bfc\u6570|\u504f\u5bfc/.test(lowered)) tools.push("wolfram_differentiate");
   if (/limit|lim\b|\u6781\u9650/.test(lowered)) tools.push("wolfram_limit");

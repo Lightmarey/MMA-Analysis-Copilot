@@ -1,8 +1,9 @@
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import { theoremAdvisorTool } from "./planning.js";
+import { verificationTemplateNames } from "./verification-templates.js";
 import type { WolframToolName, WolframResponse } from "../wolfram/types.js";
 
-export type LocalToolName = "theorem_advisor";
+export type LocalToolName = "theorem_advisor" | "verification_template";
 export type AgentToolName = WolframToolName | LocalToolName;
 
 export type ToolDefinition = {
@@ -18,6 +19,7 @@ type ToolProperty = {
 };
 
 const wolframToolNames = new Set<string>([
+  "inequality_engine",
   "wolfram_eval",
   "wolfram_simplify",
   "wolfram_integrate",
@@ -36,11 +38,68 @@ const wolframToolNames = new Set<string>([
 
 export const toolDefinitions: ToolDefinition[] = [
   defineTool(
+    "inequality_engine",
+    "Use the standalone Wolfram Inequality Rule/Transform Engine. It maintains proof states, suggests inequality moves, applies selected moves, and returns traceable conditions. Use this for interactive inequality proof assistance, not for whole-paper verification.",
+    {
+      operation: { type: "string", enum: ["normalize", "suggest", "apply", "trace", "registry", "parameter", "register"], description: "Engine operation. Use suggest first, apply with a moveId after selecting a move, trace to inspect proof history, registry to list registered schemas, parameter for small/large parameter choices, and register for validated rule/transform schemas." },
+      goal: { type: "string", description: "Current inequality goal or expression in Wolfram InputForm syntax, or empty when state is provided." },
+      known: { type: "string", description: "Known facts/expressions in Wolfram InputForm syntax, usually a list, or empty." },
+      context: { type: "string", description: "Proof context in Wolfram InputForm syntax, preferably an Association with Domain, Dimension, FunctionSpaces, assumptions, and parameter choices, or empty." },
+      state: { type: "string", description: "Existing IneqState association in Wolfram InputForm syntax, or empty to create one from goal/context/known." },
+      moveId: { type: "string", description: "Move id returned by suggest, or empty to apply the first suggested move." },
+      ruleName: { type: "string", description: "Optional rule name for focused operations, or empty." },
+      payload: { type: "string", description: "Operation-specific payload as a Wolfram Association in InputForm. For register, include Type -> \"Rule\" or \"Transform\" and validated schema fields. For parameter, include Direction, Parameter, Condition, and Dependencies." }
+    }
+  ),
+  defineTool(
     "theorem_advisor",
     "Analyze a math problem before heavy computation. Returns scale, theorem hints, invariants, verification targets, and Wolfram tactics.",
     {
       problem: { type: "string", description: "Full problem statement, including natural language and LaTeX when present." },
       detected_objects: { type: "string", description: "Optional comma-separated known objects, or an empty string." }
+    }
+  ),
+  defineTool(
+    "verification_template",
+    "Run a stable proof-verification template by translating it into compact Wolfram checks. Use this for product-rule identities, boundary substitution/cancellation, Fourier coefficient comparison, and candidate solution checks. Do not use it as an inequality theorem generator.",
+    {
+      template: {
+        type: "string",
+        enum: [...verificationTemplateNames],
+        description: "Template name."
+      },
+      expr: {
+        type: "string",
+        description: "Main Wolfram expression, integrand, equality, or inequality to verify. Use an empty string only when the template has a documented default."
+      },
+      assumptions: {
+        type: "string",
+        description: "Wolfram assumptions for FullSimplify/Integrate, or empty string."
+      },
+      variable: {
+        type: "string",
+        description: "Primary variable such as x or y, or empty string for the template default."
+      },
+      lower: {
+        type: "string",
+        description: "Lower integration bound for coefficient templates, or empty string."
+      },
+      upper: {
+        type: "string",
+        description: "Upper integration bound for coefficient templates, or empty string."
+      },
+      expected: {
+        type: "string",
+        description: "Expected derivative/product-rule right side for equality checks, or empty string."
+      },
+      claimed: {
+        type: "string",
+        description: "Claimed coefficient or expression to compare against, or empty string."
+      },
+      rules: {
+        type: "string",
+        description: "Wolfram replacement rules for boundary substitutions, e.g. {ux0 -> u0}, or empty string."
+      }
     }
   ),
   defineTool(

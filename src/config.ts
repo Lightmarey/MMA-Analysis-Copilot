@@ -35,6 +35,12 @@ type WmaConfigFile = {
     source?: string;
     externalPath?: string;
   };
+  prompts?: {
+    systemPromptPath?: string;
+    systemAddendum?: string;
+    plannerPromptPath?: string;
+    plannerAddendum?: string;
+  };
 };
 
 const fileConfig = readConfigFile(configPath);
@@ -124,7 +130,11 @@ export const config = {
   maxTokens: intEnv("WOLFRAM_AGENT_MAX_TOKENS", numberValue(fileConfig.openai?.maxTokens, 8192)),
   temperature: floatEnv("WOLFRAM_AGENT_TEMPERATURE", numberValue(fileConfig.openai?.temperature, 0)),
   theoremSource: process.env.WOLFRAM_THEOREM_SOURCE?.trim() || process.env.AI4MATH_THEOREM_SOURCE?.trim() || stringValue(fileConfig.theorems?.source, "merge"),
-  theoremExternalPath: process.env.WOLFRAM_THEOREM_EXTERNAL_PATH?.trim() || process.env.AI4MATH_THEOREM_EXTERNAL_PATH?.trim() || stringValue(fileConfig.theorems?.externalPath)
+  theoremExternalPath: process.env.WOLFRAM_THEOREM_EXTERNAL_PATH?.trim() || process.env.AI4MATH_THEOREM_EXTERNAL_PATH?.trim() || stringValue(fileConfig.theorems?.externalPath),
+  systemPromptPath: process.env.WOLFRAM_AGENT_SYSTEM_PROMPT_PATH?.trim() || process.env.AI4MATH_SYSTEM_PROMPT_PATH?.trim() || stringValue(fileConfig.prompts?.systemPromptPath),
+  systemPromptAddendum: process.env.WOLFRAM_AGENT_SYSTEM_PROMPT_APPEND?.trim() || process.env.AI4MATH_SYSTEM_PROMPT_APPEND?.trim() || stringValue(fileConfig.prompts?.systemAddendum),
+  plannerPromptPath: process.env.WOLFRAM_AGENT_PLANNER_PROMPT_PATH?.trim() || process.env.AI4MATH_PLANNER_PROMPT_PATH?.trim() || stringValue(fileConfig.prompts?.plannerPromptPath),
+  plannerPromptAddendum: process.env.WOLFRAM_AGENT_PLANNER_PROMPT_APPEND?.trim() || process.env.AI4MATH_PLANNER_PROMPT_APPEND?.trim() || stringValue(fileConfig.prompts?.plannerAddendum)
 };
 
 function readConfigFile(filePath: string): WmaConfigFile {

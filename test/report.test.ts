@@ -51,4 +51,9 @@ assert.match(report, /Elapsed: 1\.2s/);
 assert.match(report, /## Tool Trace/);
 assert.match(report, /## Answer/);
 
+const compactReport = formatMarkdownReport("Compute the integral and conditions.", run, 1234, "compact");
+assert.match(compactReport, /expr=x\^a/);
+assert.doesNotMatch(compactReport, /"expr":/);
+assert.match(compactReport, /> Integrate: `\(1 \+ a\)\^\(-1\)`/);
+
 console.log("report tests passed");

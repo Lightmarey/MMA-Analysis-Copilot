@@ -14,7 +14,19 @@ import { formatMarkdownReport, formatQuestionMarkdown } from "./report.js";
 import { applyRuntimeOptions } from "./runtime.js";
 import { getModelRoute } from "../agent/model-routing.js";
 import type { AgentCallbacks } from "../agent/agent.js";
-import type { ChatRun, TraceEvent } from "./report.js";
+import type { ChatRun, TraceEvent, TraceMode } from "./report.js";
+
+type ThinkingMode = "off" | "brief" | "full";
+type CliOptions = {
+  output?: string;
+  file?: string;
+  batch?: string;
+  trace?: boolean | TraceMode;
+  directWolfram?: boolean;
+  temperature?: number;
+  maxIterations?: number;
+  thinking?: ThinkingMode;
+};
 
 const program = new Command();
 
@@ -27,15 +39,17 @@ program
   .option("-b, --batch <path>", "process a batch file; split questions with ---")
   .option("-t, --temperature <number>", "override model temperature for this run", Number.parseFloat)
   .option("-n, --max-iterations <number>", "override maximum tool-calling iterations for this run", parsePositiveInteger)
-  .option("--trace", "include route, preplanning, and tool trace in saved Markdown")
+  .option("--trace [mode]", "include route, preplanning, and tool trace in saved Markdown: compact or full")
+  .option("--thinking <mode>", "show streamed reasoning: off, brief, or full", parseThinkingMode, "brief")
   .option("--direct-wolfram", "evaluate the question as raw Wolfram Language code without LLM")
   .action(async (
     questionParts: string[],
-    options: { output?: string; file?: string; batch?: string; trace?: boolean; directWolfram?: boolean; temperature?: number; maxIterations?: number }
+    options: CliOptions
   ) => {
     applyRuntimeOptions(options);
+    const traceMode = parseTraceMode(options.trace);
     if (options.batch && !options.directWolfram) {
-      await runBatch(options.batch, options.output, options.trace ?? false);
+      await runBatch(options.batch, options.output, traceMode, options.thinking ?? "brief");
       return;
     }
     const question = await resolveQuestion(questionParts.join(" ").trim(), options.file);
@@ -46,11 +60,11 @@ program
     if (question) {
       const expanded = await expandAtPaths(question, config.rootDir);
       printInlinedPaths(expanded.inlinedPaths);
-      const run = await askOnce(expanded.text);
-      await maybeWrite(options.output, options.trace ? formatMarkdownReport(expanded.text, run) : run.answer);
+      const run = await askOnce(expanded.text, options.thinking ?? "brief");
+      await maybeWrite(options.output, traceMode ? formatMarkdownReport(expanded.text, run, undefined, traceMode) : run.answer);
       return;
     }
-    await repl();
+    await repl(options.thinking ?? "brief");
   });
 
 program
@@ -99,14 +113,14 @@ try {
   process.exitCode = 1;
 }
 
-async function askOnce(question: string): Promise<ChatRun> {
-  const run = await askOnceWithTrace(question, true);
+async function askOnce(question: string, thinkingMode: ThinkingMode): Promise<ChatRun> {
+  const run = await askOnceWithTrace(question, true, thinkingMode);
   console.log();
   console.log(run.answer);
   return run;
 }
 
-async function askOnceWithTrace(question: string, printTrace: boolean): Promise<ChatRun> {
+async function askOnceWithTrace(question: string, printTrace: boolean, thinkingMode: ThinkingMode): Promise<ChatRun> {
   const agent = new MathAgent();
   const trace: TraceEvent[] = [];
   try {
@@ -125,7 +139,7 @@ async function askOnceWithTrace(question: string, printTrace: boolean): Promise<
       onToolResult(name, markdown, result) {
         trace.push({ type: "tool_result", name, markdown, result });
       },
-      ...(printTrace ? createLiveLlmPrinter() : {})
+      ...(printTrace ? createLiveLlmPrinter(thinkingMode) : {})
     });
     return { answer, trace };
   } finally {
@@ -133,7 +147,7 @@ async function askOnceWithTrace(question: string, printTrace: boolean): Promise<
   }
 }
 
-async function runBatch(batchPath: string, outputPath: string | undefined, includeTrace: boolean): Promise<void> {
+async function runBatch(batchPath: string, outputPath: string | undefined, traceMode: TraceMode | null, thinkingMode: ThinkingMode): Promise<void> {
   const content = await fs.readFile(batchPath, "utf8");
   const questions = content.split(/^---\s*$/m).map(part => part.trim()).filter(Boolean);
   if (!questions.length) {
@@ -168,7 +182,7 @@ async function runBatch(batchPath: string, outputPath: string | undefined, inclu
       const expanded = await expandAtPaths(question, config.rootDir);
       printInlinedPaths(expanded.inlinedPaths);
       questionForReport = expanded.text;
-      run = await askOnceWithTrace(expanded.text, true);
+      run = await askOnceWithTrace(expanded.text, true, thinkingMode);
     } catch (error) {
       failed = error instanceof Error ? error.message : String(error);
       run = {
@@ -177,7 +191,7 @@ async function runBatch(batchPath: string, outputPath: string | undefined, inclu
       };
     }
     const elapsedMs = Date.now() - started;
-    const report = includeTrace ? formatMarkdownReport(questionForReport, run, elapsedMs) : formatQuestionMarkdown(questionForReport, run.answer, elapsedMs);
+    const report = traceMode ? formatMarkdownReport(questionForReport, run, elapsedMs, traceMode) : formatQuestionMarkdown(questionForReport, run.answer, elapsedMs);
     const fileName = `q${label}.md`;
     const filePath = path.join(outputDir, fileName);
     await fs.writeFile(filePath, report, "utf8");
@@ -196,7 +210,7 @@ async function runBatch(batchPath: string, outputPath: string | undefined, inclu
   console.error(chalk.green(`Batch complete: ${path.join(outputDir, "summary.md")}`));
 }
 
-async function repl(): Promise<void> {
+async function repl(thinkingMode: ThinkingMode): Promise<void> {
   banner();
   const rl = readline.createInterface({ input, output, prompt: chalk.green("You > ") });
   const agent = new MathAgent();
@@ -229,7 +243,7 @@ async function repl(): Promise<void> {
     }
     processing = true;
     try {
-      const shouldContinue = await handleReplInput(text, agent, {
+      const shouldContinue = await handleReplInput(text, agent, thinkingMode, {
         getLastAnswer: () => lastAnswer,
         setLastAnswer: value => {
           lastAnswer = value;
@@ -270,7 +284,7 @@ type ReplState = {
   close: () => void;
 };
 
-async function handleReplInput(line: string, agent: MathAgent, state: ReplState): Promise<boolean> {
+async function handleReplInput(line: string, agent: MathAgent, thinkingMode: ThinkingMode, state: ReplState): Promise<boolean> {
   if (line === "/quit" || line === "/exit" || line === "/q") {
     state.close();
     return false;
@@ -318,7 +332,7 @@ async function handleReplInput(line: string, agent: MathAgent, state: ReplState)
       onToolCall(name, args) {
         console.log(chalk.dim(`\ntool ${name} ${JSON.stringify(args)}`));
       },
-      ...createLiveLlmPrinter()
+      ...createLiveLlmPrinter(thinkingMode)
     });
     state.setLastAnswer(answer);
     console.log();
@@ -368,16 +382,27 @@ async function handleModelCommand(line: string, agent: MathAgent): Promise<void>
   console.log(chalk.green(`Model override for this session: ${model}`));
 }
 
-function createLiveLlmPrinter(): Pick<AgentCallbacks, "onThinkingDelta" | "onOutputDelta"> {
+function createLiveLlmPrinter(thinkingMode: ThinkingMode): Pick<AgentCallbacks, "onThinkingDelta" | "onOutputDelta"> {
   let thinkingStarted = false;
   let outputStarted = false;
+  let thinkingChars = 0;
   return {
     onThinkingDelta(text) {
+      if (thinkingMode === "off") return;
       if (!thinkingStarted) {
         thinkingStarted = true;
-        stderr.write(chalk.dim("\n[think]\n"));
+        stderr.write(chalk.dim(thinkingMode === "full" ? "\n[think]\n" : "\n[think]"));
       }
-      stderr.write(chalk.dim(text));
+      if (thinkingMode === "full") {
+        stderr.write(chalk.dim(text));
+        return;
+      }
+      const previousBucket = Math.floor(thinkingChars / 1000);
+      thinkingChars += text.length;
+      const currentBucket = Math.floor(thinkingChars / 1000);
+      if (currentBucket > previousBucket) {
+        stderr.write(chalk.dim(` ${thinkingChars} chars`));
+      }
     },
     onOutputDelta(text) {
       if (!outputStarted) {
@@ -481,4 +506,18 @@ function parsePositiveInteger(value: string): number {
     throw new Error("Expected a positive integer");
   }
   return parsed;
+}
+
+function parseTraceMode(value: boolean | TraceMode | undefined): TraceMode | null {
+  if (value === undefined || value === false) return null;
+  if (value === true) return "compact";
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "compact" || normalized === "full") return normalized;
+  throw new Error("--trace must be compact or full");
+}
+
+function parseThinkingMode(value: string): ThinkingMode {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "off" || normalized === "brief" || normalized === "full") return normalized;
+  throw new Error("--thinking must be off, brief, or full");
 }

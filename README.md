@@ -9,6 +9,9 @@ framework around those tools.
 It does not currently ship probability, broad number theory, modular forms,
 algebraic geometry, GUI/WLJS integration, or a persistent Wolfram worker.
 
+For a current module-by-module status report, see
+`IMPLEMENTATION_REPORT.md`.
+
 ## Configuration
 
 Runtime configuration is file-first. The local config file is ignored by Git:
@@ -46,12 +49,29 @@ Edit `wma.config.json`:
   "theorems": {
     "source": "merge",
     "externalPath": ""
+  },
+  "prompts": {
+    "systemPromptPath": "",
+    "systemAddendum": "",
+    "plannerPromptPath": "",
+    "plannerAddendum": ""
   }
 }
 ```
 
 Environment variables are still accepted as temporary overrides for CI or
 one-off tests, but `wma.config.json` is the normal path.
+
+Prompt engineering is configurable without editing source code:
+
+- `prompts.systemPromptPath` or `WOLFRAM_AGENT_SYSTEM_PROMPT_PATH`
+- `prompts.systemAddendum` or `WOLFRAM_AGENT_SYSTEM_PROMPT_APPEND`
+- `prompts.plannerPromptPath` or `WOLFRAM_AGENT_PLANNER_PROMPT_PATH`
+- `prompts.plannerAddendum` or `WOLFRAM_AGENT_PLANNER_PROMPT_APPEND`
+
+The built-in prompt tells the agent to use Wolfram for exact computation,
+separate analytic assumptions from verified calculations, and route
+interactive inequality proof states through `inequality_engine`.
 
 When `openai.autoDiscoverModels` is enabled and an API key is available,
 startup probes the provider's OpenAI-compatible model list. Explicit
@@ -240,8 +260,32 @@ Review the hypotheses, verification targets, sign conventions, and
 `wolframHint` before moving generated entries into `theorems/`.
 
 Current scoped additions cover elliptic PDE and inequalities, including maximum
-principles, Hopf lemma, Sobolev-Poincare, Calderon-Zygmund estimates,
-Cauchy-Schwarz, and Young product estimates.
+principles, Hopf lemma, Sobolev-Poincare, and Calderon-Zygmund estimates.
+Elementary interactive inequality moves such as explicit product Holder or
+Cauchy-Schwarz candidates now belong to the standalone Wolfram
+`InequalityEngine`, not theorem JSON entries.
+
+## Inequality Engine
+
+`wolfram/InequalityEngine.wl` is a standalone Wolfram package for interactive
+inequality proof assistance. It can be loaded directly from Wolfram or called
+through the `inequality_engine` tool.
+
+Current exported operations include:
+
+- `IneqNormalize`
+- `IneqSuggest`
+- `IneqApply`
+- `IneqTrace`
+- `ValidateIneqRule`
+- `ValidateIneqTransform`
+- `IneqParameterChoice`
+
+The engine currently provides a conservative seed move for explicit product
+integrals using a Holder/Cauchy-Schwarz default. It is intentionally not a
+broad automatic inequality generator. Unverified analytic hypotheses are kept
+visible in condition status fields such as `NeedsUser` or
+`GeneratedByParameterChoice`.
 
 ## Verification
 

@@ -27,6 +27,12 @@ const simpleProblem = "Simplify Sin[x]^2 + Cos[x]^2.";
 const simpleAnalysis = analyzeProblem(simpleProblem);
 assert.equal(classifyDifficulty(simpleProblem, simpleAnalysis), "simple");
 
+const localEstimateProblem = "Apply finite-sum Cauchy-Schwarz and Young epsilon absorption to a local estimate.";
+const localEstimateAnalysis = analyzeProblem(localEstimateProblem);
+const localEstimatePlan = createPreplan(localEstimateProblem, localEstimateAnalysis);
+assert.equal(classifyDifficulty(localEstimateProblem, localEstimateAnalysis), "complex");
+assert.ok(localEstimatePlan.recommendedTools.includes("inequality_engine"));
+
 const longProblem = (
   "Let f_n(x) be a sequence of measurable functions on [0, Infinity). Suppose f_n converges pointwise almost everywhere to f. " +
   "Assume |f_n(x)| is dominated by g(x) and g is integrable, then compute the limit of the integrals. " +

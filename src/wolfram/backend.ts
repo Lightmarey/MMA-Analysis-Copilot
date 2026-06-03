@@ -249,7 +249,15 @@ export class WolframBackend {
 
 function extractJsonObject(line: string): string {
   const trimmed = line.trim();
-  if (trimmed.startsWith("{")) return trimmed;
+  if (trimmed.startsWith("{") && trimmed.includes("\"ok\"")) return trimmed;
+  const responseStart = trimmed.lastIndexOf("{\"id\"");
+  if (responseStart >= 0) {
+    return trimmed.slice(responseStart);
+  }
+  const prettyResponseStart = trimmed.lastIndexOf("{\n  \"id\"");
+  if (prettyResponseStart >= 0) {
+    return trimmed.slice(prettyResponseStart);
+  }
   const start = trimmed.indexOf("{");
   const end = trimmed.lastIndexOf("}");
   if (start >= 0 && end > start) {

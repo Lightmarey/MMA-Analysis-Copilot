@@ -11,6 +11,8 @@ export type ChatRun = {
   trace: TraceEvent[];
 };
 
+export type TraceMode = "compact" | "full";
+
 export function formatQuestionMarkdown(question: string, answer: string, elapsedMs?: number): string {
   const lines = [
     "# Wolfram Math Agent Answer",
@@ -29,7 +31,7 @@ export function formatQuestionMarkdown(question: string, answer: string, elapsed
   return compactBlankLines(lines);
 }
 
-export function formatMarkdownReport(question: string, run: ChatRun, elapsedMs?: number): string {
+export function formatMarkdownReport(question: string, run: ChatRun, elapsedMs?: number, traceMode: TraceMode = "full"): string {
   const route = run.trace.find((event): event is Extract<TraceEvent, { type: "route" }> => event.type === "route");
   const plan = run.trace.find((event): event is Extract<TraceEvent, { type: "plan" }> => event.type === "plan");
   const lines = [
@@ -51,7 +53,7 @@ export function formatMarkdownReport(question: string, run: ChatRun, elapsedMs?:
     "",
     "## Tool Trace",
     "",
-    formatTrace(run.trace),
+    formatTrace(run.trace, traceMode),
     "",
     "## Verification Summary",
     "",
@@ -65,7 +67,7 @@ export function formatMarkdownReport(question: string, run: ChatRun, elapsedMs?:
   return compactBlankLines(lines);
 }
 
-export function formatTrace(trace: TraceEvent[]): string {
+export function formatTrace(trace: TraceEvent[], mode: TraceMode = "full"): string {
   const lines: string[] = [];
   let toolIndex = 0;
   for (const event of trace) {
@@ -73,12 +75,12 @@ export function formatTrace(trace: TraceEvent[]): string {
       toolIndex += 1;
       lines.push(`### Tool ${toolIndex}: ${event.name}`);
       lines.push("");
-      lines.push(fenced(JSON.stringify(event.args, null, 2), "json"));
+      lines.push(mode === "compact" ? formatCompactArgs(event.args) : fenced(JSON.stringify(event.args, null, 2), "json"));
       lines.push("");
       continue;
     }
     if (event.type === "tool_result") {
-      lines.push(event.markdown || "(no display result)");
+      lines.push(mode === "compact" ? formatCompactResult(event) : event.markdown || "(no display result)");
       lines.push("");
     }
   }
@@ -133,6 +135,29 @@ function formatList(values: string[]): string {
 
 function fenced(content: string, language: string): string {
   return `\`\`\`${language}\n${content.trim()}\n\`\`\``;
+}
+
+function formatCompactArgs(args: Record<string, unknown>): string {
+  const summaryKeys = ["template", "expr", "equations", "code", "variable", "assumptions", "claimed"];
+  const parts = summaryKeys
+    .map(key => [key, args[key]] as const)
+    .filter(([, value]) => typeof value === "string" && value.trim())
+    .map(([key, value]) => `${key}=${truncateInline(String(value), key === "expr" || key === "code" || key === "equations" ? 120 : 80)}`);
+  return parts.length ? `- ${parts.join("\n- ")}` : "- arguments omitted in compact trace";
+}
+
+function formatCompactResult(event: Extract<TraceEvent, { type: "tool_result" }>): string {
+  const result = event.result;
+  if (!result?.ok) return event.markdown || "(no display result)";
+  const title = result.title || event.name;
+  const value = result.output ? truncateInline(result.output, 160) : event.markdown ? truncateInline(event.markdown, 160) : "";
+  const conditions = result.conditions ? `; conditions=${truncateInline(result.conditions, 100)}` : "";
+  return value ? `> ${title}: \`${value}\`${conditions}` : `> ${title}: ok${conditions}`;
+}
+
+function truncateInline(value: string, maxLength: number): string {
+  const oneLine = value.replace(/\s+/g, " ").trim();
+  return oneLine.length <= maxLength ? oneLine : `${oneLine.slice(0, maxLength - 3)}...`;
 }
 
 function compactBlankLines(lines: string[]): string {

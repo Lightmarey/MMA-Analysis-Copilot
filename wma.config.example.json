@@ -24,5 +24,11 @@
   "theorems": {
     "source": "merge",
     "externalPath": ""
+  },
+  "prompts": {
+    "systemPromptPath": "",
+    "systemAddendum": "",
+    "plannerPromptPath": "",
+    "plannerAddendum": ""
   }
 }

@@ -1,4 +1,5 @@
 export type WolframToolName =
+  | "inequality_engine"
   | "wolfram_eval"
   | "wolfram_simplify"
   | "wolfram_integrate"

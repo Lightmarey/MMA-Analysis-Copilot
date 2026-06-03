@@ -6,25 +6,11 @@ import { formatToolResult, formatToolResultMarkdown, isWolframToolName, runLocal
 import { analyzeProblem, buildPreplanContext, classifyDifficulty, createPreplan, decomposeProblem } from "./planning.js";
 import { getModelRoute } from "./model-routing.js";
 import { buildLlmPlanContext, createLlmExecutionPlan } from "./llm-planning.js";
+import type { LlmExecutionPlan } from "./llm-planning.js";
+import { runVerificationTemplate } from "./verification-templates.js";
+import { buildAgentSystemPrompt } from "./prompts.js";
 import type { AgentToolName, LocalToolName } from "./tools.js";
 import type { WolframResponse } from "../wolfram/types.js";
-
-const SYSTEM_PROMPT = `You are a careful mathematical assistant.
-
-You may call Wolfram Engine tools for exact symbolic computation.
-
-Rules:
-- Use tools for exact computation instead of mental arithmetic.
-- Prefer structured tools before wolfram_eval.
-- wolfram_eval is an advanced escape hatch. Use it only when structured tools are not enough.
-- Use Wolfram Language syntax in tool arguments.
-- Follow injected preplanning context, especially theorem, invariant, and verification targets.
-- For heavy or infeasible problems, do theorem-first reduction before brute-force computation.
-- Explain the reasoning in concise Markdown.
-- Use LaTeX for mathematical formulas.
-- Reply in the user's language unless they ask otherwise.
-- If Wolfram returns conditions, mention them explicitly.
-- Do not invent tool results.`;
 
 export type AgentCallbacks = {
   onToolCall?: (name: string, args: Record<string, unknown>) => void;
@@ -37,8 +23,9 @@ export type AgentCallbacks = {
 
 export class MathAgent {
   private readonly client: OpenAI;
+  private readonly systemPrompt = buildAgentSystemPrompt();
   private readonly messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT }
+    { role: "system", content: this.systemPrompt }
   ];
   private forcedModel: string | null = null;
 
@@ -53,7 +40,7 @@ export class MathAgent {
   }
 
   reset(): void {
-    this.messages.splice(0, this.messages.length, { role: "system", content: SYSTEM_PROMPT });
+    this.messages.splice(0, this.messages.length, { role: "system", content: this.systemPrompt });
   }
 
   setForcedModel(model: string | null): void {
@@ -67,10 +54,18 @@ export class MathAgent {
   async chat(userMessage: string, callbacks: AgentCallbacks = {}): Promise<string> {
     const modelRoute = await getModelRoute(this.client);
     const llmPlan = await createLlmExecutionPlan(this.client, userMessage, modelRoute.flashModel);
-    const analysis = llmPlan ? null : analyzeProblem(userMessage);
-    const preplan = analysis ? createPreplan(userMessage, analysis) : null;
-    const decomposition = analysis ? decomposeProblem(userMessage, analysis) : null;
-    const difficulty = llmPlan?.difficulty ?? (analysis ? classifyDifficulty(userMessage, analysis) : "simple");
+    const analysis = analyzeProblem(userMessage);
+    const preplan = createPreplan(userMessage, analysis);
+    const decomposition = decomposeProblem(userMessage, analysis);
+    const localDifficulty = classifyDifficulty(userMessage, analysis);
+    const difficulty = llmPlan?.difficulty === "complex" || localDifficulty === "complex" ? "complex" : "simple";
+    const mergedLlmPlan: LlmExecutionPlan | null = llmPlan
+      ? {
+          ...llmPlan,
+          difficulty,
+          recommendedTools: [...new Set([...llmPlan.recommendedTools, ...preplan.recommendedTools])]
+        }
+      : null;
     const routedModel = config.autoRoute
       ? difficulty === "simple"
         ? modelRoute.flashModel
@@ -81,9 +76,10 @@ export class MathAgent {
 
     this.messages.push({ role: "user", content: userMessage });
     if (config.preplanEnabled) {
-      const preplanContext = llmPlan
-        ? buildLlmPlanContext(llmPlan)
-        : buildPreplanContext(analysis!, preplan!, decomposition);
+      const localPreplanContext = buildPreplanContext(analysis, preplan, decomposition);
+      const preplanContext = mergedLlmPlan
+        ? `${buildLlmPlanContext(mergedLlmPlan)}\n\n${localPreplanContext}`
+        : localPreplanContext;
       callbacks.onPlan?.(preplanContext);
       this.messages.push({ role: "system", content: preplanContext });
     }
@@ -103,7 +99,10 @@ export class MathAgent {
 
       const streamed = await collectStreamedMessage(stream, callbacks);
       const message = streamed.message;
-      this.messages.push(message as ChatCompletionMessageParam);
+      const hasAssistantPayload = Boolean(message.content || message.tool_calls?.length);
+      if (hasAssistantPayload) {
+        this.messages.push(message as ChatCompletionMessageParam);
+      }
 
       if (message.content) {
         collected.push(String(message.content));
@@ -141,7 +140,6 @@ export class MathAgent {
         const toolText = formatToolResult(name, args, result);
         const toolMarkdown = formatToolResultMarkdown(name, result);
         if (toolMarkdown) {
-          collected.push(toolMarkdown);
           callbacks.onToolResult?.(name, toolMarkdown, result);
         }
 
@@ -163,6 +161,9 @@ export class MathAgent {
   private async callTool(name: AgentToolName, args: Record<string, unknown>) {
     if (isWolframToolName(name)) {
       return await this.wolfram.call(name, args);
+    }
+    if (name === "verification_template") {
+      return await runVerificationTemplate(this.wolfram, args);
     }
     return runLocalTool(name as LocalToolName, args);
   }

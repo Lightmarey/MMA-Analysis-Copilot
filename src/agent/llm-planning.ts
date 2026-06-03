@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { config } from "../config.js";
 import { toolDefinitions } from "./tools.js";
+import { buildPlannerPrompt } from "./prompts.js";
 
 export type LlmSubproblem = {
   id: string;
@@ -78,7 +79,7 @@ async function requestPlannerJson(
     const response = await client.chat.completions.create({
       model,
       messages: [
-        { role: "system", content: PLANNER_PROMPT.replace("{{TOOLS}}", toolDefinitions.map(tool => tool.name).join(", ")) },
+        { role: "system", content: buildPlannerPrompt(PLANNER_PROMPT).replace("{{TOOLS}}", toolDefinitions.map(tool => tool.name).join(", ")) },
         { role: "user", content: problem }
       ],
       temperature: 0,

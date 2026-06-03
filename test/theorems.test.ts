@@ -7,8 +7,9 @@ import { createTheoremDraft, lintTheoremFiles } from "../src/theorems/schema.js"
 const theoremIds = new Set(loadTheorems().map(theorem => theorem.id));
 assert.ok(theoremIds.has("elliptic_maximum_principle"));
 assert.ok(theoremIds.has("sobolev_poincare_inequality"));
-assert.ok(theoremIds.has("young_inequality_products"));
-assert.ok(theoremIds.has("holder_inequality"));
+assert.equal(theoremIds.has("young_inequality_products"), false);
+assert.equal(theoremIds.has("holder_inequality"), false);
+assert.equal(theoremIds.has("cauchy_schwarz_inequality"), false);
 
 const pdeProblem = "Use the maximum principle for a uniformly elliptic equation to bound the solution by boundary values.";
 const pdeAnalysis = analyzeProblem(pdeProblem);
@@ -22,12 +23,13 @@ assert.ok(pdePlan.recommendedTools.includes("wolfram_simplify"));
 
 const inequalityProblem = "Apply Young inequality with epsilon to absorb the product term in an energy estimate.";
 const inequalityAnalysis = analyzeProblem(inequalityProblem);
-assert.ok(inequalityAnalysis.suggestedTheorems.some(item => item.theorem === "Young inequality for products"));
-assert.ok(inequalityAnalysis.suggestedInvariants.some(item => item.includes("epsilon")));
+const inequalityPlan = createPreplan(inequalityProblem, inequalityAnalysis);
+assert.ok(inequalityPlan.recommendedTools.includes("inequality_engine"));
 
 const holderProblem = "Check Holder inequality with conjugate exponents p=2 and q=2.";
 const holderAnalysis = analyzeProblem(holderProblem);
-assert.ok(holderAnalysis.suggestedTheorems.some(item => item.theorem === "Holder inequality"));
+const holderPlan = createPreplan(holderProblem, holderAnalysis);
+assert.ok(holderPlan.recommendedTools.includes("inequality_engine"));
 
 const draft = createTheoremDraft({
   name: "Test elliptic estimate",

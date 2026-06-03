@@ -1,5 +1,7 @@
 $HistoryLength = 0;
 
+Get[FileNameJoin[{DirectoryName[$InputFileName], "InequalityEngine.wl"}]];
+
 ClearAll[
   WMASafeString, WMASafeTeX, WMAParseInput, WMAParseAssumptions,
   WMAParseInteger, WMAElapsedMs, WMAWithTime, WMAFormatResult,
@@ -77,6 +79,11 @@ WMAHandleRequest[req_Association] := Module[
   If[tool === "wolfram_eval",
     result = WMAWithTime[ToExpression[Lookup[args, "code", ""], InputForm], timeoutMs];
     Return[WMAFormatResult[id, "Wolfram evaluation", start, result]];
+  ];
+
+  If[tool === "inequality_engine",
+    result = WMAWithTime[InequalityEngine`IneqHandleRequest[args], timeoutMs];
+    Return[WMAFormatResult[id, "Inequality engine", start, result]];
   ];
 
   If[tool === "wolfram_simplify",

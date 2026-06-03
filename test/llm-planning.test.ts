@@ -28,6 +28,7 @@ const context = buildLlmPlanContext(plan);
 assert.match(context, /LLM planning context/);
 assert.match(context, /Problem decomposition from LLM planner/);
 assert.match(context, /wolfram_differentiate, wolfram_integrate/);
+assert.doesNotMatch(context, /computation_targets/);
 
 const parsed = parseLlmExecutionPlan(`prefix ${JSON.stringify(plan)} suffix`);
 assert.ok(parsed);

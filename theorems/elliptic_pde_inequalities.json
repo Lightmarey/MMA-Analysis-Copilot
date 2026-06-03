@@ -55,47 +55,6 @@
       "preferredRecipe": ["identify estimate type", "verify ellipticity and coefficient assumptions", "place f in Lp", "state the resulting W2p bound"],
       "avoidPatterns": ["do not use a global boundary estimate when only an interior estimate is justified"],
       "wolframHint": "Use wolfram_differentiate for explicit second derivatives and wolfram_integrate for simple Lp norm checks."
-    },
-    {
-      "id": "cauchy_schwarz_inequality",
-      "name": "Cauchy-Schwarz inequality",
-      "domains": ["inequalities", "analysis"],
-      "keywords": ["Cauchy-Schwarz", "Cauchy inequality", "inner product", "L2 estimate"],
-      "signals": ["Cauchy[-\\s]?Schwarz", "inner\\s+product.*norm", "L\\^?2\\s+estimate"],
-      "reduces": "bound an inner product or integral product by the product of L2 norms",
-      "prerequisites": ["inner-product or L2 setting", "finite relevant norms"],
-      "invariantHints": ["L2 norms", "inner product term", "equality condition"],
-      "verificationHints": ["check both factors are square-integrable", "state equality conditions only when needed"],
-      "preferredRecipe": ["identify the inner product", "compute or bound each norm", "apply Cauchy-Schwarz", "simplify constants"],
-      "wolframHint": "Use wolfram_integrate for explicit L2 norm integrals and wolfram_simplify for the resulting bound."
-    },
-    {
-      "id": "holder_inequality",
-      "name": "Holder inequality",
-      "domains": ["inequalities", "analysis", "sobolev_spaces", "elliptic_pde"],
-      "keywords": ["Holder", "Holder inequality", "Hoelder inequality", "Hölder inequality", "conjugate exponents", "Lp duality"],
-      "signals": ["H[oö]lder", "H[oö]lder\\s+inequality", "conjugate\\s+exponents", "L\\^?p.*L\\^?q"],
-      "reduces": "bound an integral of a product by the product of Lp and Lq norms with conjugate exponents",
-      "prerequisites": ["conjugate exponents p and q", "finite Lp and Lq norms", "measurable product"],
-      "invariantHints": ["conjugate exponents", "Lp norm of first factor", "Lq norm of second factor"],
-      "verificationHints": ["check 1/p + 1/q = 1", "compute or bound both norms", "track absolute values in the product integral"],
-      "preferredRecipe": ["identify product integral", "choose conjugate exponents", "compute or bound both norms", "apply Holder inequality"],
-      "avoidPatterns": ["do not drop absolute values unless the sign is known"],
-      "wolframHint": "Use wolfram_integrate and wolfram_simplify to compute explicit Lp/Lq norms and compare both sides."
-    },
-    {
-      "id": "young_inequality_products",
-      "name": "Young inequality for products",
-      "domains": ["inequalities", "analysis", "elliptic_pde"],
-      "keywords": ["Young inequality", "epsilon inequality", "absorb term", "product estimate"],
-      "signals": ["Young\\s+inequality", "epsilon\\s+inequality", "absorb\\s+term"],
-      "reduces": "split a product term into absorbable and controlled parts, typically with an epsilon parameter",
-      "prerequisites": ["positive epsilon parameter", "matching conjugate exponents or quadratic form"],
-      "invariantHints": ["epsilon parameter", "absorbable coercive term", "remaining constant"],
-      "verificationHints": ["check epsilon is chosen small enough to absorb the target term", "track dependence of constants on epsilon"],
-      "preferredRecipe": ["identify product term", "choose epsilon", "apply Young inequality", "absorb into left-hand side"],
-      "avoidPatterns": ["do not hide epsilon-dependent constants when they matter for iteration or compactness"],
-      "wolframHint": "Use wolfram_simplify or wolfram_solve to verify algebraic inequalities involving epsilon under positivity assumptions."
     }
   ]
 }

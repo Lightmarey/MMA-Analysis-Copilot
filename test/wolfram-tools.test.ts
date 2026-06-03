@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { WolframBackend } from "../src/wolfram/backend.js";
+import { runVerificationTemplate } from "../src/agent/verification-templates.js";
 
 const backend = new WolframBackend();
 
@@ -133,6 +134,161 @@ try {
   });
   assert.equal(transform.ok, true);
   assert.match(transform.output ?? "", /a \+ s/);
+
+  const directIneq = await backend.call("wolfram_eval", {
+    code: "InequalityEngine`IneqSuggest[InequalityEngine`IneqNormalize[Integrate[f[x] g[x], {x, 0, 1}]]][[1, \"Rule\"]]"
+  });
+  assert.equal(directIneq.ok, true);
+  assert.match(directIneq.output ?? "", /Holder/);
+
+  const suggestedMove = await backend.call("inequality_engine", {
+    operation: "suggest",
+    goal: "Integrate[f[x] g[x], {x, 0, 1}]",
+    known: "",
+    context: "<|\"Domain\" -> Interval[{0, 1}], \"FunctionSpaces\" -> {\"f in L2\", \"g in L2\"}|>",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: ""
+  });
+  assert.equal(suggestedMove.ok, true);
+  assert.match(suggestedMove.output ?? "", /holder_product_1/);
+  assert.match(suggestedMove.output ?? "", /cauchy_schwarz_integral_1/);
+  assert.match(suggestedMove.output ?? "", /NeedsUser/);
+
+  const sumCauchyMove = await backend.call("inequality_engine", {
+    operation: "suggest",
+    goal: "Sum[a[i] b[i], {i, 1, n}]",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: ""
+  });
+  assert.equal(sumCauchyMove.ok, true);
+  assert.match(sumCauchyMove.output ?? "", /cauchy_schwarz_sum_1/);
+  assert.match(sumCauchyMove.output ?? "", /FiniteSum/);
+  assert.match(sumCauchyMove.output ?? "", /choose-inner-product/);
+
+  const youngMove = await backend.call("inequality_engine", {
+    operation: "suggest",
+    goal: "a b",
+    known: "",
+    context: "<|\"AllowedInequalities\" -> {\"Young\"}|>",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: ""
+  });
+  assert.equal(youngMove.ok, true);
+  assert.match(youngMove.output ?? "", /young_product_1/);
+  assert.match(youngMove.output ?? "", /ConjugateExponentsWithEpsilon/);
+  assert.match(youngMove.output ?? "", /choose-small-parameter/);
+
+  const abstractMoves = await backend.call("inequality_engine", {
+    operation: "suggest",
+    goal: "\"estimate u\"",
+    known: "",
+    context: "<|\"AllowedInequalities\" -> {\"Poincare\", \"Sobolev\"}, \"Domain\" -> \"bounded Lipschitz\", \"Dimension\" -> n, \"FunctionSpaces\" -> {\"u in W^{1,p}\"}|>",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: ""
+  });
+  assert.equal(abstractMoves.ok, true);
+  assert.match(abstractMoves.output ?? "", /poincare_1/);
+  assert.match(abstractMoves.output ?? "", /sobolev_1/);
+  assert.match(abstractMoves.output ?? "", /AssumedFromContext/);
+
+  const appliedMove = await backend.call("inequality_engine", {
+    operation: "apply",
+    goal: "Integrate[f[x] g[x], {x, 0, 1}]",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "holder_product_1",
+    ruleName: "Holder",
+    payload: ""
+  });
+  assert.equal(appliedMove.ok, true);
+  assert.match(appliedMove.output ?? "", /LastMove/);
+  assert.match(appliedMove.output ?? "", /RequiredConditions/);
+
+  const registry = await backend.call("inequality_engine", {
+    operation: "registry",
+    goal: "",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: ""
+  });
+  assert.equal(registry.ok, true);
+  assert.match(registry.output ?? "", /RuleCount/);
+  assert.match(registry.output ?? "", /Holder/);
+  assert.match(registry.output ?? "", /CauchySchwarz/);
+  assert.match(registry.output ?? "", /Young/);
+  assert.match(registry.output ?? "", /Poincare/);
+  assert.match(registry.output ?? "", /Sobolev/);
+
+  const parameterChoice = await backend.call("inequality_engine", {
+    operation: "parameter",
+    goal: "",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: "<|\"Direction\" -> \"small\", \"Parameter\" -> eps, \"Condition\" -> C eps <= 1/2, \"Dependencies\" -> {C}|>"
+  });
+  assert.equal(parameterChoice.ok, true);
+  assert.match(parameterChoice.output ?? "", /ParameterChoice/);
+  assert.match(parameterChoice.output ?? "", /GeneratedByParameterChoice/);
+
+  const invalidRegistration = await backend.call("inequality_engine", {
+    operation: "register",
+    goal: "",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: "<|\"Type\" -> \"Rule\", \"Name\" -> \"BadRule\"|>"
+  });
+  assert.equal(invalidRegistration.ok, true);
+  assert.match(invalidRegistration.output ?? "", /Rejected/);
+  assert.match(invalidRegistration.output ?? "", /CanonicalForm/);
+
+  const transformRegistration = await backend.call("inequality_engine", {
+    operation: "register",
+    goal: "",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: "<|\"Type\" -> \"Transform\", \"Name\" -> \"test-transform\", \"Description\" -> \"Validated test transform.\", \"Cost\" -> 3|>"
+  });
+  assert.equal(transformRegistration.ok, true);
+  assert.match(transformRegistration.output ?? "", /Registered/);
+  assert.match(transformRegistration.output ?? "", /test-transform/);
+
+  const coefficient = await runVerificationTemplate(backend, {
+    template: "fourier_coefficient",
+    expr: "2 y Sin[n Pi y]",
+    assumptions: "Element[n, Integers] && n > 0",
+    variable: "y",
+    lower: "0",
+    upper: "1",
+    expected: "",
+    claimed: "-2 (-1)^n/(n Pi)",
+    rules: ""
+  });
+  assert.equal(coefficient.ok, true);
+  assert.equal(coefficient.output, "True");
+  assert.match(coefficient.messages?.[0] ?? "", /computed=/);
 
   console.log("wolfram tool tests passed");
 } finally {
