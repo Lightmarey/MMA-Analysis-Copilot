@@ -127,7 +127,7 @@ export class WolframBackend {
   async ensureStarted(): Promise<void> {
     if (this.child && !this.child.killed) return;
     if (!this.command) {
-      throw new Error("No Wolfram command found. Set WOLFRAM_COMMAND.");
+      throw new Error("No Wolfram command found. Set wolfram.command in ignored wma.config.json or as a temporary WOLFRAM_COMMAND override.");
     }
     if (!fs.existsSync(this.workerPath)) {
       throw new Error(`Wolfram worker not found: ${this.workerPath}`);
@@ -151,7 +151,7 @@ export class WolframBackend {
     this.child.stderr.on("data", chunk => {
       const text = String(chunk);
       this.stderrBuffer += text;
-      if (process.env.WOLFRAM_DEBUG_STDIO === "1") {
+      if (config.wolframDebugStdio) {
         process.stderr.write(text);
       }
       if (this.stderrBuffer.length > 20_000) {
@@ -212,7 +212,7 @@ export class WolframBackend {
       try {
         response = JSON.parse(extractJsonObject(line)) as WolframResponse;
       } catch {
-        if (process.env.WOLFRAM_DEBUG_STDIO === "1") {
+        if (config.wolframDebugStdio) {
           process.stderr.write(`[wolfram stdout] ${line}\n`);
         }
         continue;
@@ -271,7 +271,7 @@ export function findDefaultWolframCommand(): string {
 }
 
 function workerArgs(command: string, workerPath: string): string[] {
-  const override = process.env.WOLFRAM_WORKER_ARGS;
+  const override = config.wolframWorkerArgs;
   if (override?.trim()) {
     return override.split(/\s+/).map(part => part.replaceAll("{worker}", workerPath));
   }
@@ -287,8 +287,8 @@ function workerArgs(command: string, workerPath: string): string[] {
 }
 
 function shouldBootstrapFromStdin(command: string): boolean {
-  if (process.env.WOLFRAM_BOOTSTRAP_STDIN?.trim()) {
-    return process.env.WOLFRAM_BOOTSTRAP_STDIN.trim().toLowerCase() !== "false";
+  if (config.wolframBootstrapStdin !== null) {
+    return config.wolframBootstrapStdin;
   }
   const base = path.basename(command).toLowerCase();
   return base.includes("wolframkernel");

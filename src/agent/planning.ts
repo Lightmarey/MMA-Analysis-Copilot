@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { config } from "../config.js";
 
 export type TheoremEntry = {
   id: string;
@@ -492,8 +493,8 @@ function matchTheorems(text: string): TheoremSuggestion[] {
 }
 
 export function loadTheorems(): TheoremEntry[] {
-  const sourceMode = (process.env.WOLFRAM_THEOREM_SOURCE || process.env.AI4MATH_THEOREM_SOURCE || "merge").trim().toLowerCase();
-  const externalPath = (process.env.WOLFRAM_THEOREM_EXTERNAL_PATH || process.env.AI4MATH_THEOREM_EXTERNAL_PATH || "").trim();
+  const sourceMode = (process.env.WOLFRAM_THEOREM_SOURCE || process.env.AI4MATH_THEOREM_SOURCE || config.theoremSource || "merge").trim().toLowerCase();
+  const externalPath = (process.env.WOLFRAM_THEOREM_EXTERNAL_PATH || process.env.AI4MATH_THEOREM_EXTERNAL_PATH || config.theoremExternalPath || "").trim();
   const loaded: TheoremEntry[] = [];
 
   if (sourceMode !== "external") {

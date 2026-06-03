@@ -1,0 +1,26 @@
+{
+  "openai": {
+    "apiKey": "put-your-api-key-here",
+    "baseUrl": "",
+    "model": "gpt-4.1-mini",
+    "flashModel": "gpt-4.1-mini",
+    "proModel": "gpt-4.1-mini",
+    "autoRoute": true,
+    "preplanEnabled": true,
+    "maxIterations": 20,
+    "maxTokens": 8192,
+    "temperature": 0
+  },
+  "wolfram": {
+    "command": "",
+    "backendMode": "oneshot",
+    "workerTimeoutMs": 120000,
+    "debugStdio": false,
+    "workerArgs": "",
+    "bootstrapStdin": null
+  },
+  "theorems": {
+    "source": "merge",
+    "externalPath": ""
+  }
+}

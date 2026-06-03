@@ -2,6 +2,8 @@ node_modules/
 dist/
 .env
 .env.local
+wma.config.json
+wma.local.json
 .worktrees/
 output/
 *.log

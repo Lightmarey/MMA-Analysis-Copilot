@@ -25,26 +25,50 @@ npm run smoke:wolfram
 npm run verify
 ```
 
-Set these environment variables as needed:
+Create a local config file:
 
-```text
-OPENAI_API_KEY=...
-OPENAI_BASE_URL=...
-WOLFRAM_AGENT_MODEL=...
-WOLFRAM_AGENT_FLASH_MODEL=...
-WOLFRAM_AGENT_PRO_MODEL=...
-WOLFRAM_AGENT_AUTO_ROUTE=true
-WOLFRAM_AGENT_PREPLAN_ENABLED=true
-WOLFRAM_AGENT_MAX_ITERATIONS=20
-WOLFRAM_AGENT_TEMPERATURE=0
-WOLFRAM_THEOREM_SOURCE=merge
-WOLFRAM_THEOREM_EXTERNAL_PATH=
-WOLFRAM_COMMAND=C:\Program Files\Wolfram Research\WolframScript\wolframscript.exe
+```powershell
+Copy-Item wma.config.example.json wma.config.json
 ```
 
-When auto routing is enabled, simple questions use `WOLFRAM_AGENT_FLASH_MODEL`
-and complex or theory-first questions use `WOLFRAM_AGENT_PRO_MODEL`. If those
-are unset, both fall back to `WOLFRAM_AGENT_MODEL`.
+`wma.config.json` is ignored by Git and is the intended place for local
+settings, including API keys:
+
+```json
+{
+  "openai": {
+    "apiKey": "put-your-api-key-here",
+    "baseUrl": "https://api.deepseek.com",
+    "model": "deepseek-chat",
+    "flashModel": "deepseek-chat",
+    "proModel": "deepseek-chat",
+    "autoRoute": true,
+    "preplanEnabled": true,
+    "maxIterations": 20,
+    "maxTokens": 8192,
+    "temperature": 0
+  },
+  "wolfram": {
+    "command": "C:\\Program Files\\Wolfram Research\\WolframScript\\wolframscript.exe",
+    "backendMode": "oneshot",
+    "workerTimeoutMs": 120000,
+    "debugStdio": false,
+    "workerArgs": "",
+    "bootstrapStdin": null
+  },
+  "theorems": {
+    "source": "merge",
+    "externalPath": ""
+  }
+}
+```
+
+Environment variables are still supported as temporary overrides for CI or
+one-off shell tests, but they are not the primary configuration path.
+
+When auto routing is enabled, simple questions use `openai.flashModel` and
+complex or theory-first questions use `openai.proModel`. If those are unset,
+both fall back to `openai.model`.
 
 The supported Wolfram backend mode is `oneshot`: each tool call runs a short
 `wolframscript -code ...` process. This is slower than a persistent kernel but
@@ -69,7 +93,7 @@ npm run dev -- --batch questions.md --output output/batch-run --trace
 npm run dev -- -t 0 -n 12 --trace "Determine whether Sum[1/k^p,{k,1,Infinity}] converges."
 ```
 
-Natural-language agent mode requires `OPENAI_API_KEY`; direct Wolfram mode only
+Natural-language agent mode requires `openai.apiKey`; direct Wolfram mode only
 requires a working local Wolfram Engine command.
 `--plan` also does not require an API key; it prints the deterministic local
 route, preplan, decomposition when needed, and the exact system context that
@@ -84,9 +108,9 @@ preplanned proof checks. Questions may inline local text files with
 Theorem guidance is loaded from built-ins plus `theorems/*.json` by default,
 then filtered to analysis-related domains. Current default coverage includes
 real/measure analysis, functional analysis, complex analysis, asymptotics, and
-special functions. Set `WOLFRAM_THEOREM_EXTERNAL_PATH` to merge in a custom
-analysis theorem file, or set `WOLFRAM_THEOREM_SOURCE=external` to use only
-that external file.
+special functions. Set `theorems.externalPath` to merge in a custom analysis
+theorem file, or set `theorems.source` to `external` to use only that external
+file.
 
 Wolfram results keep assumptions visible. If a tool returns
 `ConditionalExpression[value, condition]`, the protocol exposes `output` for

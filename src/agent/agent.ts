@@ -39,7 +39,7 @@ export class MathAgent {
 
   constructor(private readonly wolfram = new WolframBackend()) {
     if (!config.openaiApiKey) {
-      throw new Error("OPENAI_API_KEY is required for agent mode.");
+      throw new Error("openai.apiKey is required for agent mode. Set it in ignored wma.config.json or as a temporary OPENAI_API_KEY override.");
     }
     this.client = new OpenAI({
       apiKey: config.openaiApiKey,

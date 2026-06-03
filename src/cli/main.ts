@@ -75,6 +75,7 @@ program
   .action(async () => {
     const command = findDefaultWolframCommand();
     console.log(`${chalk.bold("Root:")} ${config.rootDir}`);
+    console.log(`${chalk.bold("Config:")} ${config.configPath} (${config.configFileLoaded ? "loaded" : "not found"})`);
     console.log(`${chalk.bold("Protocol:")} ${config.wolframProtocolPath}`);
     console.log(`${chalk.bold("Worker:")} unsupported in this release`);
     console.log(`${chalk.bold("Wolfram command:")} ${command || "(not found)"}`);
@@ -86,8 +87,8 @@ program
     console.log(`${chalk.bold("Preplanning:")} ${config.preplanEnabled ? "enabled" : "disabled"}`);
     console.log(`${chalk.bold("Max iterations:")} ${config.maxIterations}`);
     console.log(`${chalk.bold("Temperature:")} ${config.temperature}`);
-    console.log(`${chalk.bold("OPENAI_API_KEY:")} ${config.openaiApiKey ? "set" : "missing"}`);
-    console.log(`${chalk.bold("OPENAI_BASE_URL:")} ${config.openaiBaseUrl ?? "(default)"}`);
+    console.log(`${chalk.bold("OpenAI API key:")} ${config.openaiApiKey ? "set" : "missing"}`);
+    console.log(`${chalk.bold("OpenAI base URL:")} ${config.openaiBaseUrl ?? "(default)"}`);
   });
 
 try {
