@@ -7,8 +7,5 @@ wma.local.json
 .idea/
 .worktrees/
 output/
+testexamples/
 *.log
-testexamples/**/*.aux
-testexamples/**/*.out
-testexamples/**/*.pdf
-testexamples/**/*.synctex.gz
