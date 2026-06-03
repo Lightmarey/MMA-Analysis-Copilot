@@ -15,6 +15,7 @@ type WmaConfigFile = {
     model?: string;
     flashModel?: string;
     proModel?: string;
+    autoDiscoverModels?: boolean;
     autoRoute?: boolean;
     preplanEnabled?: boolean;
     maxIterations?: number;
@@ -115,6 +116,7 @@ export const config = {
   flashModel,
   proModel,
   autoRoute: boolEnv("WOLFRAM_AGENT_AUTO_ROUTE", booleanValue(fileConfig.openai?.autoRoute, true)),
+  autoDiscoverModels: boolEnv("WOLFRAM_AGENT_AUTO_DISCOVER_MODELS", booleanValue(fileConfig.openai?.autoDiscoverModels, true)),
   preplanEnabled: boolEnv("WOLFRAM_AGENT_PREPLAN_ENABLED", booleanValue(fileConfig.openai?.preplanEnabled, true)),
   maxIterations: intEnv("WOLFRAM_AGENT_MAX_ITERATIONS", numberValue(fileConfig.openai?.maxIterations, 20)),
   maxTokens: intEnv("WOLFRAM_AGENT_MAX_TOKENS", numberValue(fileConfig.openai?.maxTokens, 8192)),

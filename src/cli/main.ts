@@ -13,6 +13,7 @@ import { expandAtPaths } from "./input.js";
 import { formatPlanPreview } from "./plan-preview.js";
 import { formatMarkdownReport, formatQuestionMarkdown } from "./report.js";
 import { applyRuntimeOptions } from "./runtime.js";
+import { getModelRoute } from "../agent/model-routing.js";
 import type { ChatRun, TraceEvent } from "./report.js";
 
 const program = new Command();
@@ -84,6 +85,13 @@ program
     console.log(`${chalk.bold("Auto route:")} ${config.autoRoute ? "enabled" : "disabled"}`);
     console.log(`${chalk.bold("Flash model:")} ${config.flashModel}`);
     console.log(`${chalk.bold("Pro model:")} ${config.proModel}`);
+    console.log(`${chalk.bold("Model discovery:")} ${config.autoDiscoverModels ? "enabled" : "disabled"}`);
+    if (config.openaiApiKey && config.autoDiscoverModels) {
+      const route = await getModelRoute();
+      console.log(`${chalk.bold("Discovered models:")} ${route.discovered ? route.availableModels.join(", ") : `failed (${route.warning ?? "unknown"})`}`);
+      console.log(`${chalk.bold("Resolved flash model:")} ${route.flashModel}`);
+      console.log(`${chalk.bold("Resolved pro model:")} ${route.proModel}`);
+    }
     console.log(`${chalk.bold("Preplanning:")} ${config.preplanEnabled ? "enabled" : "disabled"}`);
     console.log(`${chalk.bold("Max iterations:")} ${config.maxIterations}`);
     console.log(`${chalk.bold("Temperature:")} ${config.temperature}`);

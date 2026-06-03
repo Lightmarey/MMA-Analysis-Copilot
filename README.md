@@ -1,47 +1,33 @@
 # Wolfram Math Agent
 
-A Wolfram Engine backed math-agent CLI/TUI experiment focused on analysis
-workflows: limits, integration, convergence tests, series, ODEs, transforms,
-residues, and the theorem/invariant checks that usually surround them.
+Wolfram Math Agent is a TypeScript CLI that ports the useful `ai4math` agent
+framework to a Wolfram Engine backend. The current scope is intentionally
+analysis-focused: limits, integrals, convergence, series, ODEs, transforms,
+residues, special functions, and the theorem/preplanning/routing/verification
+framework around those tools.
 
-This branch implements a small TypeScript agent shell inspired by `ai4math`:
+It does not currently ship probability, broad number theory, modular forms,
+algebraic geometry, GUI/WLJS integration, or a persistent Wolfram worker.
 
-- OpenAI-compatible tool-calling loop.
-- Local theorem/preplanning/routing layer inspired by `ai4math`.
-- Offline plan preview for route/preplanning audits without API keys.
-- JSON-extensible theorem/tactic library, filtered by default to analysis-related domains.
-- Wolfram tools for analysis-first work: simplify, algebraic cleanup, differentiate, integrate, limit, solve/reduce, series, sums, convergence checks, ODEs, transforms, and residues.
-- Reliable oneshot Wolfram subprocess backend.
-- Markdown output for terminal and future notebook frontends.
-- No CAS-specific rendering in the CLI.
+## Configuration
 
-## Quick Start
-
-```powershell
-npm install
-npm run build
-npm run doctor
-npm run smoke:wolfram
-npm run verify
-```
-
-Create a local config file:
+Runtime configuration is file-first. The local config file is ignored by Git:
 
 ```powershell
 Copy-Item wma.config.example.json wma.config.json
 ```
 
-`wma.config.json` is ignored by Git and is the intended place for local
-settings, including API keys:
+Edit `wma.config.json`:
 
 ```json
 {
   "openai": {
-    "apiKey": "put-your-api-key-here",
+    "apiKey": "your-api-key",
     "baseUrl": "https://api.deepseek.com",
     "model": "deepseek-chat",
     "flashModel": "deepseek-chat",
     "proModel": "deepseek-chat",
+    "autoDiscoverModels": true,
     "autoRoute": true,
     "preplanEnabled": true,
     "maxIterations": 20,
@@ -63,81 +49,113 @@ settings, including API keys:
 }
 ```
 
-Environment variables are still supported as temporary overrides for CI or
-one-off shell tests, but they are not the primary configuration path.
+Environment variables are still accepted as temporary overrides for CI or
+one-off tests, but `wma.config.json` is the normal path.
 
-When auto routing is enabled, simple questions use `openai.flashModel` and
-complex or theory-first questions use `openai.proModel`. If those are unset,
-both fall back to `openai.model`.
+When `openai.autoDiscoverModels` is enabled and an API key is available,
+startup probes the provider's OpenAI-compatible model list. Explicit
+`flashModel` and `proModel` values are respected when the provider reports
+them; otherwise the agent infers fast/pro routes from model names such as
+`chat`, `flash`, `reasoner`, `pro`, or `r1`.
 
-The supported Wolfram backend mode is `oneshot`: each tool call runs a short
-`wolframscript -code ...` process. This is slower than a persistent kernel but
-is the verified delivery path for the current CLI/TUI version. The old JSONL
-worker mode is not supported in this release because `wolframscript` and
-`WolframKernel` stdin behavior was not reliable enough for a stable agent loop.
+## Commands
 
-Interactive mode:
+```powershell
+npm install
+npm run build
+npm run doctor
+npm run verify
+```
+
+Interactive agent mode:
 
 ```powershell
 npm run dev
 ```
 
-Single-question file input, stdin, and batch mode:
+One-shot agent mode:
+
+```powershell
+npm run dev -- "Determine whether Sum[1/k^p,{k,1,Infinity}] converges."
+```
+
+Direct Wolfram mode, no LLM required:
 
 ```powershell
 npm run dev -- --direct-wolfram "FullSimplify[Sin[x]^2 + Cos[x]^2]"
+```
+
+Local plan preview, no LLM or Wolfram call required:
+
+```powershell
 npm run dev -- --plan "Show that a dominated pointwise limit may pass under the integral."
+```
+
+File, stdin, and batch input:
+
+```powershell
 npm run dev -- --file question.md --output output/answer.md --trace
 Get-Content question.md | npm run dev -- --output output/answer.md --trace
 npm run dev -- --batch questions.md --output output/batch-run --trace
-npm run dev -- -t 0 -n 12 --trace "Determine whether Sum[1/k^p,{k,1,Infinity}] converges."
 ```
 
-Natural-language agent mode requires `openai.apiKey`; direct Wolfram mode only
-requires a working local Wolfram Engine command.
-`--plan` also does not require an API key; it prints the deterministic local
-route, preplan, decomposition when needed, and the exact system context that
-would be injected before an LLM call.
+Runtime CLI overrides:
 
-Batch files are split on lines containing only `---`. Saved trace reports
-include routing, preplanning context, tool arguments, compact tool results, and
-a verification summary that surfaces Wolfram-returned conditions and
-preplanned proof checks. Questions may inline local text files with
-`@path/to/file.md`.
+```powershell
+npm run dev -- -t 0 -n 12 --trace "Compute a parameter integral and state conditions."
+```
 
-Theorem guidance is loaded from built-ins plus `theorems/*.json` by default,
-then filtered to analysis-related domains. Current default coverage includes
-real/measure analysis, functional analysis, complex analysis, asymptotics, and
-special functions. Set `theorems.externalPath` to merge in a custom analysis
-theorem file, or set `theorems.source` to `external` to use only that external
-file.
+## Agent Flow
 
-Wolfram results keep assumptions visible. If a tool returns
-`ConditionalExpression[value, condition]`, the protocol exposes `output` for
-the value, `conditions` for the condition, and `rawOutput` for the original
-Wolfram expression. Use `wolfram_convergence` for direct p-series and related
-sum convergence checks, and for extracting generated conditions from
-parameter-dependent definite integrals.
+The framework follows the migrated `ai4math` shape:
 
-For now the project keeps Wolfram capabilities as in-project structured tools
-rather than a separate MCP server. That is the better short-term fit while the
-analysis tool schemas, condition handling, and theorem-routing behavior are
-still changing. Once those interfaces stabilize, the same tool layer can be
-extracted into a Wolfram MCP so other agents can call it without depending on
-this CLI.
+```text
+question
+-> local theorem advisor / problem analysis
+-> deterministic preplan and optional decomposition
+-> simple/complex model route
+-> OpenAI-compatible tool loop
+-> Wolfram structured tools
+-> trace report and verification summary
+-> final Markdown answer
+```
 
-See `NEXT_SESSION_HANDOFF.md` for the current continuation state and
-`MIGRATION_AUDIT.md` for the ai4math-to-Wolfram capability map, scope
-boundaries, and verification evidence.
+`--plan` stops before the LLM/tool loop. It only runs local deterministic
+TypeScript code in `src/agent/planning.ts`, so it can audit route and injected
+context without an API key.
 
-Useful checks:
+## Wolfram Backend
+
+The supported backend is `oneshot`. Each structured tool call runs:
+
+```text
+wolframscript -code ...
+```
+
+The old JSONL worker path is intentionally unsupported for this release because
+local stdin behavior was not stable enough for delivery.
+
+Wolfram `ConditionalExpression[value, condition]` results expose:
+
+- `output`
+- `latex`
+- `conditions`
+- `conditionLatex`
+- `rawOutput`
+- `rawLatex`
+
+Trace reports include route, preplanning context, tool trace, returned
+conditions, verification summary, and answer.
+
+## Verification
 
 ```powershell
 npm run check
-npm run test:planning
-npm run test:plan-preview
-npm run test:input
+npm run test
 npm run test:wolfram
 npm run smoke:wolfram
 npm run verify
 ```
+
+`npm run verify` runs unit checks, Wolfram tool tests, TypeScript build, and
+`doctor`.

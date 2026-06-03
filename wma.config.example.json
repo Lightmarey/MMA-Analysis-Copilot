@@ -5,6 +5,7 @@
     "model": "gpt-4.1-mini",
     "flashModel": "gpt-4.1-mini",
     "proModel": "gpt-4.1-mini",
+    "autoDiscoverModels": true,
     "autoRoute": true,
     "preplanEnabled": true,
     "maxIterations": 20,

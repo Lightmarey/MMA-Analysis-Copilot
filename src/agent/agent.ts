@@ -4,6 +4,7 @@ import { config } from "../config.js";
 import { WolframBackend } from "../wolfram/backend.js";
 import { formatToolResult, formatToolResultMarkdown, isWolframToolName, runLocalTool, toolDefinitions } from "./tools.js";
 import { analyzeProblem, buildPreplanContext, classifyDifficulty, createPreplan, decomposeProblem } from "./planning.js";
+import { getModelRoute } from "./model-routing.js";
 import type { AgentToolName, LocalToolName } from "./tools.js";
 import type { WolframResponse } from "../wolfram/types.js";
 
@@ -56,11 +57,12 @@ export class MathAgent {
     const preplan = createPreplan(userMessage, analysis);
     const decomposition = decomposeProblem(userMessage, analysis);
     const difficulty = classifyDifficulty(userMessage, analysis);
+    const modelRoute = await getModelRoute(this.client);
     const effectiveModel = config.autoRoute
       ? difficulty === "simple"
-        ? config.flashModel
-        : config.proModel
-      : config.model;
+        ? modelRoute.flashModel
+        : modelRoute.proModel
+      : modelRoute.defaultModel;
     callbacks.onRoute?.(difficulty, effectiveModel);
 
     this.messages.push({ role: "user", content: userMessage });
