@@ -5,13 +5,13 @@
       "name": "Elliptic maximum principle",
       "domains": ["elliptic_pde", "partial_differential_equations", "inequalities"],
       "keywords": ["maximum principle", "elliptic equation", "subharmonic", "superharmonic", "boundary maximum"],
-      "signals": ["maximum\\s+principle", "elliptic.*boundary", "subharmonic|superharmonic"],
+      "signals": ["maximum[-\\s]+principle", "elliptic.*boundary", "subharmonic|superharmonic"],
       "reduces": "control an interior extremum of an elliptic solution by boundary values once the sign and ellipticity hypotheses are checked",
       "prerequisites": ["uniform ellipticity or Laplace-type operator", "appropriate sign condition on Lu", "boundary value control", "connected bounded domain when needed"],
       "invariantHints": ["operator sign convention", "ellipticity constants", "boundary supremum or infimum"],
-      "verificationHints": ["check the PDE inequality has the correct sign", "check boundary values dominate the claimed bound", "check regularity assumptions for the chosen maximum principle"],
-      "preferredRecipe": ["identify the elliptic operator and sign convention", "verify ellipticity and regularity", "compare with boundary values", "apply maximum principle"],
-      "avoidPatterns": ["do not apply the maximum principle before fixing the sign convention for the operator"],
+      "verificationHints": ["check the PDE inequality has the correct sign", "state whether the chosen convention controls maxima or minima", "check boundary values dominate the claimed bound", "check regularity assumptions for the chosen maximum principle"],
+      "preferredRecipe": ["identify the elliptic operator and sign convention", "verify ellipticity and regularity", "decide whether the principle controls maximum or minimum", "compare with boundary values", "apply maximum principle"],
+      "avoidPatterns": ["do not apply the maximum principle before fixing the sign convention for the operator", "do not claim -u'' >= 0 controls maxima when it controls minima under the chosen convention"],
       "wolframHint": "Use wolfram_differentiate and wolfram_simplify to verify Lu and boundary inequalities for explicit candidates."
     },
     {
@@ -68,6 +68,20 @@
       "verificationHints": ["check both factors are square-integrable", "state equality conditions only when needed"],
       "preferredRecipe": ["identify the inner product", "compute or bound each norm", "apply Cauchy-Schwarz", "simplify constants"],
       "wolframHint": "Use wolfram_integrate for explicit L2 norm integrals and wolfram_simplify for the resulting bound."
+    },
+    {
+      "id": "holder_inequality",
+      "name": "Holder inequality",
+      "domains": ["inequalities", "analysis", "sobolev_spaces", "elliptic_pde"],
+      "keywords": ["Holder", "Holder inequality", "Hoelder inequality", "Hölder inequality", "conjugate exponents", "Lp duality"],
+      "signals": ["H[oö]lder", "H[oö]lder\\s+inequality", "conjugate\\s+exponents", "L\\^?p.*L\\^?q"],
+      "reduces": "bound an integral of a product by the product of Lp and Lq norms with conjugate exponents",
+      "prerequisites": ["conjugate exponents p and q", "finite Lp and Lq norms", "measurable product"],
+      "invariantHints": ["conjugate exponents", "Lp norm of first factor", "Lq norm of second factor"],
+      "verificationHints": ["check 1/p + 1/q = 1", "compute or bound both norms", "track absolute values in the product integral"],
+      "preferredRecipe": ["identify product integral", "choose conjugate exponents", "compute or bound both norms", "apply Holder inequality"],
+      "avoidPatterns": ["do not drop absolute values unless the sign is known"],
+      "wolframHint": "Use wolfram_integrate and wolfram_simplify to compute explicit Lp/Lq norms and compare both sides."
     },
     {
       "id": "young_inequality_products",

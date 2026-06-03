@@ -30,6 +30,7 @@ Edit `wma.config.json`:
     "autoDiscoverModels": true,
     "autoRoute": true,
     "preplanEnabled": true,
+    "llmPlanningEnabled": true,
     "maxIterations": 20,
     "maxTokens": 8192,
     "temperature": 0
@@ -68,7 +69,7 @@ belongs to npm, not this CLI: everything after it is forwarded to
 If you do not want to type npm's separator, run the CLI directly:
 
 ```powershell
-npx tsx src/cli/main.ts --plan "Show that a dominated pointwise limit may pass under the integral."
+npx tsx src/cli/main.ts "Show that a dominated pointwise limit may pass under the integral."
 npm run build
 node dist\cli\main.js --direct-wolfram "2+2"
 ```
@@ -98,12 +99,6 @@ Direct Wolfram mode, no LLM required:
 npm run dev -- --direct-wolfram "FullSimplify[Sin[x]^2 + Cos[x]^2]"
 ```
 
-Local plan preview, no LLM or Wolfram call required:
-
-```powershell
-npm run dev -- --plan "Show that a dominated pointwise limit may pass under the integral."
-```
-
 File, stdin, and batch input:
 
 ```powershell
@@ -128,7 +123,6 @@ Common options:
 | `-o, --output <path>` | Write the final answer or report to a file. |
 | `-f, --file <path>` | Read one question from a text/Markdown file. |
 | `-b, --batch <path>` | Process a batch file split by lines containing only `---`. |
-| `--plan` | Print deterministic local route/preplan/decomposition without LLM or Wolfram. |
 | `--direct-wolfram` | Evaluate raw Wolfram Language without LLM. |
 
 ## Agent Flow
@@ -137,18 +131,20 @@ The framework follows the migrated `ai4math` shape:
 
 ```text
 question
--> local theorem advisor / problem analysis
--> deterministic preplan and optional decomposition
--> simple/complex model route
+-> LLM planner: strategy, difficulty, decomposition, verification targets
+-> simple/complex model route from the LLM plan
 -> OpenAI-compatible tool loop
 -> Wolfram structured tools
 -> trace report and verification summary
 -> final Markdown answer
 ```
 
-`--plan` stops before the LLM/tool loop. It only runs local deterministic
-TypeScript code in `src/agent/planning.ts`, so it can audit route and injected
-context without an API key.
+The theorem advisor in `src/agent/planning.ts` is retained as local theorem
+retrieval and as a fallback if the LLM planning call fails. It is not the main
+route decision path. With `openai.llmPlanningEnabled` and `openai.autoRoute`
+enabled, the agent first asks the resolved flash model to classify and
+decompose the problem, then routes simple tasks to the flash model and complex
+tasks to the pro model.
 
 ## Wolfram Backend
 

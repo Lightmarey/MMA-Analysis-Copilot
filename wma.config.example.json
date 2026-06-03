@@ -8,6 +8,7 @@
     "autoDiscoverModels": true,
     "autoRoute": true,
     "preplanEnabled": true,
+    "llmPlanningEnabled": true,
     "maxIterations": 20,
     "maxTokens": 8192,
     "temperature": 0

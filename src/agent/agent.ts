@@ -5,6 +5,7 @@ import { WolframBackend } from "../wolfram/backend.js";
 import { formatToolResult, formatToolResultMarkdown, isWolframToolName, runLocalTool, toolDefinitions } from "./tools.js";
 import { analyzeProblem, buildPreplanContext, classifyDifficulty, createPreplan, decomposeProblem } from "./planning.js";
 import { getModelRoute } from "./model-routing.js";
+import { buildLlmPlanContext, createLlmExecutionPlan } from "./llm-planning.js";
 import type { AgentToolName, LocalToolName } from "./tools.js";
 import type { WolframResponse } from "../wolfram/types.js";
 
@@ -53,11 +54,12 @@ export class MathAgent {
   }
 
   async chat(userMessage: string, callbacks: AgentCallbacks = {}): Promise<string> {
-    const analysis = analyzeProblem(userMessage);
-    const preplan = createPreplan(userMessage, analysis);
-    const decomposition = decomposeProblem(userMessage, analysis);
-    const difficulty = classifyDifficulty(userMessage, analysis);
     const modelRoute = await getModelRoute(this.client);
+    const llmPlan = await createLlmExecutionPlan(this.client, userMessage, modelRoute.flashModel);
+    const analysis = llmPlan ? null : analyzeProblem(userMessage);
+    const preplan = analysis ? createPreplan(userMessage, analysis) : null;
+    const decomposition = analysis ? decomposeProblem(userMessage, analysis) : null;
+    const difficulty = llmPlan?.difficulty ?? (analysis ? classifyDifficulty(userMessage, analysis) : "simple");
     const effectiveModel = config.autoRoute
       ? difficulty === "simple"
         ? modelRoute.flashModel
@@ -67,7 +69,9 @@ export class MathAgent {
 
     this.messages.push({ role: "user", content: userMessage });
     if (config.preplanEnabled) {
-      const preplanContext = buildPreplanContext(analysis, preplan, decomposition);
+      const preplanContext = llmPlan
+        ? buildLlmPlanContext(llmPlan)
+        : buildPreplanContext(analysis!, preplan!, decomposition);
       callbacks.onPlan?.(preplanContext);
       this.messages.push({ role: "system", content: preplanContext });
     }

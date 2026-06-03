@@ -8,6 +8,7 @@ const theoremIds = new Set(loadTheorems().map(theorem => theorem.id));
 assert.ok(theoremIds.has("elliptic_maximum_principle"));
 assert.ok(theoremIds.has("sobolev_poincare_inequality"));
 assert.ok(theoremIds.has("young_inequality_products"));
+assert.ok(theoremIds.has("holder_inequality"));
 
 const pdeProblem = "Use the maximum principle for a uniformly elliptic equation to bound the solution by boundary values.";
 const pdeAnalysis = analyzeProblem(pdeProblem);
@@ -23,6 +24,10 @@ const inequalityProblem = "Apply Young inequality with epsilon to absorb the pro
 const inequalityAnalysis = analyzeProblem(inequalityProblem);
 assert.ok(inequalityAnalysis.suggestedTheorems.some(item => item.theorem === "Young inequality for products"));
 assert.ok(inequalityAnalysis.suggestedInvariants.some(item => item.includes("epsilon")));
+
+const holderProblem = "Check Holder inequality with conjugate exponents p=2 and q=2.";
+const holderAnalysis = analyzeProblem(holderProblem);
+assert.ok(holderAnalysis.suggestedTheorems.some(item => item.theorem === "Holder inequality"));
 
 const draft = createTheoremDraft({
   name: "Test elliptic estimate",
