@@ -87,6 +87,10 @@ Interactive agent mode:
 npm run dev
 ```
 
+In interactive mode, multiline paste is collected as one question. This is the
+recommended way to paste LaTeX problems with `cases`, `align`, or displayed
+equations without putting the whole prompt on one shell command line.
+
 One-shot agent mode:
 
 ```powershell

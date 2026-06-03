@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises";
 import path from "node:path";
-import readline from "node:readline/promises";
+import readline from "node:readline";
 import { stdin as input, stdout as output } from "node:process";
 import chalk from "chalk";
 import { Command } from "commander";
@@ -196,67 +196,131 @@ async function runBatch(batchPath: string, outputPath: string | undefined, inclu
 
 async function repl(): Promise<void> {
   banner();
-  const rl = readline.createInterface({ input, output });
+  const rl = readline.createInterface({ input, output, prompt: chalk.green("You > ") });
   const agent = new MathAgent();
   let lastAnswer = "";
+  let bufferedLines: string[] = [];
+  let flushTimer: NodeJS.Timeout | null = null;
+  let processing = false;
+  let closed = false;
+
+  const prompt = () => {
+    if (!closed && !processing) rl.prompt();
+  };
+
+  const scheduleFlush = () => {
+    if (flushTimer) clearTimeout(flushTimer);
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      void flushBuffered();
+    }, 150);
+  };
+
+  const flushBuffered = async () => {
+    if (processing || !bufferedLines.length) return;
+    const rawInput = bufferedLines.join("\n");
+    bufferedLines = [];
+    const text = rawInput.trim();
+    if (!text) {
+      prompt();
+      return;
+    }
+    processing = true;
+    try {
+      const shouldContinue = await handleReplInput(text, agent, {
+        getLastAnswer: () => lastAnswer,
+        setLastAnswer: value => {
+          lastAnswer = value;
+        },
+        close: () => {
+          closed = true;
+          rl.close();
+        }
+      });
+      if (!shouldContinue) return;
+    } finally {
+      processing = false;
+    }
+    if (bufferedLines.length) {
+      await flushBuffered();
+      return;
+    }
+    prompt();
+  };
 
   try {
-    while (true) {
-      const line = (await rl.question(chalk.green("You > "))).trim();
-      if (!line) continue;
-      if (line === "/quit" || line === "/exit" || line === "/q") break;
-      if (line === "/help") {
-        printHelp();
-        continue;
-      }
-      if (line === "/tools") {
-        for (const tool of toolDefinitions) console.log(`${tool.name} - ${tool.description}`);
-        continue;
-      }
-      if (line === "/reset") {
-        agent.reset();
-        lastAnswer = "";
-        console.log(chalk.green("Conversation reset."));
-        continue;
-      }
-      if (line === "/last") {
-        console.log(lastAnswer || chalk.yellow("No answer yet."));
-        continue;
-      }
-      if (line.startsWith("/save")) {
-        const [, rawPath] = line.split(/\s+/, 2);
-        const target = rawPath || `output/wolfram-agent-${Date.now()}.md`;
-        if (!lastAnswer) {
-          console.log(chalk.yellow("No answer to save."));
-          continue;
-        }
-        await maybeWrite(target, lastAnswer);
-        continue;
-      }
-
-      try {
-        const expanded = await expandAtPaths(line, config.rootDir);
-        printInlinedPaths(expanded.inlinedPaths);
-        const answer = await agent.chat(expanded.text, {
-          onRoute(difficulty, model) {
-            console.log(chalk.dim(`route ${difficulty} -> ${model}`));
-          },
-          onToolCall(name, args) {
-            console.log(chalk.dim(`tool ${name} ${JSON.stringify(args)}`));
-          }
-        });
-        lastAnswer = answer;
-        console.log();
-        console.log(answer);
-        console.log();
-      } catch (error) {
-        console.error(chalk.red(error instanceof Error ? error.message : String(error)));
-      }
-    }
+    rl.on("line", line => {
+      bufferedLines.push(line);
+      scheduleFlush();
+    });
+    prompt();
+    await new Promise<void>(resolve => rl.once("close", resolve));
   } finally {
+    if (flushTimer) clearTimeout(flushTimer);
     agent.close();
-    rl.close();
+    if (!closed) rl.close();
   }
+}
+
+type ReplState = {
+  getLastAnswer: () => string;
+  setLastAnswer: (value: string) => void;
+  close: () => void;
+};
+
+async function handleReplInput(line: string, agent: MathAgent, state: ReplState): Promise<boolean> {
+  if (line === "/quit" || line === "/exit" || line === "/q") {
+    state.close();
+    return false;
+  }
+  if (line === "/help") {
+    printHelp();
+    return true;
+  }
+  if (line === "/tools") {
+    for (const tool of toolDefinitions) console.log(`${tool.name} - ${tool.description}`);
+    return true;
+  }
+  if (line === "/reset") {
+    agent.reset();
+    state.setLastAnswer("");
+    console.log(chalk.green("Conversation reset."));
+    return true;
+  }
+  if (line === "/last") {
+    console.log(state.getLastAnswer() || chalk.yellow("No answer yet."));
+    return true;
+  }
+  if (line.startsWith("/save")) {
+    const [, rawPath] = line.split(/\s+/, 2);
+    const target = rawPath || `output/wolfram-agent-${Date.now()}.md`;
+    if (!state.getLastAnswer()) {
+      console.log(chalk.yellow("No answer to save."));
+      return true;
+    }
+    await maybeWrite(target, state.getLastAnswer());
+    return true;
+  }
+
+  try {
+    const expanded = await expandAtPaths(line, config.rootDir);
+    printInlinedPaths(expanded.inlinedPaths);
+    const answer = await agent.chat(expanded.text, {
+      onRoute(difficulty, model) {
+        console.log(chalk.dim(`route ${difficulty} -> ${model}`));
+      },
+      onToolCall(name, args) {
+        console.log(chalk.dim(`tool ${name} ${JSON.stringify(args)}`));
+      }
+    });
+    state.setLastAnswer(answer);
+    console.log();
+    console.log(answer);
+    console.log();
+  } catch (error) {
+    console.error(chalk.red(error instanceof Error ? error.message : String(error)));
+  }
+  return true;
 }
 
 async function runDirectWolfram(code: string): Promise<void> {
@@ -282,6 +346,7 @@ function banner(): void {
   console.log(chalk.cyan.bold("Wolfram Math Agent"));
   console.log(chalk.dim(`model=${config.model} route=${config.autoRoute ? "auto" : "off"} backend=${config.wolframBackendMode}`));
   console.log(chalk.dim("Commands: /help /tools /reset /last /save [path] /quit"));
+  console.log(chalk.dim("Multiline paste is collected as one question."));
   console.log();
 }
 
@@ -295,6 +360,9 @@ Commands:
   /last          show last Markdown answer
   /save [path]   save last Markdown answer
   /quit          exit
+
+Paste a multiline LaTeX problem directly; lines pasted together are submitted
+as one question.
 `);
 }
 
