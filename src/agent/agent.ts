@@ -88,6 +88,7 @@ export class MathAgent {
       this.messages.push({ role: "system", content: preplanContext });
     }
     const collected: string[] = [];
+    let sawToolCall = false;
 
     for (let iteration = 0; iteration < config.maxIterations; iteration += 1) {
       const stream = await this.client.chat.completions.create({
@@ -117,6 +118,13 @@ export class MathAgent {
       }
 
       if (!message.tool_calls?.length) {
+        if (!message.content && sawToolCall) {
+          this.messages.push({
+            role: "user",
+            content: "Continue and complete the final answer using the tool results already obtained. Do not call more tools unless strictly necessary."
+          });
+          continue;
+        }
         return collected.join("\n\n").trim();
       }
 
@@ -124,6 +132,7 @@ export class MathAgent {
         if (toolCall.type !== "function") {
           continue;
         }
+        sawToolCall = true;
         const name = toolCall.function.name as AgentToolName;
         const args = safeParseObject(toolCall.function.arguments);
         callbacks.onToolCall?.(name, args);
