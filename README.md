@@ -97,6 +97,10 @@ still changing. Once those interfaces stabilize, the same tool layer can be
 extracted into a Wolfram MCP so other agents can call it without depending on
 this CLI.
 
+See `NEXT_SESSION_HANDOFF.md` for the current continuation state and
+`MIGRATION_AUDIT.md` for the ai4math-to-Wolfram capability map, scope
+boundaries, and verification evidence.
+
 Useful checks:
 
 ```powershell
