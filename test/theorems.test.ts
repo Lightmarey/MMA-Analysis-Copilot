@@ -31,6 +31,12 @@ const holderAnalysis = analyzeProblem(holderProblem);
 const holderPlan = createPreplan(holderProblem, holderAnalysis);
 assert.ok(holderPlan.recommendedTools.includes("inequality_engine"));
 
+const movingSpheresAnalysis = analyzeProblem("Use a Kelvin transform in the moving spheres method and verify the inversion power.");
+assert.ok(movingSpheresAnalysis.suggestedTheorems.some(item => item.theorem.includes("Moving spheres")));
+
+const matrixAnalysis = analyzeProblem("Check Hessian quotient principal minors and Newton-Maclaurin matrix identities.");
+assert.ok(matrixAnalysis.suggestedTheorems.some(item => item.theorem.includes("Hessian quotient")));
+
 const draft = createTheoremDraft({
   name: "Test elliptic estimate",
   domains: ["elliptic_pde", "inequalities"],

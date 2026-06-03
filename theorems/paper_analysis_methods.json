@@ -1,0 +1,88 @@
+{
+  "theorems": [
+    {
+      "id": "direct_method_variational_functional",
+      "name": "Direct method for constrained variational functionals",
+      "domains": ["calculus_of_variations", "functional_analysis", "compactness", "nonlinear_functionals"],
+      "keywords": ["variational functional", "direct method", "minimizing sequence", "coercive", "weak lower semicontinuity", "Nehari", "Pohozaev", "变分", "泛函", "极小化序列"],
+      "signals": ["variational|functional|minimi[sz]|coerciv", "Nehari|Pohozaev", "变分|泛函|极小化序列"],
+      "reduces": "organize existence proofs into coercivity, compactness, lower semicontinuity, constraint preservation, and Euler-Lagrange verification",
+      "prerequisites": ["well-defined functional on the constraint", "bounded minimizing sequence", "compactness or concentration alternative", "constraint closed under the chosen convergence"],
+      "invariantHints": ["scaling exponents", "constraint mass", "Pohozaev quantity", "energy sign", "weak limit"],
+      "verificationHints": ["check each term is finite under the stated exponent range", "differentiate the functional along admissible variations", "verify the constraint derivative and multiplier equation"],
+      "preferredRecipe": ["split the functional into computable terms", "check coercivity or boundedness from below", "track the compactness mechanism", "verify first variation and constraint derivative", "state the remaining analytic compactness assumption"],
+      "avoidPatterns": ["do not infer compactness from boundedness without naming the compactness input", "do not hide the Lagrange multiplier or constraint derivative"],
+      "wolframHint": "Use verification_template first_variation_derivative for local variation checks and wolfram_simplify for scaling exponent algebra."
+    },
+    {
+      "id": "barrier_maximum_principle_construction",
+      "name": "Barrier construction for maximum principle arguments",
+      "domains": ["elliptic_pde", "barrier_methods", "maximum_principle"],
+      "keywords": ["barrier", "auxiliary function", "maximum principle", "subsolution", "supersolution", "闸函数", "辅助函数", "上下解"],
+      "signals": ["barrier|auxiliary\\s+function|maximum\\s+principle", "sub[-\\s]?solution|super[-\\s]?solution", "闸函数|辅助函数|上下解"],
+      "reduces": "verify the sign of an operator applied to a candidate barrier and compare boundary values before applying a maximum principle",
+      "prerequisites": ["operator sign convention", "ellipticity", "candidate barrier regularity", "boundary comparison"],
+      "invariantHints": ["operator sign", "dominant term", "boundary face", "free constants"],
+      "verificationHints": ["compute L[barrier] with the chosen sign convention", "check boundary inequalities separately", "record parameter choices for large or small constants"],
+      "preferredRecipe": ["write the candidate barrier explicitly", "compute derivatives and operator residual", "choose constants from the residual inequalities", "verify each boundary piece", "apply the comparison principle"],
+      "avoidPatterns": ["do not apply the maximum principle before checking the boundary comparison on every boundary component"],
+      "wolframHint": "Use verification_template barrier_operator_check, wolfram_differentiate, and wolfram_simplify for explicit residuals."
+    },
+    {
+      "id": "moving_spheres_kelvin_transform",
+      "name": "Moving spheres and Kelvin transform checks",
+      "domains": ["elliptic_pde", "conformal_methods", "barrier_methods"],
+      "keywords": ["moving spheres", "moving planes", "Kelvin transform", "inversion radius", "reflection", "移动球", "球面法", "反演"],
+      "signals": ["moving\\s+spheres|moving\\s+planes|Kelvin|inversion", "移动球|球面法|反演"],
+      "reduces": "turn a comparison argument into checks of the transformed expression, boundary sign, and allowable parameter increment",
+      "prerequisites": ["definition of the transform", "domain after inversion", "boundary sign convention", "small parameter hierarchy"],
+      "invariantHints": ["Kelvin exponent", "inversion radius", "annular region", "boundary pieces"],
+      "verificationHints": ["check transform powers algebraically", "verify the transformed boundary term", "separate narrow, middle, and far-region assumptions"],
+      "preferredRecipe": ["state the transform", "verify power and derivative identities", "organize region split", "check barrier residuals", "record parameter hierarchy"],
+      "avoidPatterns": ["do not merge region-specific assumptions into one global claim"],
+      "wolframHint": "Use verification_template kelvin_power_check plus wolfram_simplify for power identities and parameter inequalities."
+    },
+    {
+      "id": "ode_reduction_and_residual",
+      "name": "ODE reduction and residual verification",
+      "domains": ["ode", "differential_equations", "radial_analysis"],
+      "keywords": ["ODE", "ordinary differential equation", "radial equation", "phase plane", "differential inequality", "常微分", "径向", "微分不等式"],
+      "signals": ["\\bODE\\b|ordinary\\s+differential|radial\\s+equation|phase\\s+plane", "常微分|径向|微分不等式"],
+      "reduces": "separate explicit ODE residual checks from qualitative monotonicity, phase, or comparison arguments",
+      "prerequisites": ["correct independent variable", "normalization or boundary data", "regularity at singular endpoints"],
+      "invariantHints": ["first integral", "monotonicity sign", "singular endpoint exponent", "radial dimension factor"],
+      "verificationHints": ["substitute candidate solution into the ODE", "verify radial Laplacian or transformed derivatives", "check endpoint behavior separately"],
+      "preferredRecipe": ["derive the ODE", "verify algebraic residual", "solve or simplify model equation", "track qualitative assumptions"],
+      "avoidPatterns": ["do not let DSolve replace a qualitative comparison proof"],
+      "wolframHint": "Use wolfram_dsolve for explicit model equations and verification_template ode_residual_check or radial_laplacian_check for residuals."
+    },
+    {
+      "id": "hessian_quotient_matrix_calculus",
+      "name": "Hessian quotient matrix calculus",
+      "domains": ["fully_nonlinear_pde", "elliptic_pde", "matrix_calculus"],
+      "keywords": ["Hessian quotient", "Maclaurin inequality", "Newton-Maclaurin", "principal minor", "eigenvalue", "matrix", "Hessian", "大hessian", "矩阵"],
+      "signals": ["Hessian\\s+quotient|Maclaurin|Newton[-\\s]?Maclaurin|principal\\s+minor", "Hessian|矩阵|特征值|主子式"],
+      "reduces": "verify explicit matrix derivatives, traces, determinants, and symmetric-polynomial identities while keeping ellipticity cone assumptions visible",
+      "prerequisites": ["k-convexity or cone membership", "matrix symmetry", "positive eigenvalue or minor assumptions"],
+      "invariantHints": ["trace", "determinant", "principal minors", "eigenvalue cone", "linearized coefficient matrix"],
+      "verificationHints": ["compute determinant/trace/eigenvalue identities", "check sign assumptions are cone hypotheses, not algebraic consequences", "verify large-constant choices in barrier estimates"],
+      "preferredRecipe": ["write the Hessian or coefficient matrix", "compute invariants", "compare with Newton-Maclaurin hypotheses", "separate cone assumptions from Wolfram algebra"],
+      "avoidPatterns": ["do not infer positive definiteness from a formal determinant alone"],
+      "wolframHint": "Use wolfram_matrix and verification_template hessian_matrix_invariants for explicit matrix algebra."
+    },
+    {
+      "id": "manifold_integral_representation_check",
+      "name": "Manifold and representation-theoretic integral checks",
+      "domains": ["differential_geometry", "representation_theory", "integration"],
+      "keywords": ["manifold integral", "sphere integral", "representation", "invariant measure", "coordinate chart", "流形", "表示论", "球面积分", "不变测度"],
+      "signals": ["manifold|sphere\\s+integral|representation|invariant\\s+measure", "流形|表示论|球面积分|不变测度"],
+      "reduces": "check local coordinate integrals, normalization constants, and symmetry reductions while keeping geometric assumptions explicit",
+      "prerequisites": ["chosen chart or parametrization", "measure normalization", "orientation or symmetry convention"],
+      "invariantHints": ["Jacobian", "volume form", "normalization constant", "group invariance"],
+      "verificationHints": ["compute the Jacobian or model integral", "check normalization constants", "state coordinate singular sets"],
+      "preferredRecipe": ["choose chart", "compute volume form", "evaluate model integral", "lift result back to invariant statement"],
+      "avoidPatterns": ["do not treat a chart computation as global without checking coverage and singular sets"],
+      "wolframHint": "Use wolfram_integrate, wolfram_simplify, and wolfram_transform for explicit chart or special-function integrals."
+    }
+  ]
+}

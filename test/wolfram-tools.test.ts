@@ -290,6 +290,63 @@ try {
   assert.equal(coefficient.output, "True");
   assert.match(coefficient.messages?.[0] ?? "", /computed=/);
 
+  const firstVariation = await runVerificationTemplate(backend, {
+    template: "first_variation_derivative",
+    expr: "(x + t h)^2",
+    assumptions: "",
+    variable: "t",
+    lower: "",
+    upper: "",
+    expected: "",
+    claimed: "2 h x",
+    rules: ""
+  });
+  assert.equal(firstVariation.ok, true);
+  assert.equal(firstVariation.output, "True");
+
+  const radialLaplacian = await runVerificationTemplate(backend, {
+    template: "radial_laplacian_check",
+    expr: "r^2",
+    assumptions: "",
+    variable: "r",
+    lower: "",
+    upper: "",
+    expected: "dimension=n",
+    claimed: "2 n",
+    rules: ""
+  });
+  assert.equal(radialLaplacian.ok, true);
+  assert.equal(radialLaplacian.output, "True");
+
+  const odeResidual = await runVerificationTemplate(backend, {
+    template: "ode_residual_check",
+    expr: "D[Exp[x], x] - Exp[x]",
+    assumptions: "",
+    variable: "x",
+    lower: "",
+    upper: "",
+    expected: "",
+    claimed: "",
+    rules: ""
+  });
+  assert.equal(odeResidual.ok, true);
+  assert.equal(odeResidual.output, "0");
+
+  const hessianInvariants = await runVerificationTemplate(backend, {
+    template: "hessian_matrix_invariants",
+    expr: "{{a, 0}, {0, b}}",
+    assumptions: "",
+    variable: "lambda",
+    lower: "",
+    upper: "",
+    expected: "",
+    claimed: "",
+    rules: ""
+  });
+  assert.equal(hessianInvariants.ok, true);
+  assert.match(hessianInvariants.output ?? "", /CharacteristicPolynomial/);
+  assert.match(hessianInvariants.output ?? "", /a\*b/);
+
   console.log("wolfram tool tests passed");
 } finally {
   backend.close();

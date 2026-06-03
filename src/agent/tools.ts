@@ -61,7 +61,7 @@ export const toolDefinitions: ToolDefinition[] = [
   ),
   defineTool(
     "verification_template",
-    "Run a stable proof-verification template by translating it into compact Wolfram checks. Use this for product-rule identities, boundary substitution/cancellation, Fourier coefficient comparison, and candidate solution checks. Do not use it as an inequality theorem generator.",
+    "Run a stable proof-verification template by translating it into compact Wolfram checks. Use this for product-rule identities, boundary substitution/cancellation, Fourier coefficients, candidate solutions, first variations, parameter absorption, barrier residuals, ODE/radial checks, Kelvin power algebra, and Hessian matrix invariants. Do not use it as an inequality theorem generator.",
     {
       template: {
         type: "string",

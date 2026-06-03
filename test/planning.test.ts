@@ -33,6 +33,23 @@ const localEstimatePlan = createPreplan(localEstimateProblem, localEstimateAnaly
 assert.equal(classifyDifficulty(localEstimateProblem, localEstimateAnalysis), "complex");
 assert.ok(localEstimatePlan.recommendedTools.includes("inequality_engine"));
 
+const variationalProblem = "Check the first variation and Euler-Lagrange equation for a constrained nonlinear functional on a Nehari manifold.";
+const variationalAnalysis = analyzeProblem(variationalProblem);
+const variationalPlan = createPreplan(variationalProblem, variationalAnalysis);
+assert.equal(classifyDifficulty(variationalProblem, variationalAnalysis), "complex");
+assert.ok(variationalPlan.recommendedTools.includes("verification_template"));
+assert.ok(variationalAnalysis.suggestedTheorems.some(item => item.theorem.includes("Direct method")));
+
+const barrierProblem = "Construct a barrier auxiliary function and verify the maximum principle residual for upper and lower solutions.";
+const barrierPlan = createPreplan(barrierProblem);
+assert.equal(classifyDifficulty(barrierProblem), "complex");
+assert.ok(barrierPlan.recommendedTools.includes("verification_template"));
+
+const hessianProblem = "Compute Hessian quotient matrix principal minors and Maclaurin inequality side conditions.";
+const hessianPlan = createPreplan(hessianProblem);
+assert.equal(classifyDifficulty(hessianProblem), "complex");
+assert.ok(hessianPlan.recommendedTools.includes("wolfram_matrix"));
+
 const longProblem = (
   "Let f_n(x) be a sequence of measurable functions on [0, Infinity). Suppose f_n converges pointwise almost everywhere to f. " +
   "Assume |f_n(x)| is dominated by g(x) and g is integrable, then compute the limit of the integrals. " +

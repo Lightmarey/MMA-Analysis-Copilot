@@ -5,7 +5,14 @@ export const verificationTemplateNames = [
   "integration_by_parts_product_rule",
   "energy_boundary_cancellation",
   "fourier_coefficient",
-  "candidate_solution_check"
+  "candidate_solution_check",
+  "first_variation_derivative",
+  "parameter_absorption_check",
+  "barrier_operator_check",
+  "ode_residual_check",
+  "radial_laplacian_check",
+  "kelvin_power_check",
+  "hessian_matrix_invariants"
 ] as const;
 
 export type VerificationTemplateName = typeof verificationTemplateNames[number];
@@ -28,6 +35,20 @@ export async function runVerificationTemplate(
       return await verifyFourierCoefficient(backend, args);
     case "candidate_solution_check":
       return await simplifyExpression(backend, "Candidate solution check", readString(args.expr), readString(args.assumptions));
+    case "first_variation_derivative":
+      return await verifyFirstVariation(backend, args);
+    case "parameter_absorption_check":
+      return await simplifyExpression(backend, "Parameter absorption check", readString(args.expr), readString(args.assumptions));
+    case "barrier_operator_check":
+      return await simplifyExpression(backend, "Barrier operator check", expressionWithRules(args), readString(args.assumptions));
+    case "ode_residual_check":
+      return await simplifyExpression(backend, "ODE residual check", expressionWithRules(args), readString(args.assumptions));
+    case "radial_laplacian_check":
+      return await verifyRadialLaplacian(backend, args);
+    case "kelvin_power_check":
+      return await simplifyExpression(backend, "Kelvin power check", expressionWithRules(args), readString(args.assumptions));
+    case "hessian_matrix_invariants":
+      return await matrixInvariants(backend, args);
   }
 }
 
@@ -76,6 +97,63 @@ async function verifyFourierCoefficient(backend: WolframBackend, args: Record<st
       ...(comparison.messages ?? [])
     ]
   };
+}
+
+async function verifyFirstVariation(backend: WolframBackend, args: Record<string, unknown>): Promise<WolframResponse> {
+  const expr = readString(args.expr);
+  const variable = readString(args.variable) || "t";
+  const assumptions = readString(args.assumptions);
+  if (!expr) return failed("First variation derivative", "Template requires expr.");
+  const derivative = `D[${parenthesize(expr)}, ${variable}] /. ${variable} -> 0`;
+  const claimed = readString(args.claimed);
+  if (!claimed) {
+    return withTitle(await backend.call("wolfram_simplify", {
+      expr: derivative,
+      assumptions,
+      operation: "FullSimplify"
+    }), "First variation derivative");
+  }
+  return withTitle(await backend.call("wolfram_simplify", {
+    expr: `${parenthesize(derivative)} == ${parenthesize(claimed)}`,
+    assumptions,
+    operation: "FullSimplify"
+  }), "First variation comparison");
+}
+
+async function verifyRadialLaplacian(backend: WolframBackend, args: Record<string, unknown>): Promise<WolframResponse> {
+  const expr = readString(args.expr) || "u[r]";
+  const variable = readString(args.variable) || "r";
+  const assumptions = readString(args.assumptions);
+  const dimension = readDimension(args) || "n";
+  const radial = `D[${parenthesize(expr)}, {${variable}, 2}] + (${dimension} - 1)/${variable} D[${parenthesize(expr)}, ${variable}]`;
+  const claimed = readString(args.claimed);
+  if (!claimed) {
+    return withTitle(await backend.call("wolfram_simplify", {
+      expr: radial,
+      assumptions,
+      operation: "FullSimplify"
+    }), "Radial Laplacian");
+  }
+  return withTitle(await backend.call("wolfram_simplify", {
+    expr: `${parenthesize(radial)} == ${parenthesize(claimed)}`,
+    assumptions,
+    operation: "FullSimplify"
+  }), "Radial Laplacian comparison");
+}
+
+async function matrixInvariants(backend: WolframBackend, args: Record<string, unknown>): Promise<WolframResponse> {
+  const matrix = readString(args.expr);
+  const variable = readString(args.variable) || "lambda";
+  const assumptions = readString(args.assumptions);
+  if (!matrix) return failed("Hessian matrix invariants", "Template requires expr as a Wolfram matrix.");
+  const code = [
+    `mat = ${matrix};`,
+    `<|"Trace" -> FullSimplify[Tr[mat], ${assumptionOrTrue(assumptions)}],`,
+    `"Det" -> FullSimplify[Det[mat], ${assumptionOrTrue(assumptions)}],`,
+    `"PrincipalMinors" -> Table[Minors[mat, k], {k, 1, Length[mat]}],`,
+    `"CharacteristicPolynomial" -> FullSimplify[CharacteristicPolynomial[mat, ${variable}], ${assumptionOrTrue(assumptions)}]|>`
+  ].join("\n");
+  return withTitle(await backend.call("wolfram_eval", { code }), "Hessian matrix invariants");
 }
 
 async function simplifyExpression(
@@ -127,4 +205,14 @@ function readTemplateName(value: unknown): VerificationTemplateName | null {
 function parenthesize(expr: string): string {
   const trimmed = expr.trim();
   return trimmed.startsWith("(") && trimmed.endsWith(")") ? trimmed : `(${trimmed})`;
+}
+
+function readDimension(args: Record<string, unknown>): string {
+  const fromExpected = readString(args.expected);
+  const match = fromExpected.match(/(?:dimension|dim|n)\s*=\s*([A-Za-z0-9]+)/i);
+  return match?.[1] ?? "";
+}
+
+function assumptionOrTrue(assumptions: string): string {
+  return assumptions || "True";
 }
