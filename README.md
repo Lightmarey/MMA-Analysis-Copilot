@@ -8,6 +8,7 @@ This branch implements a small TypeScript agent shell inspired by `ai4math`:
 
 - OpenAI-compatible tool-calling loop.
 - Local theorem/preplanning/routing layer inspired by `ai4math`.
+- Offline plan preview for route/preplanning audits without API keys.
 - JSON-extensible theorem/tactic library, filtered by default to analysis-related domains.
 - Wolfram tools for analysis-first work: simplify, algebraic cleanup, differentiate, integrate, limit, solve/reduce, series, sums, convergence checks, ODEs, transforms, and residues.
 - Reliable oneshot Wolfram subprocess backend.
@@ -61,6 +62,7 @@ Single-question file input, stdin, and batch mode:
 
 ```powershell
 npm run dev -- --direct-wolfram "FullSimplify[Sin[x]^2 + Cos[x]^2]"
+npm run dev -- --plan "Show that a dominated pointwise limit may pass under the integral."
 npm run dev -- --file question.md --output output/answer.md --trace
 Get-Content question.md | npm run dev -- --output output/answer.md --trace
 npm run dev -- --batch questions.md --output output/batch-run --trace
@@ -69,6 +71,9 @@ npm run dev -- -t 0 -n 12 --trace "Determine whether Sum[1/k^p,{k,1,Infinity}] c
 
 Natural-language agent mode requires `OPENAI_API_KEY`; direct Wolfram mode only
 requires a working local Wolfram Engine command.
+`--plan` also does not require an API key; it prints the deterministic local
+route, preplan, decomposition when needed, and the exact system context that
+would be injected before an LLM call.
 
 Batch files are split on lines containing only `---`. Saved trace reports
 include routing, preplanning context, tool arguments, compact tool results, and
@@ -106,6 +111,7 @@ Useful checks:
 ```powershell
 npm run check
 npm run test:planning
+npm run test:plan-preview
 npm run test:input
 npm run test:wolfram
 npm run smoke:wolfram

@@ -10,6 +10,7 @@ import { MathAgent } from "../agent/agent.js";
 import { toolDefinitions } from "../agent/tools.js";
 import { findDefaultWolframCommand, WolframBackend } from "../wolfram/backend.js";
 import { expandAtPaths } from "./input.js";
+import { formatPlanPreview } from "./plan-preview.js";
 import { formatMarkdownReport, formatQuestionMarkdown } from "./report.js";
 import { applyRuntimeOptions } from "./runtime.js";
 import type { ChatRun, TraceEvent } from "./report.js";
@@ -26,17 +27,25 @@ program
   .option("-t, --temperature <number>", "override model temperature for this run", Number.parseFloat)
   .option("-n, --max-iterations <number>", "override maximum tool-calling iterations for this run", parsePositiveInteger)
   .option("--trace", "include route, preplanning, and tool trace in saved Markdown")
+  .option("--plan", "print deterministic local route and preplanning context without calling LLM or Wolfram")
   .option("--direct-wolfram", "evaluate the question as raw Wolfram Language code without LLM")
   .action(async (
     questionParts: string[],
-    options: { output?: string; file?: string; batch?: string; trace?: boolean; directWolfram?: boolean; temperature?: number; maxIterations?: number }
+    options: { output?: string; file?: string; batch?: string; trace?: boolean; plan?: boolean; directWolfram?: boolean; temperature?: number; maxIterations?: number }
   ) => {
     applyRuntimeOptions(options);
+    if (options.plan && options.batch) {
+      throw new Error("--plan supports a single question, --file, or stdin; batch planning is not implemented.");
+    }
     if (options.batch && !options.directWolfram) {
       await runBatch(options.batch, options.output, options.trace ?? false);
       return;
     }
     const question = await resolveQuestion(questionParts.join(" ").trim(), options.file);
+    if (options.plan) {
+      await runPlanPreview(question, options.output);
+      return;
+    }
     if (options.directWolfram) {
       await runDirectWolfram(question);
       return;
@@ -266,6 +275,17 @@ async function runDirectWolfram(code: string): Promise<void> {
   } finally {
     backend.close();
   }
+}
+
+async function runPlanPreview(question: string, outputPath: string | undefined): Promise<void> {
+  if (!question.trim()) {
+    throw new Error("--plan requires a question, --file, or stdin input.");
+  }
+  const expanded = await expandAtPaths(question, config.rootDir);
+  printInlinedPaths(expanded.inlinedPaths);
+  const report = formatPlanPreview(expanded.text);
+  console.log(report);
+  await maybeWrite(outputPath, report);
 }
 
 function banner(): void {
