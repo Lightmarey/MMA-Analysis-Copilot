@@ -2,7 +2,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import readline from "node:readline";
-import { stdin as input, stdout as output } from "node:process";
+import { stderr, stdin as input, stdout as output } from "node:process";
 import chalk from "chalk";
 import { Command } from "commander";
 import { config } from "../config.js";
@@ -13,6 +13,7 @@ import { expandAtPaths } from "./input.js";
 import { formatMarkdownReport, formatQuestionMarkdown } from "./report.js";
 import { applyRuntimeOptions } from "./runtime.js";
 import { getModelRoute } from "../agent/model-routing.js";
+import type { AgentCallbacks } from "../agent/agent.js";
 import type { ChatRun, TraceEvent } from "./report.js";
 
 const program = new Command();
@@ -119,11 +120,12 @@ async function askOnceWithTrace(question: string, printTrace: boolean): Promise<
       },
       onToolCall(name, args) {
         trace.push({ type: "tool_call", name, args });
-        if (printTrace) console.error(chalk.dim(`tool ${name} ${JSON.stringify(args)}`));
+        if (printTrace) console.error(chalk.dim(`\ntool ${name} ${JSON.stringify(args)}`));
       },
       onToolResult(name, markdown, result) {
         trace.push({ type: "tool_result", name, markdown, result });
-      }
+      },
+      ...(printTrace ? createLiveLlmPrinter() : {})
     });
     return { answer, trace };
   } finally {
@@ -281,6 +283,10 @@ async function handleReplInput(line: string, agent: MathAgent, state: ReplState)
     for (const tool of toolDefinitions) console.log(`${tool.name} - ${tool.description}`);
     return true;
   }
+  if (line.startsWith("/model")) {
+    await handleModelCommand(line, agent);
+    return true;
+  }
   if (line === "/reset") {
     agent.reset();
     state.setLastAnswer("");
@@ -310,8 +316,9 @@ async function handleReplInput(line: string, agent: MathAgent, state: ReplState)
         console.log(chalk.dim(`route ${difficulty} -> ${model}`));
       },
       onToolCall(name, args) {
-        console.log(chalk.dim(`tool ${name} ${JSON.stringify(args)}`));
-      }
+        console.log(chalk.dim(`\ntool ${name} ${JSON.stringify(args)}`));
+      },
+      ...createLiveLlmPrinter()
     });
     state.setLastAnswer(answer);
     console.log();
@@ -321,6 +328,65 @@ async function handleReplInput(line: string, agent: MathAgent, state: ReplState)
     console.error(chalk.red(error instanceof Error ? error.message : String(error)));
   }
   return true;
+}
+
+async function handleModelCommand(line: string, agent: MathAgent): Promise<void> {
+  const [, rawModel] = line.split(/\s+/, 2);
+  const route = await getModelRoute();
+  const forcedModel = agent.getForcedModel();
+
+  if (!rawModel) {
+    console.log(chalk.bold("Models"));
+    console.log(`Current: ${forcedModel ? `${forcedModel} (forced)` : "auto route"}`);
+    console.log(`Resolved default: ${route.defaultModel}`);
+    console.log(`Resolved flash: ${route.flashModel}`);
+    console.log(`Resolved pro: ${route.proModel}`);
+    if (route.discovered) {
+      console.log("Available:");
+      for (const model of route.availableModels) {
+        const marker = model === forcedModel ? "*" : "-";
+        console.log(`  ${marker} ${model}`);
+      }
+    } else {
+      console.log(`Available: discovery unavailable${route.warning ? ` (${route.warning})` : ""}`);
+    }
+    return;
+  }
+
+  const model = rawModel.trim();
+  if (model === "auto" || model === "clear" || model === "default") {
+    agent.setForcedModel(null);
+    console.log(chalk.green("Model override cleared; automatic flash/pro routing is active."));
+    return;
+  }
+  if (route.discovered && !route.availableModels.includes(model)) {
+    console.log(chalk.yellow(`Model '${model}' was not in the discovered provider model list.`));
+    console.log(chalk.dim(`Use one of: ${route.availableModels.join(", ")}`));
+    return;
+  }
+  agent.setForcedModel(model);
+  console.log(chalk.green(`Model override for this session: ${model}`));
+}
+
+function createLiveLlmPrinter(): Pick<AgentCallbacks, "onThinkingDelta" | "onOutputDelta"> {
+  let thinkingStarted = false;
+  let outputStarted = false;
+  return {
+    onThinkingDelta(text) {
+      if (!thinkingStarted) {
+        thinkingStarted = true;
+        stderr.write(chalk.dim("\n[think]\n"));
+      }
+      stderr.write(chalk.dim(text));
+    },
+    onOutputDelta(text) {
+      if (!outputStarted) {
+        outputStarted = true;
+        stderr.write(chalk.cyan("\n[output]\n"));
+      }
+      stderr.write(text);
+    }
+  };
 }
 
 async function runDirectWolfram(code: string): Promise<void> {
@@ -345,7 +411,7 @@ async function runDirectWolfram(code: string): Promise<void> {
 function banner(): void {
   console.log(chalk.cyan.bold("Wolfram Math Agent"));
   console.log(chalk.dim(`model=${config.model} route=${config.autoRoute ? "auto" : "off"} backend=${config.wolframBackendMode}`));
-  console.log(chalk.dim("Commands: /help /tools /reset /last /save [path] /quit"));
+  console.log(chalk.dim("Commands: /help /tools /model [id|auto] /reset /last /save [path] /quit"));
   console.log(chalk.dim("Multiline paste is collected as one question."));
   console.log();
 }
@@ -356,6 +422,9 @@ Ask math questions in natural language. The agent may call Wolfram tools.
 
 Commands:
   /tools         list tools
+  /model         list discovered models and show current selection
+  /model <id>    force the current session to use a model
+  /model auto    return to automatic flash/pro routing
   /reset         reset conversation
   /last          show last Markdown answer
   /save [path]   save last Markdown answer

@@ -91,6 +91,23 @@ In interactive mode, multiline paste is collected as one question. This is the
 recommended way to paste LaTeX problems with `cases`, `align`, or displayed
 equations without putting the whole prompt on one shell command line.
 
+Interactive model control:
+
+```powershell
+/model
+/model deepseek-v4-pro
+/model auto
+```
+
+`/model` lists discovered provider models and the current route. `/model <id>`
+forces the current REPL session to use that model for final answering. Planning
+still uses the resolved flash model so the route decision remains fast; `/model
+auto` clears the override and returns to automatic flash/pro routing.
+
+During LLM calls the CLI streams provider reasoning as `[think]` when available
+and normal answer text as `[output]`, so long responses show visible progress
+before tool calls or the final answer finish.
+
 One-shot agent mode:
 
 ```powershell

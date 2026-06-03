@@ -31,6 +31,8 @@ export type AgentCallbacks = {
   onToolResult?: (name: string, markdown: string, result: WolframResponse) => void;
   onRoute?: (difficulty: "simple" | "complex", model: string) => void;
   onPlan?: (context: string) => void;
+  onThinkingDelta?: (text: string) => void;
+  onOutputDelta?: (text: string) => void;
 };
 
 export class MathAgent {
@@ -38,6 +40,7 @@ export class MathAgent {
   private readonly messages: ChatCompletionMessageParam[] = [
     { role: "system", content: SYSTEM_PROMPT }
   ];
+  private forcedModel: string | null = null;
 
   constructor(private readonly wolfram = new WolframBackend()) {
     if (!config.openaiApiKey) {
@@ -53,6 +56,14 @@ export class MathAgent {
     this.messages.splice(0, this.messages.length, { role: "system", content: SYSTEM_PROMPT });
   }
 
+  setForcedModel(model: string | null): void {
+    this.forcedModel = model?.trim() || null;
+  }
+
+  getForcedModel(): string | null {
+    return this.forcedModel;
+  }
+
   async chat(userMessage: string, callbacks: AgentCallbacks = {}): Promise<string> {
     const modelRoute = await getModelRoute(this.client);
     const llmPlan = await createLlmExecutionPlan(this.client, userMessage, modelRoute.flashModel);
@@ -60,11 +71,12 @@ export class MathAgent {
     const preplan = analysis ? createPreplan(userMessage, analysis) : null;
     const decomposition = analysis ? decomposeProblem(userMessage, analysis) : null;
     const difficulty = llmPlan?.difficulty ?? (analysis ? classifyDifficulty(userMessage, analysis) : "simple");
-    const effectiveModel = config.autoRoute
+    const routedModel = config.autoRoute
       ? difficulty === "simple"
         ? modelRoute.flashModel
         : modelRoute.proModel
       : modelRoute.defaultModel;
+    const effectiveModel = this.forcedModel ?? routedModel;
     callbacks.onRoute?.(difficulty, effectiveModel);
 
     this.messages.push({ role: "user", content: userMessage });
@@ -78,24 +90,25 @@ export class MathAgent {
     const collected: string[] = [];
 
     for (let iteration = 0; iteration < config.maxIterations; iteration += 1) {
-      const response = await this.client.chat.completions.create({
+      const stream = await this.client.chat.completions.create({
         model: effectiveModel,
         messages: this.messages,
         tools: toolDefinitions.map(t => t.schema),
         tool_choice: "auto",
         max_tokens: config.maxTokens,
-        temperature: config.temperature
+        temperature: config.temperature,
+        stream: true
       });
 
-      const choice = response.choices[0];
-      const message = choice.message;
+      const streamed = await collectStreamedMessage(stream, callbacks);
+      const message = streamed.message;
       this.messages.push(message as ChatCompletionMessageParam);
 
       if (message.content) {
-        collected.push(message.content);
+        collected.push(String(message.content));
       }
 
-      if (choice.finish_reason === "length") {
+      if (streamed.finishReason === "length") {
         this.messages.push({
           role: "user",
           content: "Continue from the previous truncated answer. Do not repeat content already written."
@@ -156,4 +169,95 @@ function safeParseObject(raw: string): Record<string, unknown> {
     return {};
   }
   return {};
+}
+
+type StreamedToolCall = {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string;
+  };
+};
+
+async function collectStreamedMessage(
+  stream: AsyncIterable<unknown>,
+  callbacks: AgentCallbacks
+): Promise<{ message: ChatCompletionMessageParam & { tool_calls?: StreamedToolCall[] }; finishReason: string | null }> {
+  let content = "";
+  let finishReason: string | null = null;
+  const toolCalls = new Map<number, StreamedToolCall>();
+
+  for await (const chunk of stream) {
+    const choice = readFirstChoice(chunk);
+    if (!choice) continue;
+    if (typeof choice.finish_reason === "string") finishReason = choice.finish_reason;
+    const delta = choice.delta;
+    if (!delta || typeof delta !== "object") continue;
+
+    const thinking = readStringProperty(delta, "reasoning_content") || readStringProperty(delta, "reasoning");
+    if (thinking) callbacks.onThinkingDelta?.(thinking);
+
+    const output = readStringProperty(delta, "content");
+    if (output) {
+      content += output;
+      callbacks.onOutputDelta?.(output);
+    }
+
+    const rawToolCalls = (delta as { tool_calls?: unknown }).tool_calls;
+    if (Array.isArray(rawToolCalls)) {
+      for (const rawToolCall of rawToolCalls) {
+        mergeToolCallDelta(toolCalls, rawToolCall);
+      }
+    }
+  }
+
+  const normalizedToolCalls = [...toolCalls.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, toolCall]) => toolCall)
+    .filter(toolCall => toolCall.id && toolCall.function.name);
+  return {
+    message: {
+      role: "assistant",
+      content: content || null,
+      ...(normalizedToolCalls.length ? { tool_calls: normalizedToolCalls } : {})
+    },
+    finishReason
+  };
+}
+
+function readFirstChoice(chunk: unknown): { delta?: unknown; finish_reason?: unknown } | null {
+  if (!chunk || typeof chunk !== "object") return null;
+  const choices = (chunk as { choices?: unknown }).choices;
+  if (!Array.isArray(choices) || !choices[0] || typeof choices[0] !== "object") return null;
+  return choices[0] as { delta?: unknown; finish_reason?: unknown };
+}
+
+function readStringProperty(value: unknown, key: string): string {
+  if (!value || typeof value !== "object") return "";
+  const item = (value as Record<string, unknown>)[key];
+  return typeof item === "string" ? item : "";
+}
+
+function mergeToolCallDelta(toolCalls: Map<number, StreamedToolCall>, raw: unknown): void {
+  if (!raw || typeof raw !== "object") return;
+  const record = raw as Record<string, unknown>;
+  const index = typeof record.index === "number" ? record.index : toolCalls.size;
+  const existing = toolCalls.get(index) ?? {
+    id: "",
+    type: "function" as const,
+    function: {
+      name: "",
+      arguments: ""
+    }
+  };
+  if (typeof record.id === "string") existing.id += record.id;
+  if (record.type === "function") existing.type = "function";
+  const fn = record.function;
+  if (fn && typeof fn === "object") {
+    const fnRecord = fn as Record<string, unknown>;
+    if (typeof fnRecord.name === "string") existing.function.name += fnRecord.name;
+    if (typeof fnRecord.arguments === "string") existing.function.arguments += fnRecord.arguments;
+  }
+  toolCalls.set(index, existing);
 }
