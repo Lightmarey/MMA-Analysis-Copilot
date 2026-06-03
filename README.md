@@ -60,6 +60,19 @@ them; otherwise the agent infers fast/pro routes from model names such as
 
 ## Commands
 
+`npm run dev -- ...` uses npm's argument separator. The empty-looking `--`
+belongs to npm, not this CLI: everything after it is forwarded to
+`tsx src/cli/main.ts`. Without it, npm may try to parse flags such as `-t`,
+`-n`, or `--file` itself.
+
+If you do not want to type npm's separator, run the CLI directly:
+
+```powershell
+npx tsx src/cli/main.ts --plan "Show that a dominated pointwise limit may pass under the integral."
+npm run build
+node dist\cli\main.js --direct-wolfram "2+2"
+```
+
 ```powershell
 npm install
 npm run build
@@ -105,6 +118,19 @@ Runtime CLI overrides:
 npm run dev -- -t 0 -n 12 --trace "Compute a parameter integral and state conditions."
 ```
 
+Common options:
+
+| Option | Meaning |
+| --- | --- |
+| `-t, --temperature <number>` | Override `openai.temperature` for one run. Use `0` for deterministic output. |
+| `-n, --max-iterations <number>` | Override `openai.maxIterations`, the maximum LLM/tool loop count. |
+| `--trace` | Include route, preplanning, tool calls, Wolfram results, and verification summary in saved Markdown. |
+| `-o, --output <path>` | Write the final answer or report to a file. |
+| `-f, --file <path>` | Read one question from a text/Markdown file. |
+| `-b, --batch <path>` | Process a batch file split by lines containing only `---`. |
+| `--plan` | Print deterministic local route/preplan/decomposition without LLM or Wolfram. |
+| `--direct-wolfram` | Evaluate raw Wolfram Language without LLM. |
+
 ## Agent Flow
 
 The framework follows the migrated `ai4math` shape:
@@ -146,6 +172,28 @@ Wolfram `ConditionalExpression[value, condition]` results expose:
 
 Trace reports include route, preplanning context, tool trace, returned
 conditions, verification summary, and answer.
+
+## MCP Migration
+
+The current in-process tool layer is deliberately close to an MCP server shape.
+When the theorem library and Wolfram tool schemas become large, migrate by
+moving the stable pieces behind an MCP boundary:
+
+1. Keep theorem data in JSON files under `theorems/`.
+2. Keep Wolfram execution in `src/wolfram/backend.ts`.
+3. Reuse `src/agent/tools.ts` as the source of tool names, descriptions, and
+   JSON schemas.
+4. Add an MCP server package that maps each tool schema to an MCP tool
+   `inputSchema`.
+5. Implement MCP tool handlers by calling `WolframBackend.call(...)` for
+   Wolfram tools and `runLocalTool(...)` for local tools such as
+   `theorem_advisor`.
+6. Let this CLI either keep using the in-process tools for speed, or become an
+   MCP client for parity with other agents.
+
+This avoids rewriting accumulated theorem/function knowledge. The MCP layer is
+mostly a transport and registration adapter around the existing schemas and
+handlers.
 
 ## Verification
 
