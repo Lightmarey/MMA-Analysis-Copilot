@@ -411,6 +411,20 @@ try {
   assert.equal(odeResidual.ok, true);
   assert.equal(odeResidual.output, "0");
 
+  const scalingPower = await runVerificationTemplate(backend, {
+    template: "scaling_power_check",
+    expr: "((2-n)/2) + (1 - n/2) + (n-2)",
+    assumptions: "Element[n, Integers] && n >= 3",
+    variable: "",
+    lower: "",
+    upper: "",
+    expected: "",
+    claimed: "",
+    rules: ""
+  });
+  assert.equal(scalingPower.ok, true);
+  assert.equal(scalingPower.output, "0");
+
   const hessianInvariants = await runVerificationTemplate(backend, {
     template: "hessian_matrix_invariants",
     expr: "{{a, 0}, {0, b}}",

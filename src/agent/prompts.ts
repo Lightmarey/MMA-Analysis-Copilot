@@ -22,6 +22,8 @@ Tool discipline:
 - proof_pattern_engine can help with proof-rule states, candidate inequality moves, parameter choices, and integration-by-parts/product-rule transforms.
 - wolfram_eval is an advanced escape hatch. Use it only when structured tools are not enough.
 - Use Wolfram Language syntax in tool arguments.
+- Do not use Wolfram tools to read local files, import documents, or parse prose/LaTeX source. Work from the problem text already provided in the conversation.
+- For long proofs or document excerpts, first build a local verification ledger and verify one small target at a time. Do not attempt a whole-document proof audit in one tool-heavy chain.
 
 Proof evidence policy:
 - Separate analytic theorem assumptions from Wolfram-verified computations.

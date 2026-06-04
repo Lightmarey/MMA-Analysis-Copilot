@@ -8,6 +8,7 @@ export const verificationTemplateNames = [
   "candidate_solution_check",
   "first_variation_derivative",
   "parameter_absorption_check",
+  "scaling_power_check",
   "barrier_operator_check",
   "ode_residual_check",
   "radial_laplacian_check",
@@ -39,6 +40,8 @@ export async function runVerificationTemplate(
       return await verifyFirstVariation(backend, args);
     case "parameter_absorption_check":
       return await simplifyExpression(backend, "Parameter absorption check", readString(args.expr), readString(args.assumptions));
+    case "scaling_power_check":
+      return await simplifyExpression(backend, "Scaling power check", expressionWithRules(args), readString(args.assumptions));
     case "barrier_operator_check":
       return await simplifyExpression(backend, "Barrier operator check", expressionWithRules(args), readString(args.assumptions));
     case "ode_residual_check":

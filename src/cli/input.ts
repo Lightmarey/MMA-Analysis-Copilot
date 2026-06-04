@@ -6,7 +6,6 @@ export type ExpandedInput = {
   inlinedPaths: string[];
 };
 
-const AT_TOKEN_RE = /@([^\s@]+)/g;
 const MAX_INLINE_BYTES = 256 * 1024;
 const TRAILING_PUNCTUATION = new Set([",", ".", ";", ":", "!", "?", ")", "]", "}"]);
 
@@ -14,11 +13,8 @@ export async function expandAtPaths(text: string, baseDir = process.cwd()): Prom
   const inlinedPaths: string[] = [];
   const replacements: Array<{ start: number; end: number; value: string }> = [];
 
-  for (const match of text.matchAll(AT_TOKEN_RE)) {
-    const rawToken = match[1];
-    const start = match.index ?? 0;
-    const end = start + match[0].length;
-    const { token, trailing } = trimTrailingPunctuation(rawToken);
+  for (const match of findAtPathTokens(text)) {
+    const { token, trailing } = match.quoted ? { token: match.rawToken, trailing: "" } : trimTrailingPunctuation(match.rawToken);
     if (!token) continue;
 
     const resolved = await resolveInlinePath(token, baseDir);
@@ -26,8 +22,8 @@ export async function expandAtPaths(text: string, baseDir = process.cwd()): Prom
 
     inlinedPaths.push(resolved.path);
     replacements.push({
-      start,
-      end,
+      start: match.start,
+      end: match.end,
       value: [
         "",
         `--- file: ${resolved.path} ---`,
@@ -51,6 +47,32 @@ export async function expandAtPaths(text: string, baseDir = process.cwd()): Prom
   }
   expanded += text.slice(cursor);
   return { text: expanded, inlinedPaths };
+}
+
+function findAtPathTokens(text: string): Array<{ start: number; end: number; rawToken: string; quoted: boolean }> {
+  const tokens: Array<{ start: number; end: number; rawToken: string; quoted: boolean }> = [];
+  let index = 0;
+  while (index < text.length) {
+    const at = text.indexOf("@", index);
+    if (at === -1 || at === text.length - 1) break;
+    const quote = text[at + 1];
+    if (quote === "\"" || quote === "'") {
+      const close = text.indexOf(quote, at + 2);
+      if (close !== -1) {
+        tokens.push({ start: at, end: close + 1, rawToken: text.slice(at + 2, close), quoted: true });
+        index = close + 1;
+        continue;
+      }
+    }
+
+    let end = at + 1;
+    while (end < text.length && !/\s/.test(text[end]) && text[end] !== "@") end += 1;
+    if (end > at + 1) {
+      tokens.push({ start: at, end, rawToken: text.slice(at + 1, end), quoted: false });
+    }
+    index = Math.max(end, at + 1);
+  }
+  return tokens;
 }
 
 function trimTrailingPunctuation(raw: string): { token: string; trailing: string } {

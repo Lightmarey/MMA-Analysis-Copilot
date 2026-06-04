@@ -6,6 +6,8 @@ const system = buildAgentSystemPrompt({ systemAddendum: "Custom system prompt ma
 assert.match(system, /Proof evidence policy/);
 assert.match(system, /Custom system prompt marker/);
 assert.match(system, /proof_pattern_engine/);
+assert.match(system, /Do not use Wolfram tools to read local files/);
+assert.match(system, /verification ledger/);
 
 const planner = buildPlannerPrompt("Base planner prompt.", { plannerAddendum: "Custom planner prompt marker." });
 assert.match(planner, /Base planner prompt/);
@@ -25,5 +27,15 @@ const simplifyTool = toolDefinitions.find(tool => tool.name === "wolfram_simplif
 assert.ok(simplifyTool);
 assert.match(simplifyTool.description, /analytic/);
 assert.match(simplifyTool.description, /Do not use it to choose a proof rule/);
+
+const verificationTool = toolDefinitions.find(tool => tool.name === "verification_template");
+assert.ok(verificationTool);
+assert.match(verificationTool.description, /scaling power\/exponent checks/);
+assert.ok((verificationTool.schema.function.parameters.properties.template.enum as string[]).includes("scaling_power_check"));
+assert.match(verificationTool.schema.function.parameters.properties.template.description, /exponent cancellation/);
+
+const evalTool = toolDefinitions.find(tool => tool.name === "wolfram_eval");
+assert.ok(evalTool);
+assert.match(evalTool.description, /Do not use this tool to read local files/);
 
 console.log("prompt tests passed");

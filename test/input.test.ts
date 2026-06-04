@@ -15,6 +15,16 @@ try {
   assert.match(inlined.text, /Compute Integrate/);
   assert.ok(inlined.text.trimEnd().endsWith("."));
 
+  await fs.mkdir(path.join(tempDir, "dir with spaces"), { recursive: true });
+  await fs.writeFile(path.join(tempDir, "dir with spaces", "paper note.tex"), "Kelvin transform check", "utf8");
+  const quotedDouble = await expandAtPaths("Audit @\"dir with spaces/paper note.tex\" now.", tempDir);
+  assert.equal(quotedDouble.inlinedPaths.length, 1);
+  assert.match(quotedDouble.text, /Kelvin transform check/);
+
+  const quotedSingle = await expandAtPaths("Audit @'dir with spaces/paper note.tex' now.", tempDir);
+  assert.equal(quotedSingle.inlinedPaths.length, 1);
+  assert.match(quotedSingle.text, /Kelvin transform check/);
+
   const unresolved = await expandAtPaths("Keep @reference untouched", tempDir);
   assert.equal(unresolved.text, "Keep @reference untouched");
   assert.deepEqual(unresolved.inlinedPaths, []);

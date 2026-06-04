@@ -80,12 +80,12 @@ export const toolDefinitions: ToolDefinition[] = [
   ),
   defineTool(
     "verification_template",
-    "Run a stable proof-verification template by translating it into compact Wolfram checks. Use this for scalar product-rule identities, boundary substitution/cancellation, Fourier coefficients, candidate solutions, first variations, parameter absorption, barrier residuals, ODE/radial checks, Kelvin power algebra, and Hessian matrix invariants. For vector-gradient negative-part or trace integration-by-parts arguments, use direct Wolfram component checks for the algebraic part and mark trace/domain facts as analytic assumptions. Do not use it as an inequality theorem generator.",
+    "Run a stable proof-verification template by translating it into compact Wolfram checks. Use this for scalar product-rule identities, boundary substitution/cancellation, Fourier coefficients, candidate solutions, first variations, scaling power/exponent checks, parameter absorption, barrier residuals, ODE/radial checks, Kelvin power algebra, and Hessian matrix invariants. For vector-gradient negative-part or trace integration-by-parts arguments, use direct Wolfram component checks for the algebraic part and mark trace/domain facts as analytic assumptions. Do not use it as an inequality theorem generator.",
     {
       template: {
         type: "string",
         enum: [...verificationTemplateNames],
-        description: "Template name."
+        description: "Template name. Use scaling_power_check for exponent cancellation, critical scaling relations, and parameter-balance algebra."
       },
       expr: {
         type: "string",
@@ -123,7 +123,7 @@ export const toolDefinitions: ToolDefinition[] = [
   ),
   defineTool(
     "wolfram_eval",
-    "Evaluate Wolfram Language code. Use only as an advanced escape hatch when structured tools are not enough.",
+    "Evaluate Wolfram Language code. Use only as an advanced escape hatch when structured tools are not enough. Do not use this tool to read local files, import documents, or parse prose/LaTeX source; use only the mathematical expressions already supplied in the prompt.",
     {
       code: {
         type: "string",
