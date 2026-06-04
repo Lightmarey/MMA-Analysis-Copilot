@@ -9,6 +9,7 @@ import { buildLlmPlanContext, createLlmExecutionPlan } from "./llm-planning.js";
 import type { LlmExecutionPlan } from "./llm-planning.js";
 import { runVerificationTemplate } from "./verification-templates.js";
 import { buildAgentSystemPrompt } from "./prompts.js";
+import { analyzePaperPreflight, formatPaperPreflight } from "./paper-preflight.js";
 import type { AgentToolName, LocalToolName } from "./tools.js";
 import type { WolframResponse } from "../wolfram/types.js";
 
@@ -73,18 +74,23 @@ export class MathAgent {
       : modelRoute.defaultModel;
     const effectiveModel = this.forcedModel ?? routedModel;
     callbacks.onRoute?.(difficulty, effectiveModel);
+    const paperPreflight = shouldUsePaperPreflight(userMessage) ? analyzePaperPreflight(userMessage) : null;
 
     this.messages.push({ role: "user", content: userMessage });
     if (config.preplanEnabled) {
       const localPreplanContext = buildPreplanContext(analysis, preplan, decomposition);
-      const preplanContext = mergedLlmPlan
+      const paperPreflightContext = paperPreflight ? `\n\n${formatPaperPreflight(paperPreflight)}` : "";
+      const preplanContext = (mergedLlmPlan
         ? `${buildLlmPlanContext(mergedLlmPlan)}\n\n${localPreplanContext}`
-        : localPreplanContext;
+        : localPreplanContext) + paperPreflightContext;
       callbacks.onPlan?.(preplanContext);
       this.messages.push({ role: "system", content: preplanContext });
     }
     const collected: string[] = [];
     let sawToolCall = false;
+    let toolCallCount = 0;
+    let lowValueToolResults = 0;
+    const toolBudget = paperPreflight?.maxToolCalls ?? config.maxIterations;
 
     for (let iteration = 0; iteration < config.maxIterations; iteration += 1) {
       const stream = await this.client.chat.completions.create({
@@ -127,8 +133,18 @@ export class MathAgent {
         return collected.join("\n\n").trim();
       }
 
+      let stopAfterToolBatch = "";
       for (const toolCall of message.tool_calls) {
         if (toolCall.type !== "function") {
+          continue;
+        }
+        if (toolCallCount >= toolBudget) {
+          this.messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: `Tool call skipped: paper-assist preflight/tool budget is exhausted (${toolBudget}).`
+          });
+          stopAfterToolBatch = `Stop calling tools now: the paper-assist preflight/tool budget is exhausted (${toolBudget}). Finish with the evidence already available and clearly mark missing author data.`;
           continue;
         }
         sawToolCall = true;
@@ -137,6 +153,8 @@ export class MathAgent {
         callbacks.onToolCall?.(name, args);
 
         const result = await this.callTool(name, args);
+        toolCallCount += 1;
+        lowValueToolResults = isLowValueToolResult(name, result) ? lowValueToolResults + 1 : 0;
         const toolText = formatToolResult(name, args, result);
         const toolMarkdown = formatToolResultMarkdown(name, result);
         if (toolMarkdown) {
@@ -147,6 +165,16 @@ export class MathAgent {
           role: "tool",
           tool_call_id: toolCall.id,
           content: toolText
+        });
+
+        if (paperPreflight && lowValueToolResults >= 2) {
+          stopAfterToolBatch = "Stop calling tools now: the last tool calls did not add symbolic evidence. Finish by auditing the structure, missing formulas, and author-side assumptions.";
+        }
+      }
+      if (stopAfterToolBatch) {
+        this.messages.push({
+          role: "user",
+          content: stopAfterToolBatch
         });
       }
     }
@@ -167,6 +195,19 @@ export class MathAgent {
     }
     return runLocalTool(name as LocalToolName, args);
   }
+}
+
+function shouldUsePaperPreflight(message: string): boolean {
+  return /paper-assistance|Local excerpt:|Paper-assist preflight:|verification_template:[a-z_]+|moving\s+spheres|barrier|Kelvin|Hessian quotient|first variation|上下解|闸函数|球面法|变分|泛函/i.test(message);
+}
+
+function isLowValueToolResult(name: string, result: WolframResponse): boolean {
+  if (!result.ok) return true;
+  const output = result.output ?? "";
+  if (!output.trim()) return true;
+  if (/NoCandidate|no_move|Missing\["No/.test(output)) return true;
+  if (name === "verification_template" && /Template requires|Unknown verification template/i.test(result.error ?? "")) return true;
+  return false;
 }
 
 function safeParseObject(raw: string): Record<string, unknown> {

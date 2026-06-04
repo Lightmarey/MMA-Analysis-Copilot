@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { analyzePaperPreflight, formatPaperPreflight, type PaperPreflight } from "../agent/paper-preflight.js";
 
 type ScenarioKind =
   | "variational_functional"
@@ -17,6 +18,7 @@ type Scenario = {
   line: number;
   kind: ScenarioKind;
   score: number;
+  preflight: PaperPreflight;
   prompt: string;
   snippet: string;
 };
@@ -83,13 +85,16 @@ async function main(): Promise<void> {
       const line = lines[index];
       for (const pattern of patterns) {
         if (!pattern.regex.test(line)) continue;
+        const snippet = contextSnippet(lines, index);
+        const preflight = analyzePaperPreflight(`${pattern.kind}\n${snippet}`);
         scenarios.push({
           file: path.relative(root, file),
           line: index + 1,
           kind: pattern.kind,
           score: scoreScenario(lines, index),
-          prompt: buildPrompt(pattern.kind, pattern.toolHints),
-          snippet: contextSnippet(lines, index)
+          preflight,
+          prompt: buildPrompt(pattern.kind, pattern.toolHints, preflight),
+          snippet
         });
       }
     }
@@ -149,12 +154,13 @@ function contextSnippet(lines: string[], index: number): string {
   return lines.slice(start, end).join("\n").trim();
 }
 
-function buildPrompt(kind: ScenarioKind, toolHints: string[]): string {
+function buildPrompt(kind: ScenarioKind, toolHints: string[], preflight: PaperPreflight): string {
   return [
     `Act as a mathematician using ai4math for a local paper-assistance task of kind ${kind}.`,
     "Assume the global proof framework is already known.",
     `Prefer these tools when applicable: ${toolHints.join(", ")}.`,
-    "Use at most three tool calls.",
+    `Use at most ${preflight.maxToolCalls} tool calls.`,
+    formatPaperPreflight(preflight),
     "If the excerpt does not contain a concrete expression to check, do not invent one; report the missing local data instead.",
     "Return selected local checks, analytic assumptions still requiring the author, and one concrete improvement request for the assistant."
   ].join(" ");
@@ -178,6 +184,9 @@ function renderMarkdown(scenarios: Scenario[]): string {
     lines.push("");
     lines.push(`- file: ${scenario.file}`);
     lines.push(`- line: ${scenario.line}`);
+    lines.push(`- preflight: ${scenario.preflight.class} (${scenario.preflight.method})`);
+    lines.push(`- max_tool_calls: ${scenario.preflight.maxToolCalls}`);
+    lines.push(`- missing: ${scenario.preflight.missing.length ? scenario.preflight.missing.join(", ") : "none"}`);
     lines.push(`- prompt: ${scenario.prompt}`);
     lines.push("");
     lines.push("```tex");
