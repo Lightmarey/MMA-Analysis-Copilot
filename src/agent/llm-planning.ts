@@ -35,8 +35,8 @@ Your job:
 - decompose multi-step problems into ordered subproblems
 - recommend exact available tool names when computation is needed
 - include verification targets before the final answer
-- do not assert mathematical conclusions as facts in the plan; phrase them as checks to verify
-- for sign conventions, ask the solver to verify maximum/minimum roles rather than deciding them in the plan
+- phrase uncertain mathematical conclusions as checks to verify
+- for sign conventions, identify what should be checked
 
 Use "complex" for proof-heavy, multi-step, PDE, functional analysis, inequality estimate, theorem-first, or any task requiring several symbolic checks.
 
@@ -148,9 +148,9 @@ export function buildLlmPlanContext(plan: LlmExecutionPlan): string {
       lines.push(`- [${subproblem.id}] ${subproblem.statement} (depends: ${subproblem.dependsOn.join(", ") || "none"}; domain: ${subproblem.domain})`);
     }
     lines.push(`- final_target: ${plan.finalTarget}`);
-    lines.push(`- decomposition_rule: solve subproblems in dependency order; use Wolfram tools for explicit derivative, integral, algebraic, and inequality checks.`);
+    lines.push(`- decomposition_note: solve subproblems in dependency order when dependencies are material; use tools for explicit derivative, integral, algebraic, and inequality checks.`);
   }
-  lines.push("- execution_rule: do not present a final answer until verification targets have been checked or explicitly marked as assumptions.");
+  lines.push("- verification_note: check verification targets when relevant, or mark them as assumptions in the final answer.");
   return lines.join("\n");
 }
 

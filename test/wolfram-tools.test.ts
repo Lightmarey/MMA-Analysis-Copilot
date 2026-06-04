@@ -141,7 +141,7 @@ try {
   assert.equal(directIneq.ok, true);
   assert.match(directIneq.output ?? "", /Holder/);
 
-  const suggestedMove = await backend.call("inequality_engine", {
+  const suggestedMove = await backend.call("proof_pattern_engine", {
     operation: "suggest",
     goal: "Integrate[f[x] g[x], {x, 0, 1}]",
     known: "",
@@ -156,7 +156,7 @@ try {
   assert.match(suggestedMove.output ?? "", /cauchy_schwarz_integral_1/);
   assert.match(suggestedMove.output ?? "", /NeedsUser/);
 
-  const sumCauchyMove = await backend.call("inequality_engine", {
+  const sumCauchyMove = await backend.call("proof_pattern_engine", {
     operation: "suggest",
     goal: "Sum[a[i] b[i], {i, 1, n}]",
     known: "",
@@ -171,7 +171,7 @@ try {
   assert.match(sumCauchyMove.output ?? "", /FiniteSum/);
   assert.match(sumCauchyMove.output ?? "", /choose-inner-product/);
 
-  const youngMove = await backend.call("inequality_engine", {
+  const youngMove = await backend.call("proof_pattern_engine", {
     operation: "suggest",
     goal: "a b",
     known: "",
@@ -186,7 +186,7 @@ try {
   assert.match(youngMove.output ?? "", /ConjugateExponentsWithEpsilon/);
   assert.match(youngMove.output ?? "", /choose-small-parameter/);
 
-  const abstractMoves = await backend.call("inequality_engine", {
+  const abstractMoves = await backend.call("proof_pattern_engine", {
     operation: "suggest",
     goal: "\"estimate u\"",
     known: "",
@@ -201,7 +201,7 @@ try {
   assert.match(abstractMoves.output ?? "", /sobolev_1/);
   assert.match(abstractMoves.output ?? "", /AssumedFromContext/);
 
-  const appliedMove = await backend.call("inequality_engine", {
+  const appliedMove = await backend.call("proof_pattern_engine", {
     operation: "apply",
     goal: "Integrate[f[x] g[x], {x, 0, 1}]",
     known: "",
@@ -215,7 +215,7 @@ try {
   assert.match(appliedMove.output ?? "", /LastMove/);
   assert.match(appliedMove.output ?? "", /RequiredConditions/);
 
-  const registry = await backend.call("inequality_engine", {
+  const registry = await backend.call("proof_pattern_engine", {
     operation: "registry",
     goal: "",
     known: "",
@@ -232,8 +232,57 @@ try {
   assert.match(registry.output ?? "", /Young/);
   assert.match(registry.output ?? "", /Poincare/);
   assert.match(registry.output ?? "", /Sobolev/);
+  assert.match(registry.output ?? "", /LLMMoveSchema/);
+  assert.match(registry.output ?? "", /compile/);
 
-  const parameterChoice = await backend.call("inequality_engine", {
+  const compiledMoveSchema = await backend.call("proof_pattern_engine", {
+    operation: "compile",
+    goal: "",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: "<|\"Rule\" -> \"Holder\", \"Transforms\" -> {\"abs_dominate\", \"explicit_product\"}, \"Bindings\" -> <|\"f\" -> \"f[x]\", \"g\" -> \"g[x]\", \"p\" -> \"2\", \"q\" -> \"2\"|>, \"MissingConditions\" -> {\"f in L2\", \"g in L2\"}|>"
+  });
+  assert.equal(compiledMoveSchema.ok, true);
+  assert.match(compiledMoveSchema.output ?? "", /Compiled/);
+  assert.match(compiledMoveSchema.output ?? "", /RulePlan/);
+  assert.match(compiledMoveSchema.output ?? "", /Holder/);
+  assert.match(compiledMoveSchema.output ?? "", /abs-dominate/);
+  assert.match(compiledMoveSchema.output ?? "", /inert strings/);
+  assert.doesNotMatch(compiledMoveSchema.output ?? "", /ToExpression/);
+
+  const rejectedMoveSchema = await backend.call("proof_pattern_engine", {
+    operation: "compile",
+    goal: "",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: "<|\"Rule\" -> \"NotARealRule\", \"Transforms\" -> {\"unknown_transform\"}, \"Bindings\" -> <|\"f\" -> \"f[x]\"|>, \"MissingConditions\" -> {}|>"
+  });
+  assert.equal(rejectedMoveSchema.ok, true);
+  assert.match(rejectedMoveSchema.output ?? "", /Rejected/);
+  assert.match(rejectedMoveSchema.output ?? "", /Unknown rule/);
+  assert.match(rejectedMoveSchema.output ?? "", /registered/);
+
+  const noCandidateMove = await backend.call("proof_pattern_engine", {
+    operation: "suggest",
+    goal: "foo[x]",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: ""
+  });
+  assert.equal(noCandidateMove.ok, true);
+  assert.match(noCandidateMove.output ?? "", /NoCandidate/);
+  assert.match(noCandidateMove.output ?? "", /restricted schema/);
+
+  const parameterChoice = await backend.call("proof_pattern_engine", {
     operation: "parameter",
     goal: "",
     known: "",
@@ -247,7 +296,37 @@ try {
   assert.match(parameterChoice.output ?? "", /ParameterChoice/);
   assert.match(parameterChoice.output ?? "", /GeneratedByParameterChoice/);
 
-  const invalidRegistration = await backend.call("inequality_engine", {
+  const largeParameterChoice = await backend.call("proof_pattern_engine", {
+    operation: "parameter",
+    goal: "",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: "<|\"Direction\" -> \"large\", \"Parameter\" -> A2, \"Condition\" -> A2 > C*K0*A0, \"Dependencies\" -> {C, K0, A0}|>"
+  });
+  assert.equal(largeParameterChoice.ok, true);
+  assert.match(largeParameterChoice.output ?? "", /ParameterChoice/);
+  assert.match(largeParameterChoice.output ?? "", /"Direction" -> "large"/);
+  assert.match(largeParameterChoice.output ?? "", /A2/);
+
+  const integrationByPartsMove = await backend.call("proof_pattern_engine", {
+    operation: "suggest",
+    goal: "Integrate[u'[x] v[x], {x, a, b}]",
+    known: "",
+    context: "<|\"TransformHints\" -> {\"integration by parts\"}|>",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: ""
+  });
+  assert.equal(integrationByPartsMove.ok, true);
+  assert.match(integrationByPartsMove.output ?? "", /integration_by_parts_1/);
+  assert.match(integrationByPartsMove.output ?? "", /BoundaryTrace/);
+  assert.match(integrationByPartsMove.output ?? "", /move-derivative/);
+
+  const invalidRegistration = await backend.call("proof_pattern_engine", {
     operation: "register",
     goal: "",
     known: "",
@@ -261,7 +340,7 @@ try {
   assert.match(invalidRegistration.output ?? "", /Rejected/);
   assert.match(invalidRegistration.output ?? "", /CanonicalForm/);
 
-  const transformRegistration = await backend.call("inequality_engine", {
+  const transformRegistration = await backend.call("proof_pattern_engine", {
     operation: "register",
     goal: "",
     known: "",

@@ -1,14 +1,16 @@
 BeginPackage["InequalityEngine`"];
 
-IneqNormalize::usage = "IneqNormalize[input, context] creates an inequality proof state.";
-IneqSuggest::usage = "IneqSuggest[state] returns candidate inequality moves for a proof state.";
+IneqNormalize::usage = "IneqNormalize[input, context] creates a proof-rule state for expression-pattern matching.";
+IneqSuggest::usage = "IneqSuggest[state] returns candidate proof-rule or transform moves for a proof state.";
 IneqApply::usage = "IneqApply[state, move] applies one candidate move and appends proof trace.";
 IneqTrace::usage = "IneqTrace[state] returns the proof trace stored in a state.";
-IneqHandleRequest::usage = "IneqHandleRequest[args] handles ai4math inequality_engine tool requests.";
+IneqHandleRequest::usage = "IneqHandleRequest[args] handles ai4math proof_pattern_engine tool requests.";
 RegisterIneqRule::usage = "RegisterIneqRule[rule] registers an inequality rule association.";
 RegisterIneqTransform::usage = "RegisterIneqTransform[transform] registers a transform association.";
 ValidateIneqRule::usage = "ValidateIneqRule[rule] validates the restricted inequality rule schema.";
 ValidateIneqTransform::usage = "ValidateIneqTransform[transform] validates the restricted transform schema.";
+ValidateIneqMoveSchema::usage = "ValidateIneqMoveSchema[schema] validates an LLM-proposed restricted proof move schema without evaluating injected code.";
+CompileIneqMoveSchema::usage = "CompileIneqMoveSchema[schema] compiles a validated restricted proof move schema into a safe proof-rule plan.";
 IneqParameterChoice::usage = "IneqParameterChoice[direction, parameter, condition, dependencies] creates a small/large parameter proof obligation.";
 
 Begin["`Private`"];
@@ -18,17 +20,23 @@ ClearAll[
   IneqParseInput, IneqParseContext, IneqStateQ, IneqGoal,
   IneqContext, IneqKnown, IneqTrace, IneqNormalize, IneqSuggest,
   IneqApply, IneqHandleRequest, RegisterIneqRule, RegisterIneqTransform,
-  ValidateIneqRule, ValidateIneqTransform, IneqParameterChoice,
+  ValidateIneqRule, ValidateIneqTransform, ValidateIneqMoveSchema,
+  CompileIneqMoveSchema, IneqParameterChoice,
   ProductIntegralMoves, SumProductMoves, ProductPointwiseMoves,
+  IntegrationByPartsMoves,
   AbstractInequalityMoves,
   HolderConclusion, HolderConditions, CauchySchwarzConclusion,
   CauchySchwarzConditions, CauchySchwarzSumConclusion,
   CauchySchwarzSumConditions, YoungConclusion, YoungEpsilonConclusion,
-  YoungConditions, PoincareMove, SobolevMove,
+  YoungConditions, IntegrationByPartsConclusion, IntegrationByPartsConditions,
+  PoincareMove, SobolevMove,
   ReadMoveId, MoveById, AppendTrace, StateSummary, RegistrySummary,
   IneqValidateStringField, IneqValidateStringListField, IneqRegisterPayload,
   IneqParsePayload, IneqRuleQ, IneqTransformQ, IneqConditionStatus,
-  IneqGoalText, IneqContextValues, IneqContextHasText, IneqContextStatus
+  IneqGoalText, IneqContextValues, IneqContextHasText, IneqContextStatus,
+  IneqLookupSchemaField, IneqNormalizeStringList, IneqValidateBindingSchema,
+  IneqCanonicalRegistryName, IneqKnownRuleNameQ, IneqKnownTransformNameQ,
+  IneqCompilerSchemaSummary
 ];
 
 If[! ValueQ[$IneqRuleRegistry] || ! AssociationQ[$IneqRuleRegistry],
@@ -77,7 +85,7 @@ IneqNormalize[input_, context_: <||>, known_: {}] := <|
   "Trace" -> {
     <|
       "Kind" -> "normalize",
-      "Message" -> "Created inequality proof state.",
+      "Message" -> "Created proof-rule pattern state.",
       "Time" -> IneqNow[]
     |>
   }
@@ -133,7 +141,8 @@ RegistrySummary[] := <|
   "Rules" -> Keys[$IneqRuleRegistry],
   "Transforms" -> Keys[$IneqTransformRegistry],
   "RuleCount" -> Length[$IneqRuleRegistry],
-  "TransformCount" -> Length[$IneqTransformRegistry]
+  "TransformCount" -> Length[$IneqTransformRegistry],
+  "LLMMoveSchema" -> IneqCompilerSchemaSummary[]
 |>;
 
 IneqConditionStatus[kind_, status_, data_: <||>] := Join[
@@ -162,6 +171,8 @@ IneqContextStatus[state_Association?IneqStateQ, key_String, kind_String] := Modu
   ]
 ];
 
+Get[FileNameJoin[{DirectoryName[$InputFileName], "InequalityEngine", "Kernel", "Compiler.wl"}]];
+
 IneqParameterChoice[direction_, parameter_, condition_, dependencies_: {}] := Module[
   {dir = ToLowerCase[ToString[direction]], status},
   status = If[MemberQ[{"small", "large"}, dir], "GeneratedByParameterChoice", "NeedsUser"];
@@ -181,6 +192,7 @@ IneqSuggest[state_Association?IneqStateQ, OptionsPattern[]] := Module[
     ProductIntegralMoves[goal, state],
     SumProductMoves[goal, state],
     ProductPointwiseMoves[goal, state],
+    IntegrationByPartsMoves[goal, state],
     AbstractInequalityMoves[goal, state]
   ];
   If[moves === {},
@@ -189,7 +201,7 @@ IneqSuggest[state_Association?IneqStateQ, OptionsPattern[]] := Module[
         "MoveId" -> "no_move",
         "Rule" -> "None",
         "Status" -> "NoCandidate",
-        "Message" -> "No registered inequality pattern matched. Ask the user for a decomposition or add a transform.",
+        "Message" -> "No registered proof-rule pattern matched. Propose a restricted schema with Rule/Transforms/Bindings/MissingConditions for compile, ask for a decomposition, or register a validated transform; do not inject executable Wolfram code.",
         "RequiredConditions" -> {},
         "Transforms" -> {}
       |>
@@ -285,6 +297,56 @@ SumProductMoves[goal_, state_] := Module[{sums, moves},
   ];
   moves
 ];
+
+IntegrationByPartsMoves[goal_, state_] := Module[{integrals},
+  integrals = Cases[
+    Hold[goal],
+    int : (Integrate[Derivative[1][u_][x_] * v_, {x_, a_, b_}] |
+      Inactive[Integrate][Derivative[1][u_][x_] * v_, {x_, a_, b_}]) :> Unevaluated[int],
+    Infinity
+  ];
+  MapIndexed[
+    Function[{int, idx},
+      <|
+        "MoveId" -> "integration_by_parts_" <> ToString[First[idx]],
+        "Rule" -> "IntegrationByParts",
+        "Variant" -> "OneDimensionalProductDerivative",
+        "Status" -> "Candidate",
+        "Matched" -> int,
+        "Conclusion" -> IntegrationByPartsConclusion[int],
+        "RequiredConditions" -> IntegrationByPartsConditions[int],
+        "Transforms" -> {"product-rule", "boundary-term", "move-derivative"},
+        "ConditionStatus" -> <|
+          "Regularity" -> IneqConditionStatus["Regularity", "NeedsUser"],
+          "BoundaryTrace" -> IneqConditionStatus["BoundaryTrace", "NeedsUser"],
+          "Integrability" -> IneqConditionStatus["Integrability", "NeedsUser"]
+        |>,
+        "Cost" -> 2
+      |>
+    ],
+    integrals
+  ]
+];
+
+IntegrationByPartsConclusion[Integrate[Derivative[1][u_][x_] * v_, {x_, a_, b_}]] := <|
+  "Identity" -> "Integral[u'[x] v[x], {x,a,b}] = u[b] v[b] - u[a] v[a] - Integral[u[x] v'[x], {x,a,b}]",
+  "BoundaryTerm" -> u[b] * (v /. x -> b) - u[a] * (v /. x -> a),
+  "InteriorTerm" -> -Inactive[Integrate][u[x] * D[v, x], {x, a, b}]
+|>;
+
+IntegrationByPartsConclusion[Inactive[Integrate][Derivative[1][u_][x_] * v_, {x_, a_, b_}]] :=
+  IntegrationByPartsConclusion[Integrate[Derivative[1][u][x] * v, {x, a, b}]];
+
+IntegrationByPartsConclusion[int_] := <|
+  "Identity" -> "Integral[u' v] = [u v]_a^b - Integral[u v']",
+  "Matched" -> int
+|>;
+
+IntegrationByPartsConditions[int_] := {
+  <|"Kind" -> "Regularity", "Requirement" -> "u and v have enough weak/classical regularity for the selected integration-by-parts formula.", "Status" -> "NeedsUser"|>,
+  <|"Kind" -> "BoundaryTrace", "Requirement" -> "Boundary traces exist and boundary terms are either retained or justified to vanish.", "Status" -> "NeedsUser"|>,
+  <|"Kind" -> "Integrability", "Requirement" -> "The product terms are integrable on the stated domain.", "Status" -> "NeedsUser"|>
+};
 
 ProductPointwiseMoves[goal_, state_] := Module[{products, selected},
   If[! IneqContextHasText[state, "young"] && ! IneqContextHasText[state, "product"],
@@ -575,6 +637,8 @@ IneqHandleRequest[args_Association] := Module[
         Lookup[payload, "Condition", Lookup[payload, "condition", Missing["NoCondition"]]],
         Lookup[payload, "Dependencies", Lookup[payload, "dependencies", {}]]
       ],
+    "compile",
+      CompileIneqMoveSchema[payload],
     "register",
       IneqRegisterPayload[payload],
     _,
@@ -586,7 +650,7 @@ IneqRegisterPayload[payload_Association] := Module[{kind = ToLowerCase[IneqReadS
   Switch[kind,
     "transform", RegisterIneqTransform[payload],
     "rule", RegisterIneqRule[payload],
-    _, <|"Status" -> "Rejected", "Issues" -> {"Type must be Rule or Transform."}|>
+    _, <|"Status" -> "Rejected", "Issues" -> {"Type must be Rule or Transform. Use operation -> compile for LLM move schemas."}|>
   ]
 ];
 
@@ -650,6 +714,21 @@ RegisterIneqTransform[<|
 RegisterIneqTransform[<|
   "Name" -> "choose-small-parameter",
   "Description" -> "Introduce an explicit small positive parameter and leave the finite-dimensional absorption condition visible."
+|>];
+
+RegisterIneqTransform[<|
+  "Name" -> "product-rule",
+  "Description" -> "Match a product derivative pattern and expose the associated proof-rule identity."
+|>];
+
+RegisterIneqTransform[<|
+  "Name" -> "boundary-term",
+  "Description" -> "Expose boundary terms generated by integration by parts and require trace hypotheses."
+|>];
+
+RegisterIneqTransform[<|
+  "Name" -> "move-derivative",
+  "Description" -> "Move a derivative from one factor to another using integration by parts under stated assumptions."
 |>];
 
 RegisterIneqTransform[<|

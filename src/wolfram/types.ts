@@ -1,4 +1,5 @@
 export type WolframToolName =
+  | "proof_pattern_engine"
   | "inequality_engine"
   | "wolfram_eval"
   | "wolfram_simplify"

@@ -97,9 +97,12 @@ export function formatVerificationSummary(trace: TraceEvent[]): string {
     .map(event => formatCondition(event.result))
     .filter((value): value is string => Boolean(value?.trim()));
   const structuredTools = [...new Set(toolCalls.map(event => event.name).filter(name => name !== "theorem_advisor"))];
+  const failedTools = toolResults.filter(event => event.result && !event.result.ok);
 
   const lines: string[] = [];
+  lines.push(`- Tool calls recorded: ${toolCalls.length}`);
   lines.push(`- Structured tools used: ${formatList(structuredTools)}`);
+  lines.push(`- Tool errors: ${failedTools.length ? failedTools.map(event => `${event.name}: ${event.result?.error ?? "unknown"}`).join(" | ") : "none recorded"}`);
   lines.push(`- Conditions returned by Wolfram: ${conditions.length ? conditions.join(" | ") : "none recorded"}`);
   lines.push(`- Preplanned invariants: ${formatList(invariants)}`);
   lines.push(`- Preplanned verification targets: ${formatList(targets)}`);

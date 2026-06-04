@@ -18,8 +18,8 @@ type ToolProperty = {
   enum?: string[];
 };
 
-const wolframToolNames = new Set<string>([
-  "inequality_engine",
+export const publicWolframToolNames = [
+  "proof_pattern_engine",
   "wolfram_eval",
   "wolfram_simplify",
   "wolfram_integrate",
@@ -34,21 +34,40 @@ const wolframToolNames = new Set<string>([
   "wolfram_dsolve",
   "wolfram_transform",
   "wolfram_residue"
+] as const satisfies readonly WolframToolName[];
+
+export const compatWolframToolNames = [
+  "inequality_engine"
+] as const satisfies readonly WolframToolName[];
+
+export const localToolNames = [
+  "theorem_advisor",
+  "verification_template"
+] as const satisfies readonly LocalToolName[];
+
+export const publicAgentToolNames = [
+  ...publicWolframToolNames,
+  ...localToolNames
+] as const satisfies readonly AgentToolName[];
+
+const wolframToolNames = new Set<string>([
+  ...publicWolframToolNames,
+  ...compatWolframToolNames
 ]);
 
 export const toolDefinitions: ToolDefinition[] = [
   defineTool(
-    "inequality_engine",
-    "Use the standalone Wolfram Inequality Rule/Transform Engine. It maintains proof states, suggests inequality moves, applies selected moves, and returns traceable conditions. Use this for interactive inequality proof assistance, not for whole-paper verification.",
+    "proof_pattern_engine",
+    "Use the Wolfram proof rule/transform engine for proof-state moves such as Holder, Cauchy-Schwarz, Young, parameter choices, Poincare/Sobolev, and integration by parts. It suggests registered moves, records side-condition status, and can compile restricted inert LLM move schemas. It is not a whole-paper verifier.",
     {
-      operation: { type: "string", enum: ["normalize", "suggest", "apply", "trace", "registry", "parameter", "register"], description: "Engine operation. Use suggest first, apply with a moveId after selecting a move, trace to inspect proof history, registry to list registered schemas, parameter for small/large parameter choices, and register for validated rule/transform schemas." },
-      goal: { type: "string", description: "Current inequality goal or expression in Wolfram InputForm syntax, or empty when state is provided." },
+      operation: { type: "string", enum: ["normalize", "suggest", "apply", "trace", "registry", "parameter", "compile", "register"], description: "Engine operation: normalize, suggest, apply, trace, registry, parameter, compile, or register." },
+      goal: { type: "string", description: "Current proof goal or expression in Wolfram InputForm syntax; empty when state is provided." },
       known: { type: "string", description: "Known facts/expressions in Wolfram InputForm syntax, usually a list, or empty." },
-      context: { type: "string", description: "Proof context in Wolfram InputForm syntax, preferably an Association with Domain, Dimension, FunctionSpaces, assumptions, and parameter choices, or empty." },
+      context: { type: "string", description: "Proof context in Wolfram InputForm syntax, preferably an Association with domain, function spaces, assumptions, and allowed inequalities." },
       state: { type: "string", description: "Existing IneqState association in Wolfram InputForm syntax, or empty to create one from goal/context/known." },
       moveId: { type: "string", description: "Move id returned by suggest, or empty to apply the first suggested move." },
       ruleName: { type: "string", description: "Optional rule name for focused operations, or empty." },
-      payload: { type: "string", description: "Operation-specific payload as a Wolfram Association in InputForm. For register, include Type -> \"Rule\" or \"Transform\" and validated schema fields. For parameter, include Direction, Parameter, Condition, and Dependencies." }
+      payload: { type: "string", description: "Operation-specific payload as a Wolfram Association in InputForm. For compile, use only Rule, Transforms, inert string Bindings, and MissingConditions. For parameter, include Direction, Parameter, Condition, and Dependencies." }
     }
   ),
   defineTool(
@@ -61,7 +80,7 @@ export const toolDefinitions: ToolDefinition[] = [
   ),
   defineTool(
     "verification_template",
-    "Run a stable proof-verification template by translating it into compact Wolfram checks. Use this for product-rule identities, boundary substitution/cancellation, Fourier coefficients, candidate solutions, first variations, parameter absorption, barrier residuals, ODE/radial checks, Kelvin power algebra, and Hessian matrix invariants. Do not use it as an inequality theorem generator.",
+    "Run a stable proof-verification template by translating it into compact Wolfram checks. Use this for scalar product-rule identities, boundary substitution/cancellation, Fourier coefficients, candidate solutions, first variations, parameter absorption, barrier residuals, ODE/radial checks, Kelvin power algebra, and Hessian matrix invariants. For vector-gradient negative-part or trace integration-by-parts arguments, use direct Wolfram component checks for the algebraic part and mark trace/domain facts as analytic assumptions. Do not use it as an inequality theorem generator.",
     {
       template: {
         type: "string",
@@ -114,7 +133,7 @@ export const toolDefinitions: ToolDefinition[] = [
   ),
   defineTool(
     "wolfram_simplify",
-    "Simplify, refine, or power-expand a Wolfram Language expression with optional assumptions.",
+    "Simplify, refine, or power-expand an explicit Wolfram Language expression under stated assumptions. Use this for algebraic, analytic, asymptotic, trigonometric, exponential, sign, monotonicity, and conditional expression simplification when the expression and assumptions are already chosen. Do not use it to choose a proof rule such as Holder/Young/Cauchy-Schwarz, Poincare/Sobolev, parameter absorption, or integration by parts; use proof_pattern_engine for rule/transform selection and side-condition tracking.",
     {
       expr: { type: "string", description: "Expression in Wolfram Language InputForm syntax." },
       assumptions: { type: "string", description: "Wolfram assumptions, e.g. x > 0 && Element[n, Integers], or empty string." },
@@ -297,7 +316,7 @@ export function formatToolResult(toolName: string, args: unknown, result: Wolfra
 }
 
 export function formatToolResultMarkdown(toolName: string, result: WolframResponse): string {
-  if (!result.ok) return "";
+  if (!result.ok) return `> ${result.title || toolName} failed: ${result.error ?? "unknown error"}`;
   if (toolName === "theorem_advisor") {
     const summary = summarizeTheoremAdvisor(result.output ?? "");
     return summary ? `> Theorem advisor: ${summary}` : "";

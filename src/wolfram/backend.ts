@@ -1,15 +1,8 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { config } from "../config.js";
 import type { WolframRequest, WolframResponse, WolframToolName } from "./types.js";
-
-type Pending = {
-  resolve: (value: WolframResponse) => void;
-  reject: (reason: Error) => void;
-  timer: NodeJS.Timeout;
-};
 
 const WINDOWS_WOLFRAM_SCRIPT = [
   "C:\\Program Files\\Wolfram Research\\WolframScript\\wolframscript.exe",
@@ -22,19 +15,8 @@ const WINDOWS_WOLFRAM_KERNEL = [
   "C:\\Program Files\\Wolfram Research\\Wolfram\\14.3\\SystemFiles\\Kernel\\Binaries\\Windows-x86-64\\WolframKernel.exe"
 ];
 
-const READY_ID = "__worker_ready__";
-
 export class WolframBackend {
-  private child: ChildProcessWithoutNullStreams | null = null;
-  private pending = new Map<string, Pending>();
-  private stdoutBuffer = "";
-  private stderrBuffer = "";
-  private readyPromise: Promise<void> | null = null;
-  private readyResolve: (() => void) | null = null;
-  private readyReject: ((reason: Error) => void) | null = null;
-
   constructor(
-    private readonly workerPath = config.wolframWorkerPath,
     private readonly command = config.wolframCommand || findDefaultWolframCommand()
   ) {}
 
@@ -46,34 +28,10 @@ export class WolframBackend {
     if (config.wolframBackendMode === "worker") {
       throw new Error("WOLFRAM_BACKEND_MODE=worker is not supported in this release. Use the default oneshot backend.");
     }
-    if (config.wolframBackendMode !== "worker") {
-      return await this.callOneshot(tool, args, timeoutMs);
+    if (config.wolframBackendMode !== "oneshot") {
+      throw new Error(`Unsupported Wolfram backend mode '${config.wolframBackendMode}'. Use 'oneshot'.`);
     }
-
-    await this.ensureStarted();
-    const child = this.child;
-    if (!child) throw new Error("Wolfram worker is not running");
-
-    const id = randomUUID();
-    const request: WolframRequest = { id, tool, args, timeoutMs };
-    const payload = JSON.stringify(request) + "\n";
-
-    return await new Promise<WolframResponse>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        this.restart();
-        reject(new Error(`Wolfram request timed out after ${timeoutMs}ms`));
-      }, timeoutMs + 1000);
-
-      this.pending.set(id, { resolve, reject, timer });
-      child.stdin.write(payload, "utf8", error => {
-        if (error) {
-          clearTimeout(timer);
-          this.pending.delete(id);
-          reject(error);
-        }
-      });
-    });
+    return await this.callOneshot(tool, args, timeoutMs);
   }
 
   private async callOneshot(tool: WolframToolName, args: Record<string, unknown>, timeoutMs: number): Promise<WolframResponse> {
@@ -124,127 +82,7 @@ export class WolframBackend {
     });
   }
 
-  async ensureStarted(): Promise<void> {
-    if (this.child && !this.child.killed) return;
-    if (!this.command) {
-      throw new Error("No Wolfram command found. Set wolfram.command in ignored wma.config.json or as a temporary WOLFRAM_COMMAND override.");
-    }
-    if (!fs.existsSync(this.workerPath)) {
-      throw new Error(`Wolfram worker not found: ${this.workerPath}`);
-    }
-
-    const args = workerArgs(this.command, this.workerPath);
-    this.readyPromise = new Promise((resolve, reject) => {
-      this.readyResolve = resolve;
-      this.readyReject = reject;
-    });
-
-    this.child = spawn(this.command, args, {
-      cwd: config.rootDir,
-      stdio: "pipe",
-      windowsHide: true
-    });
-    this.stdoutBuffer = "";
-    this.stderrBuffer = "";
-
-    this.child.stdout.on("data", chunk => this.handleStdout(String(chunk)));
-    this.child.stderr.on("data", chunk => {
-      const text = String(chunk);
-      this.stderrBuffer += text;
-      if (config.wolframDebugStdio) {
-        process.stderr.write(text);
-      }
-      if (this.stderrBuffer.length > 20_000) {
-        this.stderrBuffer = this.stderrBuffer.slice(-20_000);
-      }
-    });
-    this.child.on("exit", (code, signal) => {
-      const message = `Wolfram worker exited with code=${code ?? "null"} signal=${signal ?? "null"}`;
-      this.readyReject?.(new Error(`${message}${this.stderrBuffer ? `\n${this.stderrBuffer}` : ""}`));
-      this.readyPromise = null;
-      this.readyResolve = null;
-      this.readyReject = null;
-      for (const [id, pending] of this.pending) {
-        clearTimeout(pending.timer);
-        pending.reject(new Error(`${message}${this.stderrBuffer ? `\n${this.stderrBuffer}` : ""}`));
-        this.pending.delete(id);
-      }
-      this.child = null;
-    });
-
-    if (shouldBootstrapFromStdin(this.command)) {
-      const source = fs.readFileSync(this.workerPath, "utf8");
-      this.child.stdin.write(`Global\`$WMAStdin = $Input; ToExpression[${JSON.stringify(source)}]\n`, "utf8");
-    }
-
-    await this.waitForReady();
-  }
-
-  close(): void {
-    for (const [id, pending] of this.pending) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error("Wolfram backend closed"));
-      this.pending.delete(id);
-    }
-    if (this.child && !this.child.killed) {
-      this.child.kill();
-    }
-    this.child = null;
-  }
-
-  private restart(): void {
-    if (this.child && !this.child.killed) {
-      this.child.kill();
-    }
-    this.child = null;
-  }
-
-  private handleStdout(text: string): void {
-    this.stdoutBuffer += text;
-    while (true) {
-      const idx = this.stdoutBuffer.indexOf("\n");
-      if (idx < 0) break;
-      const line = this.stdoutBuffer.slice(0, idx).trim();
-      this.stdoutBuffer = this.stdoutBuffer.slice(idx + 1);
-      if (!line) continue;
-
-      let response: WolframResponse;
-      try {
-        response = JSON.parse(extractJsonObject(line)) as WolframResponse;
-      } catch {
-        if (config.wolframDebugStdio) {
-          process.stderr.write(`[wolfram stdout] ${line}\n`);
-        }
-        continue;
-      }
-
-      const id = response.id;
-      if (id === READY_ID) {
-        this.readyResolve?.();
-        this.readyPromise = null;
-        this.readyResolve = null;
-        this.readyReject = null;
-        continue;
-      }
-      if (!id) continue;
-      const pending = this.pending.get(id);
-      if (!pending) continue;
-      clearTimeout(pending.timer);
-      this.pending.delete(id);
-      pending.resolve(response);
-    }
-  }
-
-  private async waitForReady(): Promise<void> {
-    if (!this.readyPromise) return;
-    const timeoutMs = Math.max(10_000, Math.min(config.wolframWorkerTimeoutMs, 60_000));
-    await Promise.race([
-      this.readyPromise,
-      new Promise<void>((_, reject) => {
-        setTimeout(() => reject(new Error(`Wolfram worker did not become ready within ${timeoutMs}ms`)), timeoutMs);
-      })
-    ]);
-  }
+  close(): void {}
 }
 
 function extractJsonObject(line: string): string {
@@ -276,28 +114,4 @@ export function findDefaultWolframCommand(): string {
     }
   }
   return "wolframscript";
-}
-
-function workerArgs(command: string, workerPath: string): string[] {
-  const override = config.wolframWorkerArgs;
-  if (override?.trim()) {
-    return override.split(/\s+/).map(part => part.replaceAll("{worker}", workerPath));
-  }
-
-  const base = path.basename(command).toLowerCase();
-  if (base.includes("wolframscript")) {
-    return ["-file", workerPath];
-  }
-  if (base.includes("wolframkernel")) {
-    return ["-noprompt"];
-  }
-  return ["-code", `Get[${JSON.stringify(workerPath.replaceAll("\\", "/"))}]`];
-}
-
-function shouldBootstrapFromStdin(command: string): boolean {
-  if (config.wolframBootstrapStdin !== null) {
-    return config.wolframBootstrapStdin;
-  }
-  const base = path.basename(command).toLowerCase();
-  return base.includes("wolframkernel");
 }

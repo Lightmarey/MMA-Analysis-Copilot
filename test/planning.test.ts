@@ -16,7 +16,8 @@ const residueAnalysis = analyzeProblem(residueProblem);
 const residuePlan = createPreplan(residueProblem, residueAnalysis);
 assert.ok(residueAnalysis.suggestedTheorems.some(item => item.theorem === "Residue theorem"));
 assert.ok(residuePlan.recommendedTools.includes("wolfram_residue"));
-assert.match(buildPreplanContext(residueAnalysis, residuePlan), /workflow_order: theorem -> invariants -> verification/);
+assert.match(buildPreplanContext(residueAnalysis, residuePlan), /workflow_hint: theorem -> invariants -> verification/);
+assert.match(buildPreplanContext(residueAnalysis, residuePlan), /local_tool_hints: .*wolfram_residue/);
 
 const convergenceProblem = "Determine whether Sum[1/k^p, {k, 1, Infinity}] converges and state the condition on p.";
 const convergencePlan = createPreplan(convergenceProblem);
@@ -31,19 +32,29 @@ const localEstimateProblem = "Apply finite-sum Cauchy-Schwarz and Young epsilon 
 const localEstimateAnalysis = analyzeProblem(localEstimateProblem);
 const localEstimatePlan = createPreplan(localEstimateProblem, localEstimateAnalysis);
 assert.equal(classifyDifficulty(localEstimateProblem, localEstimateAnalysis), "complex");
-assert.ok(localEstimatePlan.recommendedTools.includes("inequality_engine"));
+assert.ok(localEstimatePlan.recommendedTools.includes("proof_pattern_engine"));
+
+const parameterAbsorptionProblem = "Formalize a Yamabe moving-spheres parameter absorption and large-constant condition A2 >= C K0 A0.";
+const parameterAbsorptionPlan = createPreplan(parameterAbsorptionProblem);
+assert.equal(classifyDifficulty(parameterAbsorptionProblem), "complex");
+assert.ok(parameterAbsorptionPlan.recommendedTools.includes("proof_pattern_engine"));
+
+const integrationByPartsProblem = "Use integration by parts on Integrate[u'[x] v[x], {x, a, b}] and track boundary terms.";
+const integrationByPartsPlan = createPreplan(integrationByPartsProblem);
+assert.equal(classifyDifficulty(integrationByPartsProblem), "complex");
+assert.ok(integrationByPartsPlan.recommendedTools.includes("proof_pattern_engine"));
 
 const variationalProblem = "Check the first variation and Euler-Lagrange equation for a constrained nonlinear functional on a Nehari manifold.";
 const variationalAnalysis = analyzeProblem(variationalProblem);
 const variationalPlan = createPreplan(variationalProblem, variationalAnalysis);
 assert.equal(classifyDifficulty(variationalProblem, variationalAnalysis), "complex");
-assert.ok(variationalPlan.recommendedTools.includes("verification_template"));
+assert.equal(variationalPlan.recommendedTools.includes("verification_template"), false);
 assert.ok(variationalAnalysis.suggestedTheorems.some(item => item.theorem.includes("Direct method")));
 
 const barrierProblem = "Construct a barrier auxiliary function and verify the maximum principle residual for upper and lower solutions.";
 const barrierPlan = createPreplan(barrierProblem);
 assert.equal(classifyDifficulty(barrierProblem), "complex");
-assert.ok(barrierPlan.recommendedTools.includes("verification_template"));
+assert.equal(barrierPlan.recommendedTools.includes("verification_template"), false);
 
 const hessianProblem = "Compute Hessian quotient matrix principal minors and Maclaurin inequality side conditions.";
 const hessianPlan = createPreplan(hessianProblem);

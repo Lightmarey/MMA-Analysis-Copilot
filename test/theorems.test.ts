@@ -24,12 +24,12 @@ assert.ok(pdePlan.recommendedTools.includes("wolfram_simplify"));
 const inequalityProblem = "Apply Young inequality with epsilon to absorb the product term in an energy estimate.";
 const inequalityAnalysis = analyzeProblem(inequalityProblem);
 const inequalityPlan = createPreplan(inequalityProblem, inequalityAnalysis);
-assert.ok(inequalityPlan.recommendedTools.includes("inequality_engine"));
+assert.ok(inequalityPlan.recommendedTools.includes("proof_pattern_engine"));
 
 const holderProblem = "Check Holder inequality with conjugate exponents p=2 and q=2.";
 const holderAnalysis = analyzeProblem(holderProblem);
 const holderPlan = createPreplan(holderProblem, holderAnalysis);
-assert.ok(holderPlan.recommendedTools.includes("inequality_engine"));
+assert.ok(holderPlan.recommendedTools.includes("proof_pattern_engine"));
 
 const movingSpheresAnalysis = analyzeProblem("Use a Kelvin transform in the moving spheres method and verify the inversion power.");
 assert.ok(movingSpheresAnalysis.suggestedTheorems.some(item => item.theorem.includes("Moving spheres")));

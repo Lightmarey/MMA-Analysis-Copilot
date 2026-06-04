@@ -9,7 +9,7 @@ import { buildLlmPlanContext, createLlmExecutionPlan } from "./llm-planning.js";
 import type { LlmExecutionPlan } from "./llm-planning.js";
 import { runVerificationTemplate } from "./verification-templates.js";
 import { buildAgentSystemPrompt } from "./prompts.js";
-import { analyzePaperPreflight, formatPaperPreflight } from "./paper-preflight.js";
+import { collectStreamedMessage } from "./streaming.js";
 import type { AgentToolName, LocalToolName } from "./tools.js";
 import type { WolframResponse } from "../wolfram/types.js";
 
@@ -59,12 +59,11 @@ export class MathAgent {
     const preplan = createPreplan(userMessage, analysis);
     const decomposition = decomposeProblem(userMessage, analysis);
     const localDifficulty = classifyDifficulty(userMessage, analysis);
-    const difficulty = llmPlan?.difficulty === "complex" || localDifficulty === "complex" ? "complex" : "simple";
+    const difficulty = resolveDifficulty(llmPlan, localDifficulty, analysis);
     const mergedLlmPlan: LlmExecutionPlan | null = llmPlan
       ? {
           ...llmPlan,
-          difficulty,
-          recommendedTools: [...new Set([...llmPlan.recommendedTools, ...preplan.recommendedTools])]
+          difficulty
         }
       : null;
     const routedModel = config.autoRoute
@@ -74,23 +73,18 @@ export class MathAgent {
       : modelRoute.defaultModel;
     const effectiveModel = this.forcedModel ?? routedModel;
     callbacks.onRoute?.(difficulty, effectiveModel);
-    const paperPreflight = shouldUsePaperPreflight(userMessage) ? analyzePaperPreflight(userMessage) : null;
 
     this.messages.push({ role: "user", content: userMessage });
     if (config.preplanEnabled) {
       const localPreplanContext = buildPreplanContext(analysis, preplan, decomposition);
-      const paperPreflightContext = paperPreflight ? `\n\n${formatPaperPreflight(paperPreflight)}` : "";
       const preplanContext = (mergedLlmPlan
         ? `${buildLlmPlanContext(mergedLlmPlan)}\n\n${localPreplanContext}`
-        : localPreplanContext) + paperPreflightContext;
+        : localPreplanContext);
       callbacks.onPlan?.(preplanContext);
       this.messages.push({ role: "system", content: preplanContext });
     }
     const collected: string[] = [];
     let sawToolCall = false;
-    let toolCallCount = 0;
-    let lowValueToolResults = 0;
-    const toolBudget = paperPreflight?.maxToolCalls ?? config.maxIterations;
 
     for (let iteration = 0; iteration < config.maxIterations; iteration += 1) {
       const stream = await this.client.chat.completions.create({
@@ -133,18 +127,8 @@ export class MathAgent {
         return collected.join("\n\n").trim();
       }
 
-      let stopAfterToolBatch = "";
       for (const toolCall of message.tool_calls) {
         if (toolCall.type !== "function") {
-          continue;
-        }
-        if (toolCallCount >= toolBudget) {
-          this.messages.push({
-            role: "tool",
-            tool_call_id: toolCall.id,
-            content: `Tool call skipped: paper-assist preflight/tool budget is exhausted (${toolBudget}).`
-          });
-          stopAfterToolBatch = `Stop calling tools now: the paper-assist preflight/tool budget is exhausted (${toolBudget}). Finish with the evidence already available and clearly mark missing author data.`;
           continue;
         }
         sawToolCall = true;
@@ -153,28 +137,14 @@ export class MathAgent {
         callbacks.onToolCall?.(name, args);
 
         const result = await this.callTool(name, args);
-        toolCallCount += 1;
-        lowValueToolResults = isLowValueToolResult(name, result) ? lowValueToolResults + 1 : 0;
         const toolText = formatToolResult(name, args, result);
         const toolMarkdown = formatToolResultMarkdown(name, result);
-        if (toolMarkdown) {
-          callbacks.onToolResult?.(name, toolMarkdown, result);
-        }
+        callbacks.onToolResult?.(name, toolMarkdown, result);
 
         this.messages.push({
           role: "tool",
           tool_call_id: toolCall.id,
           content: toolText
-        });
-
-        if (paperPreflight && lowValueToolResults >= 2) {
-          stopAfterToolBatch = "Stop calling tools now: the last tool calls did not add symbolic evidence. Finish by auditing the structure, missing formulas, and author-side assumptions.";
-        }
-      }
-      if (stopAfterToolBatch) {
-        this.messages.push({
-          role: "user",
-          content: stopAfterToolBatch
         });
       }
     }
@@ -197,17 +167,17 @@ export class MathAgent {
   }
 }
 
-function shouldUsePaperPreflight(message: string): boolean {
-  return /paper-assistance|Local excerpt:|Paper-assist preflight:|verification_template:[a-z_]+|moving\s+spheres|barrier|Kelvin|Hessian quotient|first variation|上下解|闸函数|球面法|变分|泛函/i.test(message);
-}
-
-function isLowValueToolResult(name: string, result: WolframResponse): boolean {
-  if (!result.ok) return true;
-  const output = result.output ?? "";
-  if (!output.trim()) return true;
-  if (/NoCandidate|no_move|Missing\["No/.test(output)) return true;
-  if (name === "verification_template" && /Template requires|Unknown verification template/i.test(result.error ?? "")) return true;
-  return false;
+function resolveDifficulty(
+  llmPlan: LlmExecutionPlan | null,
+  localDifficulty: "simple" | "complex",
+  analysis: ReturnType<typeof analyzeProblem>
+): "simple" | "complex" {
+  if (!llmPlan) return localDifficulty;
+  if (llmPlan.difficulty === "complex") return "complex";
+  const strongLocalEvidence = analysis.scale === "heavy" ||
+    analysis.scale === "infeasible_brute_force" ||
+    analysis.structuralComplexity.reasons.includes("analysis theorem-first task");
+  return strongLocalEvidence && localDifficulty === "complex" ? "complex" : "simple";
 }
 
 function safeParseObject(raw: string): Record<string, unknown> {
@@ -220,95 +190,4 @@ function safeParseObject(raw: string): Record<string, unknown> {
     return {};
   }
   return {};
-}
-
-type StreamedToolCall = {
-  id: string;
-  type: "function";
-  function: {
-    name: string;
-    arguments: string;
-  };
-};
-
-async function collectStreamedMessage(
-  stream: AsyncIterable<unknown>,
-  callbacks: AgentCallbacks
-): Promise<{ message: ChatCompletionMessageParam & { tool_calls?: StreamedToolCall[] }; finishReason: string | null }> {
-  let content = "";
-  let finishReason: string | null = null;
-  const toolCalls = new Map<number, StreamedToolCall>();
-
-  for await (const chunk of stream) {
-    const choice = readFirstChoice(chunk);
-    if (!choice) continue;
-    if (typeof choice.finish_reason === "string") finishReason = choice.finish_reason;
-    const delta = choice.delta;
-    if (!delta || typeof delta !== "object") continue;
-
-    const thinking = readStringProperty(delta, "reasoning_content") || readStringProperty(delta, "reasoning");
-    if (thinking) callbacks.onThinkingDelta?.(thinking);
-
-    const output = readStringProperty(delta, "content");
-    if (output) {
-      content += output;
-      callbacks.onOutputDelta?.(output);
-    }
-
-    const rawToolCalls = (delta as { tool_calls?: unknown }).tool_calls;
-    if (Array.isArray(rawToolCalls)) {
-      for (const rawToolCall of rawToolCalls) {
-        mergeToolCallDelta(toolCalls, rawToolCall);
-      }
-    }
-  }
-
-  const normalizedToolCalls = [...toolCalls.entries()]
-    .sort(([left], [right]) => left - right)
-    .map(([, toolCall]) => toolCall)
-    .filter(toolCall => toolCall.id && toolCall.function.name);
-  return {
-    message: {
-      role: "assistant",
-      content: content || null,
-      ...(normalizedToolCalls.length ? { tool_calls: normalizedToolCalls } : {})
-    },
-    finishReason
-  };
-}
-
-function readFirstChoice(chunk: unknown): { delta?: unknown; finish_reason?: unknown } | null {
-  if (!chunk || typeof chunk !== "object") return null;
-  const choices = (chunk as { choices?: unknown }).choices;
-  if (!Array.isArray(choices) || !choices[0] || typeof choices[0] !== "object") return null;
-  return choices[0] as { delta?: unknown; finish_reason?: unknown };
-}
-
-function readStringProperty(value: unknown, key: string): string {
-  if (!value || typeof value !== "object") return "";
-  const item = (value as Record<string, unknown>)[key];
-  return typeof item === "string" ? item : "";
-}
-
-function mergeToolCallDelta(toolCalls: Map<number, StreamedToolCall>, raw: unknown): void {
-  if (!raw || typeof raw !== "object") return;
-  const record = raw as Record<string, unknown>;
-  const index = typeof record.index === "number" ? record.index : toolCalls.size;
-  const existing = toolCalls.get(index) ?? {
-    id: "",
-    type: "function" as const,
-    function: {
-      name: "",
-      arguments: ""
-    }
-  };
-  if (typeof record.id === "string") existing.id += record.id;
-  if (record.type === "function") existing.type = "function";
-  const fn = record.function;
-  if (fn && typeof fn === "object") {
-    const fnRecord = fn as Record<string, unknown>;
-    if (typeof fnRecord.name === "string") existing.function.name += fnRecord.name;
-    if (typeof fnRecord.arguments === "string") existing.function.arguments += fnRecord.arguments;
-  }
-  toolCalls.set(index, existing);
 }

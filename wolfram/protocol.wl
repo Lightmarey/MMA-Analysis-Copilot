@@ -81,9 +81,9 @@ WMAHandleRequest[req_Association] := Module[
     Return[WMAFormatResult[id, "Wolfram evaluation", start, result]];
   ];
 
-  If[tool === "inequality_engine",
+  If[tool === "proof_pattern_engine" || tool === "inequality_engine",
     result = WMAWithTime[InequalityEngine`IneqHandleRequest[args], timeoutMs];
-    Return[WMAFormatResult[id, "Inequality engine", start, result]];
+    Return[WMAFormatResult[id, "Proof pattern engine", start, result]];
   ];
 
   If[tool === "wolfram_simplify",

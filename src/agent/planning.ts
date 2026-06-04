@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
+import { hasInequalityToolHint, inferRecommendedTools } from "./tool-hints.js";
 
 export type TheoremEntry = {
   id: string;
@@ -286,11 +287,6 @@ const COMPLEX_ROUTING_PATTERNS = [
   /variational|functional|minimi[sz]|mountain\s+pass|nehari|pohozaev|barrier|moving\s+spheres|kelvin|sub[-\s]?solution|super[-\s]?solution|hessian\s+quotient|manifold|representation/i,
   /\u53d8\u5206|\u6cdb\u51fd|\u6781\u5c0f|\u95f8\u51fd\u6570|\u4e0a\u4e0b\u89e3|\u79fb\u52a8\u7403|\u7403\u9762\u6cd5|\u8868\u793a\u8bba|\u6d41\u5f62|\u5927hessian/i
 ];
-const INEQUALITY_ENGINE_RE = /\b(inequality|estimate|bound|absorb|epsilon|young|holder|hoelder|h[oö]lder|cauchy[-\s]?schwarz|poincare|sobolev|interpolation)\b|\u4e0d\u7b49\u5f0f|\u4f30\u8ba1|\u5438\u6536|\u5c0f\u53c2\u6570|\u5927\u53c2\u6570|\u5e9e\u52a0\u83b1|\u63d2\u503c|\u8d6b\u5c14\u5fb7/i;
-const VARIATIONAL_TEMPLATE_RE = /\b(first variation|euler[-\s]?lagrange|scaling derivative|pohozaev|nehari|functional derivative)\b|\u4e00\u9636\u53d8\u5206|\u6b27\u62c9|\u62c9\u683c\u6717\u65e5|\u6cca\u8c10/i;
-const BARRIER_TEMPLATE_RE = /\b(barrier|auxiliary function|maximum principle|sub[-\s]?solution|super[-\s]?solution)\b|\u95f8\u51fd\u6570|\u8f85\u52a9\u51fd\u6570|\u6700\u5927\u503c\u539f\u7406|\u4e0a\u4e0b\u89e3/i;
-const ODE_TEMPLATE_RE = /\b(ode|ordinary differential|radial equation|radial laplacian|differential inequality)\b|\u5e38\u5fae\u5206|\u5f84\u5411|\u5fae\u5206\u4e0d\u7b49\u5f0f/i;
-const HESSIAN_TEMPLATE_RE = /\b(hessian quotient|hessian matrix|principal minor|maclaurin|newton[-\s]?maclaurin)\b|\u5927hessian|\u77e9\u9635|\u4e3b\u5b50\u5f0f|\u7279\u5f81\u503c/i;
 
 export function analyzeProblem(problem: string, detectedObjects = ""): ProblemAnalysis {
   const combined = `${problem} ${detectedObjects}`.trim();
@@ -332,7 +328,7 @@ export function analyzeProblem(problem: string, detectedObjects = ""): ProblemAn
 
 export function createPreplan(problem: string, analysis = analyzeProblem(problem)): Preplan {
   const theoremFocus = analysis.suggestedTheorems.map(item => item.theorem);
-  const recommendedTools = inferRecommendedTools(problem, analysis);
+  const recommendedTools = inferRecommendedTools(problem, analysis.suggestedTheorems, analysis.workflow.theoryFirst);
   const shouldUseTheoryFirst = analysis.workflow.theoryFirst || analysis.scale === "heavy" || analysis.scale === "infeasible_brute_force";
 
   return {
@@ -352,7 +348,7 @@ export function classifyDifficulty(problem: string, analysis = analyzeProblem(pr
   if (analysis.scale === "heavy" || analysis.scale === "infeasible_brute_force") return "complex";
   if (analysis.workflow.theoryFirst) return "complex";
   if (COMPLEX_ROUTING_PATTERNS.some(pattern => pattern.test(problem))) return "complex";
-  if (INEQUALITY_ENGINE_RE.test(problem)) return "complex";
+  if (hasInequalityToolHint(problem)) return "complex";
   const matchedTheorems = analysis.suggestedTheorems.length;
   if (matchedTheorems >= 2 && analysis.detectedDomains.length >= 2) return "complex";
   return "simple";
@@ -395,8 +391,8 @@ export function buildPreplanContext(analysis: ProblemAnalysis, plan: Preplan, de
     .filter(item => item.confidence === "high" || item.score >= 4)
     .sort((a, b) => b.score - a.score)[0];
   const constraint = plan.shouldUseTheoryFirst
-    ? "Do not brute force. Follow theorem -> invariants -> verification before concluding."
-    : "Direct computation is allowed, but prefer structured tools and verify assumptions.";
+    ? "Theory-first structure is likely useful; reduce to explicit verification targets before concluding."
+    : "Direct computation may be enough; use structured tools when they clarify explicit checks.";
   const lines: string[] = [];
 
   if (highConfidence) {
@@ -417,7 +413,7 @@ export function buildPreplanContext(analysis: ProblemAnalysis, plan: Preplan, de
     lines.push(`- final_target: ${decomposition.finalTarget}`);
     lines.push(`- dependency_order: ${decomposition.dependencyOrder.join(" -> ")}`);
     if (decomposition.objects.length) lines.push(`- objects: ${decomposition.objects.join(", ")}`);
-    lines.push("- decomposition_rule: solve subproblems in dependency order; do not use later objects before earlier dependencies are established.");
+    lines.push("- decomposition_note: subproblems are ordered hints; preserve dependency order when it is relevant.");
     lines.push("");
   }
 
@@ -427,14 +423,14 @@ export function buildPreplanContext(analysis: ProblemAnalysis, plan: Preplan, de
   lines.push(`- detected_domains: ${formatList(analysis.detectedDomains)}`);
   lines.push(`- suggested_theorems: ${formatList(theoremNames)}`);
   lines.push(`- theorem_focus: ${formatList(plan.theoremFocus)}`);
-  lines.push(`- recommended_tools: ${formatList(plan.recommendedTools)}`);
+  lines.push(`- local_tool_hints: ${formatList(plan.recommendedTools)}`);
   lines.push(`- key_invariants: ${formatList(plan.keyInvariants)}`);
   lines.push(`- invariant_targets: ${formatList(plan.invariantTargets)}`);
   lines.push(`- verification_targets: ${formatList(plan.verificationTargets)}`);
-  lines.push("- workflow_order: theorem -> invariants -> verification");
+  lines.push("- workflow_hint: theorem -> invariants -> verification when the problem is theorem-first");
   lines.push(`- strategy: ${plan.strategy || analysis.recommendedApproach || "Use exact Wolfram-backed computation with explicit verification."}`);
-  lines.push(`- constraint: ${constraint}`);
-  lines.push("- execution_rule: do not present a final answer until the relevant verification targets have been checked or explicitly marked as assumptions.");
+  lines.push(`- local_guidance: ${constraint}`);
+  lines.push("- verification_note: check listed targets when they are relevant, or state why they remain analytic assumptions.");
   return lines.join("\n");
 }
 
@@ -687,36 +683,6 @@ function buildRecommendedApproach(
   if (invariants.length) parts.push(`compute invariants: ${invariants.slice(0, 5).join(", ")}`);
   if (checks.length) parts.push(`verify: ${checks.slice(0, 4).join(", ")}`);
   return parts.join(" -> ");
-}
-
-function inferRecommendedTools(problem: string, analysis: ProblemAnalysis): string[] {
-  const lowered = problem.toLowerCase();
-  const tools: string[] = [];
-  if (analysis.workflow.theoryFirst || analysis.suggestedTheorems.length) tools.push("theorem_advisor");
-  for (const theorem of analysis.suggestedTheorems) {
-    appendUnique(tools, [...theorem.wolframHint.matchAll(/\bwolfram_[a-z_]+\b/g)].map(match => match[0]));
-    appendUnique(tools, [...theorem.casHint.matchAll(/\bwolfram_[a-z_]+\b/g)].map(match => match[0]));
-  }
-  if (INEQUALITY_ENGINE_RE.test(problem)) tools.push("inequality_engine");
-  if (VARIATIONAL_TEMPLATE_RE.test(problem)) tools.push("verification_template", "wolfram_differentiate", "wolfram_simplify");
-  if (BARRIER_TEMPLATE_RE.test(problem)) tools.push("verification_template", "wolfram_differentiate", "wolfram_simplify");
-  if (ODE_TEMPLATE_RE.test(problem)) tools.push("verification_template", "wolfram_dsolve", "wolfram_simplify");
-  if (HESSIAN_TEMPLATE_RE.test(problem)) tools.push("verification_template", "wolfram_matrix", "wolfram_simplify");
-  if (/integral|integrate|\u79ef\u5206|\u222b/.test(lowered)) tools.push("wolfram_integrate");
-  if (/derivative|differentiate|d\/d|partial|\u6c42\u5bfc|\u5bfc\u6570|\u504f\u5bfc/.test(lowered)) tools.push("wolfram_differentiate");
-  if (/limit|lim\b|\u6781\u9650/.test(lowered)) tools.push("wolfram_limit");
-  if (/series|taylor|laurent|asymptotic|\u5c55\u5f00|\u7ea7\u6570/.test(lowered)) tools.push("wolfram_series");
-  if (/sum|summation|sigma|\u6c42\u548c|\u03a3/.test(lowered)) tools.push("wolfram_sum");
-  if (/convergen|divergen|converges|diverges|test\s+for|判别|收敛|发散/.test(lowered)) tools.push("wolfram_convergence");
-  if (/ode|differential equation|dsolve|\u5fae\u5206\u65b9\u7a0b/.test(lowered)) tools.push("wolfram_dsolve");
-  if (/laplace|fourier|mellin|z[-\s]?transform|\u53d8\u6362/.test(lowered)) tools.push("wolfram_transform");
-  if (/residue|contour|pole|\u7559\u6570|\u56f4\u9053/.test(lowered)) tools.push("wolfram_residue");
-  if (/solve|equation|\u65b9\u7a0b|\u4e0d\u7b49\u5f0f/.test(lowered)) tools.push("wolfram_solve");
-  if (/expand|factor|apart|together|cancel|collect|\u5c55\u5f00|\u56e0\u5f0f|\u56e0\u5f0f\u5206\u89e3|\u901a\u5206|\u5408\u5e76\u540c\u7c7b/.test(lowered)) tools.push("wolfram_algebra");
-  if (/matrix|determinant|eigen|rank|inverse|row reduce|\u77e9\u9635|\u884c\u5217\u5f0f|\u7279\u5f81\u503c|\u9006\u77e9\u9635/.test(lowered)) tools.push("wolfram_matrix");
-  if (/simplify|prove identity|identity|\u5316\u7b80|\u6052\u7b49/.test(lowered)) tools.push("wolfram_simplify");
-  if (!tools.length) tools.push("wolfram_simplify", "wolfram_eval");
-  return [...new Set(tools)];
 }
 
 function inferProblemType(problem: string, analysis: ProblemAnalysis): string {

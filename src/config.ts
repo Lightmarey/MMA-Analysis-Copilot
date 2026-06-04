@@ -43,7 +43,13 @@ type WmaConfigFile = {
   };
 };
 
-const fileConfig = readConfigFile(configPath);
+export type ConfigDiagnostic = {
+  level: "warning" | "error";
+  message: string;
+};
+
+const configRead = readConfigFile(configPath);
+const fileConfig = configRead.config;
 
 function stringValue(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value.trim() : fallback;
@@ -109,6 +115,7 @@ export const config = {
   rootDir,
   configPath,
   configFileLoaded: fs.existsSync(configPath),
+  configDiagnostics: configRead.diagnostics,
   wolframWorkerPath: path.resolve(rootDir, "wolfram", "worker.wls"),
   wolframProtocolPath: path.resolve(rootDir, "wolfram", "protocol.wl"),
   wolframCommand: process.env.WOLFRAM_COMMAND?.trim() || stringValue(fileConfig.wolfram?.command),
@@ -137,12 +144,95 @@ export const config = {
   plannerPromptAddendum: process.env.WOLFRAM_AGENT_PLANNER_PROMPT_APPEND?.trim() || process.env.AI4MATH_PLANNER_PROMPT_APPEND?.trim() || stringValue(fileConfig.prompts?.plannerAddendum)
 };
 
-function readConfigFile(filePath: string): WmaConfigFile {
+function readConfigFile(filePath: string): { config: WmaConfigFile; diagnostics: ConfigDiagnostic[] } {
   try {
     const raw = fs.readFileSync(filePath, "utf8");
     const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === "object" ? parsed as WmaConfigFile : {};
-  } catch {
-    return {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {
+        config: {},
+        diagnostics: [{ level: "error", message: "wma.config.json must contain a JSON object." }]
+      };
+    }
+    return {
+      config: parsed as WmaConfigFile,
+      diagnostics: validateConfigPayload(parsed)
+    };
+  } catch (error) {
+    if (!fs.existsSync(filePath)) return { config: {}, diagnostics: [] };
+    return {
+      config: {},
+      diagnostics: [{ level: "error", message: `Could not parse wma.config.json: ${error instanceof Error ? error.message : String(error)}` }]
+    };
   }
+}
+
+export function validateConfigPayload(payload: unknown): ConfigDiagnostic[] {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return [{ level: "error", message: "Config payload must be a JSON object." }];
+  }
+  const diagnostics: ConfigDiagnostic[] = [];
+  const schema: Record<string, Record<string, "string" | "number" | "boolean" | "nullableBoolean">> = {
+    openai: {
+      apiKey: "string",
+      baseUrl: "string",
+      model: "string",
+      flashModel: "string",
+      proModel: "string",
+      autoDiscoverModels: "boolean",
+      autoRoute: "boolean",
+      llmPlanningEnabled: "boolean",
+      preplanEnabled: "boolean",
+      maxIterations: "number",
+      maxTokens: "number",
+      temperature: "number"
+    },
+    wolfram: {
+      command: "string",
+      backendMode: "string",
+      workerTimeoutMs: "number",
+      debugStdio: "boolean",
+      workerArgs: "string",
+      bootstrapStdin: "nullableBoolean"
+    },
+    theorems: {
+      source: "string",
+      externalPath: "string"
+    },
+    prompts: {
+      systemPromptPath: "string",
+      systemAddendum: "string",
+      plannerPromptPath: "string",
+      plannerAddendum: "string"
+    }
+  };
+  const record = payload as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!schema[key]) {
+      diagnostics.push({ level: "warning", message: `Unknown config section: ${key}` });
+      continue;
+    }
+    const section = record[key];
+    if (!section || typeof section !== "object" || Array.isArray(section)) {
+      diagnostics.push({ level: "error", message: `Config section '${key}' must be an object.` });
+      continue;
+    }
+    const sectionRecord = section as Record<string, unknown>;
+    for (const field of Object.keys(sectionRecord)) {
+      const expected = schema[key][field];
+      if (!expected) {
+        diagnostics.push({ level: "warning", message: `Unknown config key: ${key}.${field}` });
+        continue;
+      }
+      if (!matchesConfigType(sectionRecord[field], expected)) {
+        diagnostics.push({ level: "error", message: `Config key ${key}.${field} must be ${expected === "nullableBoolean" ? "boolean or null" : expected}.` });
+      }
+    }
+  }
+  return diagnostics;
+}
+
+function matchesConfigType(value: unknown, expected: "string" | "number" | "boolean" | "nullableBoolean"): boolean {
+  if (expected === "nullableBoolean") return value === null || typeof value === "boolean";
+  return typeof value === expected;
 }
