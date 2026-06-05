@@ -31,6 +31,7 @@ Tool discipline:
 - For mathematical equivalence of equations, use Equivalent or Reduce; do not use SameQ/=== except for intentional syntax identity checks.
 - To verify a conclusion under stated hypotheses, put the hypotheses in the tool assumptions field and simplify/refine the conclusion directly before trying a bare Implies.
 - Do not call wolfram_solve with variables={}; for propositions without concrete solve variables, use wolfram_simplify.
+- For power inequalities with a scale relation such as 0 < d <= a, consider the dimensionless substitution d = a*q with 0 < q <= 1 before asking Wolfram to compare powers.
 
 Proof evidence policy:
 - Separate analytic theorem assumptions from Wolfram-verified computations.

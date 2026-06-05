@@ -14,6 +14,7 @@ assert.match(system, /original and rescaled variables/);
 assert.match(system, /do not use SameQ\/===/);
 assert.match(system, /hypotheses in the tool assumptions field/);
 assert.match(system, /Do not call wolfram_solve with variables=\{\}/);
+assert.match(system, /dimensionless substitution d = a\*q/);
 
 const planner = buildPlannerPrompt("Base planner prompt.", { plannerAddendum: "Custom planner prompt marker." });
 assert.match(planner, /Base planner prompt/);
@@ -36,6 +37,8 @@ assert.match(simplifyTool.description, /prefer wolfram_solve with method Reduce/
 assert.match(simplifyTool.description, /simplify Equivalent/);
 assert.match(simplifyTool.description, /place the hypotheses in assumptions/);
 assert.match(simplifyTool.description, /radial Laplacians may put D\[\.\.\.\] directly in expr/);
+assert.match(simplifyTool.description, /not wolfram_algebra, for plain Simplify/);
+assert.match(simplifyTool.description, /dimensionless substitution like d -> a\*q/);
 assert.match(simplifyTool.description, /Do not use it to choose a proof rule/);
 assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /Do not include Assumptions ->/);
 assert.match(simplifyTool.schema.function.parameters.properties.assumptions.description, /Put hypotheses here/);
@@ -46,6 +49,11 @@ assert.match(solveTool.description, /conditional inequality equivalence/);
 assert.match(solveTool.description, /log\/exponential rearrangements/);
 assert.match(solveTool.description, /instead of variables=\{\}/);
 assert.match(solveTool.schema.function.parameters.properties.variables.description, /do not use \{\}/);
+
+const algebraTool = toolDefinitions.find(tool => tool.name === "wolfram_algebra");
+assert.ok(algebraTool);
+assert.match(algebraTool.description, /named algebraic expression transformations/);
+assert.match(algebraTool.description, /use wolfram_simplify instead/);
 
 const verificationTool = toolDefinitions.find(tool => tool.name === "verification_template");
 assert.ok(verificationTool);
