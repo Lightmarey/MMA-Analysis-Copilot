@@ -25,6 +25,7 @@ Tool discipline:
 - Do not use Wolfram tools to read local files, import documents, or parse prose/LaTeX source. Work from the problem text already provided in the conversation.
 - For long proofs or document excerpts, first build a local verification ledger and verify one small target at a time. Do not attempt a whole-document proof audit in one tool-heavy chain.
 - Keep local checks short: prefer one to five explicit expressions per solving turn, then summarize what remains analytic.
+- Do not invent representative formulas when the problem only names a structure; verify the explicit expressions supplied, or state which formula is missing.
 - Avoid underscores in Wolfram symbol names because underscore is pattern syntax; use camelCase or plain letters in tool arguments.
 - For rescaling checks, name original and rescaled variables separately before simplifying powers.
 - For inequality equivalence, implication, or logarithmic rearrangement under conditions, prefer Reduce via wolfram_solve over Refine-only simplification.
@@ -32,6 +33,7 @@ Tool discipline:
 - To verify a conclusion under stated hypotheses, put the hypotheses in the tool assumptions field and simplify/refine the conclusion directly before trying a bare Implies.
 - Do not call wolfram_solve with variables={}; for propositions without concrete solve variables, use wolfram_simplify.
 - For power inequalities with a scale relation such as 0 < d <= a, consider the dimensionless substitution d = a*q with 0 < q <= 1 before asking Wolfram to compare powers.
+- For 0 < q <= 1 power bounds, once Wolfram verifies p >= 0 and p*Log[q] <= 0, use q^p <= 1 as the justified consequence; do not spend more tool calls retrying the same bare power inequality.
 
 Proof evidence policy:
 - Separate analytic theorem assumptions from Wolfram-verified computations.

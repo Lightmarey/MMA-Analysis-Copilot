@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
+import { matchEstimatePatterns, type EstimatePatternSuggestion } from "./estimate-patterns.js";
 import { hasInequalityToolHint, inferRecommendedTools } from "./tool-hints.js";
 
 export type TheoremEntry = {
@@ -43,6 +44,7 @@ export type ProblemAnalysis = {
   suggestedTheorems: TheoremSuggestion[];
   suggestedInvariants: string[];
   verificationChecks: string[];
+  estimatePatterns: EstimatePatternSuggestion[];
   workflow: {
     phases: ["theorem", "invariants", "verification"];
     theoryFirst: boolean;
@@ -292,9 +294,13 @@ export function analyzeProblem(problem: string, detectedObjects = ""): ProblemAn
   const combined = `${problem} ${detectedObjects}`.trim();
   const scaleInfo = estimateScale(combined);
   const matched = matchTheorems(combined);
+  const estimatePatterns = matchEstimatePatterns(combined);
   const detectedDomains = [...new Set(matched.flatMap(item => item.domains))].sort();
   const suggestedInvariants = suggestInvariants(scaleInfo, matched);
-  const verificationChecks = uniqueFlatMap(matched, item => item.verificationHints);
+  const verificationChecks = [
+    ...uniqueFlatMap(matched, item => item.verificationHints),
+    ...uniqueFlatMap(estimatePatterns, item => item.verificationTargets)
+  ];
   const scale = scaleInfo.scale;
   const theoryFirst = scale === "heavy" || scale === "infeasible_brute_force" || shouldPrioritizeAnalysisTheory(combined, matched);
   const structuralComplexity = assessStructuralComplexity(combined, detectedDomains.length, matched);
@@ -314,6 +320,7 @@ export function analyzeProblem(problem: string, detectedObjects = ""): ProblemAn
     suggestedTheorems: matched,
     suggestedInvariants,
     verificationChecks,
+    estimatePatterns,
     workflow: {
       phases: ["theorem", "invariants", "verification"],
       theoryFirst: shouldUseTheoryFirst
@@ -328,7 +335,10 @@ export function analyzeProblem(problem: string, detectedObjects = ""): ProblemAn
 
 export function createPreplan(problem: string, analysis = analyzeProblem(problem)): Preplan {
   const theoremFocus = analysis.suggestedTheorems.map(item => item.theorem);
-  const recommendedTools = inferRecommendedTools(problem, analysis.suggestedTheorems, analysis.workflow.theoryFirst);
+  const recommendedTools = [
+    ...inferRecommendedTools(problem, analysis.suggestedTheorems, analysis.workflow.theoryFirst),
+    ...uniqueFlatMap(analysis.estimatePatterns, item => item.tools)
+  ].filter((tool, index, tools) => tools.indexOf(tool) === index);
   const shouldUseTheoryFirst = analysis.workflow.theoryFirst || analysis.scale === "heavy" || analysis.scale === "infeasible_brute_force";
 
   return {
@@ -414,6 +424,18 @@ export function buildPreplanContext(analysis: ProblemAnalysis, plan: Preplan, de
     lines.push(`- dependency_order: ${decomposition.dependencyOrder.join(" -> ")}`);
     if (decomposition.objects.length) lines.push(`- objects: ${decomposition.objects.join(", ")}`);
     lines.push("- decomposition_note: subproblems are ordered hints; preserve dependency order when it is relevant.");
+    lines.push("");
+  }
+
+  if (analysis.estimatePatterns.length) {
+    lines.push("Estimate pattern hints:");
+    for (const pattern of analysis.estimatePatterns) {
+      lines.push(`- ${pattern.name} (score=${pattern.score}): ${pattern.why}`);
+      lines.push(`  may_use: ${pattern.mayUse.join(" -> ")}`);
+      lines.push(`  check: ${pattern.verificationTargets.join(" | ")}`);
+      lines.push(`  tools: ${pattern.tools.join(", ")}`);
+    }
+    lines.push("- estimate_pattern_note: these are local hints for matching structures, not mandatory proof steps.");
     lines.push("");
   }
 

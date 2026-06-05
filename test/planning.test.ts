@@ -39,6 +39,28 @@ const parameterAbsorptionPlan = createPreplan(parameterAbsorptionProblem);
 assert.equal(classifyDifficulty(parameterAbsorptionProblem), "complex");
 assert.ok(parameterAbsorptionPlan.recommendedTools.includes("proof_pattern_engine"));
 
+const scalePowerProblem = "Check the scale-ordered power inequality when 0 < d <= a by comparing H ratios and powers of d/a.";
+const scalePowerAnalysis = analyzeProblem(scalePowerProblem);
+const scalePowerPlan = createPreplan(scalePowerProblem, scalePowerAnalysis);
+const scalePowerContext = buildPreplanContext(scalePowerAnalysis, scalePowerPlan);
+assert.ok(scalePowerAnalysis.estimatePatterns.some(item => item.id === "scale_power_substitution"));
+assert.equal(scalePowerAnalysis.estimatePatterns.some(item => item.id === "negative_part_absorption"), false);
+assert.ok(scalePowerPlan.recommendedTools.includes("verification_template"));
+assert.ok(scalePowerPlan.recommendedTools.includes("wolfram_simplify"));
+assert.match(scalePowerContext, /Estimate pattern hints/);
+assert.match(scalePowerContext, /set d = a\*q/);
+assert.match(scalePowerContext, /p\*Log\[q\] <= 0/);
+assert.match(scalePowerContext, /instead of retrying bare Reduce/);
+assert.match(scalePowerContext, /estimate_pattern_note/);
+
+const negativePartProblem = "Given E >= 0, E <= q E, and 0 <= q < 1, verify the negative-part absorption conclusion E == 0.";
+const negativePartAnalysis = analyzeProblem(negativePartProblem);
+const negativePartPlan = createPreplan(negativePartProblem, negativePartAnalysis);
+const negativePartContext = buildPreplanContext(negativePartAnalysis, negativePartPlan);
+assert.ok(negativePartAnalysis.estimatePatterns.some(item => item.id === "negative_part_absorption"));
+assert.ok(negativePartPlan.recommendedTools.includes("wolfram_simplify"));
+assert.match(negativePartContext, /put E >= 0, E <= q\*E/);
+
 const integrationByPartsProblem = "Use integration by parts on Integrate[u'[x] v[x], {x, a, b}] and track boundary terms.";
 const integrationByPartsPlan = createPreplan(integrationByPartsProblem);
 assert.equal(classifyDifficulty(integrationByPartsProblem), "complex");
