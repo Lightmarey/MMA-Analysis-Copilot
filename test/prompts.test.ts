@@ -6,6 +6,8 @@ const system = buildAgentSystemPrompt({ systemAddendum: "Custom system prompt ma
 assert.match(system, /Proof evidence policy/);
 assert.match(system, /Custom system prompt marker/);
 assert.match(system, /proof_pattern_engine/);
+assert.match(system, /supplied formula transformation ledgers/);
+assert.doesNotMatch(system, /integration-by-parts|product-rule transforms/i);
 assert.match(system, /Do not use Wolfram tools to read local files/);
 assert.match(system, /verification ledger/);
 assert.match(system, /Avoid underscores in Wolfram symbol names/);

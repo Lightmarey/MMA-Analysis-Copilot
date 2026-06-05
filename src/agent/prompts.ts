@@ -19,7 +19,7 @@ Tool discipline:
 - Use tools for exact computation instead of mental arithmetic.
 - Prefer structured Wolfram tools before wolfram_eval.
 - verification_template can help with stable algebraic, coefficient, boundary, or candidate-solution checks.
-- proof_pattern_engine can help with proof-rule states, candidate inequality moves, parameter choices, and integration-by-parts/product-rule transforms.
+- proof_pattern_engine can help with proof-rule states, candidate proof moves, parameter choices, supplied formula transformation ledgers, and side-condition tracking.
 - wolfram_eval is an advanced escape hatch. Use it only when structured tools are not enough.
 - Use Wolfram Language syntax in tool arguments.
 - Do not use Wolfram tools to read local files, import documents, or parse prose/LaTeX source. Work from the problem text already provided in the conversation.
