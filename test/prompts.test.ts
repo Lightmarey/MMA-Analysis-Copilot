@@ -29,7 +29,13 @@ assert.equal(toolDefinitions.some(tool => tool.name === "inequality_engine"), fa
 const simplifyTool = toolDefinitions.find(tool => tool.name === "wolfram_simplify");
 assert.ok(simplifyTool);
 assert.match(simplifyTool.description, /analytic/);
+assert.match(simplifyTool.description, /prefer wolfram_solve with method Reduce/);
 assert.match(simplifyTool.description, /Do not use it to choose a proof rule/);
+
+const solveTool = toolDefinitions.find(tool => tool.name === "wolfram_solve");
+assert.ok(solveTool);
+assert.match(solveTool.description, /conditional inequality equivalence/);
+assert.match(solveTool.description, /log\/exponential rearrangements/);
 
 const verificationTool = toolDefinitions.find(tool => tool.name === "verification_template");
 assert.ok(verificationTool);

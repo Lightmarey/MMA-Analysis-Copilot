@@ -27,6 +27,7 @@ Tool discipline:
 - Keep local checks short: prefer one to five explicit expressions per solving turn, then summarize what remains analytic.
 - Avoid underscores in Wolfram symbol names because underscore is pattern syntax; use camelCase or plain letters in tool arguments.
 - For rescaling checks, name original and rescaled variables separately before simplifying powers.
+- For inequality equivalence, implication, or logarithmic rearrangement under conditions, prefer Reduce via wolfram_solve over Refine-only simplification.
 
 Proof evidence policy:
 - Separate analytic theorem assumptions from Wolfram-verified computations.
