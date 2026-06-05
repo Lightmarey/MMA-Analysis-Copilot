@@ -192,6 +192,34 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
     ],
     tools: ["wolfram_simplify"],
     minScore: 2
+  },
+  {
+    id: "kelvin_base_comparison",
+    name: "Kelvin base comparison",
+    signals: [
+      /\bKelvin\b|\bbaseV\b|\bbaseK\b/i,
+      /\blambda\^4\s*\+\s*a\^2\s*\*?\s*r2/i,
+      /\ba\^2\s*\/\s*\(r2\s*\+\s*2\s*\*?\s*a\s*\*?\s*yn\s*\+\s*a\^2\)/i,
+      /\ba\^2\s*\*?\s*lambda\^2\s*\/\s*\(lambda\^4/i,
+      /\br2\s*>\s*lambda\^2/i
+    ],
+    why: "Kelvin base comparisons reduce to one denominator factorization and a sign ledger; direct Reduce on baseV > baseK branches over irrelevant sign cases",
+    firstToolHint: "Run wolfram_simplify first with expr={(lambda^4+a^2*r2+2*a*lambda^2*yn)-lambda^2*(r2+2*a*yn+a^2)==(a^2-lambda^2)*(r2-lambda^2), ((a^2/(r2+2*a*yn+a^2))/(a^2*lambda^2/(lambda^4+a^2*r2+2*a*lambda^2*yn))-1)==((a^2-lambda^2)*(r2-lambda^2))/(lambda^2*(a^2+r2+2*a*yn)), lambda^2*(a^2+r2+2*a*yn)>0, r2-lambda^2>0, lambda<a \\[Implies] a^2-lambda^2>0, lambda==a \\[Implies] a^2-lambda^2==0, lambda>a \\[Implies] a^2-lambda^2<0}. For the sign cases, keep the implication statements in expr; do not replace them with the bare mutually exclusive conclusions under the shared assumptions.",
+    mayUse: [
+      "verify the denominator difference factorization before comparing bases",
+      "verify baseV/baseK - 1 equals the factored numerator over the positive denominator",
+      "check denominator positivity and r2-lambda^2 positivity separately",
+      "verify the three sign cases as lambda<a, lambda==a, and lambda>a implications before summarizing",
+      "do not put mutually exclusive positive/zero/negative case conclusions into one shared-assumption list",
+      "do not call Reduce on baseV > baseK directly unless the ledger leaves an unresolved condition"
+    ],
+    verificationTargets: [
+      "Kelvin denominator factorization",
+      "baseV/baseK minus one sign numerator",
+      "lambda < a, lambda == a, lambda > a sign cases"
+    ],
+    tools: ["wolfram_simplify"],
+    minScore: 2
   }
 ];
 

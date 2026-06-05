@@ -27,6 +27,8 @@ assert.match(system, /do not spend more tool calls retrying the same bare power 
 assert.match(system, /positive-factor bound checks/);
 assert.match(system, /do not spend follow-up calls on confirmatory Reduce/);
 assert.match(system, /small-radius coercivity checks/);
+assert.match(system, /rational positive-denominator comparisons/);
+assert.match(system, /mutually exclusive case splits/);
 
 const planner = buildPlannerPrompt("Base planner prompt.", { plannerAddendum: "Custom planner prompt marker." });
 assert.match(planner, /Base planner prompt/);

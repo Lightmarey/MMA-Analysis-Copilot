@@ -43,6 +43,8 @@ Tool discipline:
 - For positive-factor bound checks, verify the full target inequality under assumptions; do not replace it with a stricter side goal unless the side goal is explicitly requested.
 - If a Wolfram list ledger returns True entries for the requested checks, summarize the ledger and stop; do not spend follow-up calls on confirmatory Reduce.
 - For small-radius coercivity checks, use Reduce to identify the explicit radius threshold, then verify that threshold equivalence; do not repeatedly simplify the raw inequality if Wolfram leaves it symbolic.
+- For rational positive-denominator comparisons, verify ratio-minus-one factorization and denominator positivity before asking Reduce to solve the original inequality.
+- For mutually exclusive case splits, verify each case as its own implication from the case hypothesis; do not put all positive, zero, and negative conclusions in one shared-assumption Wolfram list.
 
 Proof evidence policy:
 - Separate analytic theorem assumptions from Wolfram-verified computations.

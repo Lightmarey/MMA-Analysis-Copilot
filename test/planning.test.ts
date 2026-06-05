@@ -98,6 +98,18 @@ assert.match(appendixLowerContext, /stable ledger is/);
 assert.match(appendixLowerContext, /do not put the raw radius inequality/);
 assert.match(appendixLowerContext, /isolated singularity positivity/);
 
+const kelvinBaseProblem = "Yamabe Kelvin baseV=a^2/(r2+2*a*yn+a^2), baseK=a^2*lambda^2/(lambda^4+a^2*r2+2*a*lambda^2*yn), with r2>lambda^2. Compare baseV/baseK - 1 and cases lambda<a, lambda=a, lambda>a.";
+const kelvinBaseAnalysis = analyzeProblem(kelvinBaseProblem);
+const kelvinBasePlan = createPreplan(kelvinBaseProblem, kelvinBaseAnalysis);
+const kelvinBaseContext = buildPreplanContext(kelvinBaseAnalysis, kelvinBasePlan);
+assert.ok(kelvinBaseAnalysis.estimatePatterns.some(item => item.id === "kelvin_base_comparison"));
+assert.ok(kelvinBasePlan.recommendedTools.includes("wolfram_simplify"));
+assert.match(kelvinBaseContext, /Kelvin base comparisons/);
+assert.match(kelvinBaseContext, /baseV\/baseK - 1/);
+assert.match(kelvinBaseContext, /keep the implication statements in expr/);
+assert.match(kelvinBaseContext, /mutually exclusive positive\/zero\/negative/);
+assert.match(kelvinBaseContext, /do not call Reduce on baseV > baseK directly/);
+
 const integrationByPartsProblem = "Use integration by parts on Integrate[u'[x] v[x], {x, a, b}] and track boundary terms.";
 const integrationByPartsPlan = createPreplan(integrationByPartsProblem);
 assert.equal(classifyDifficulty(integrationByPartsProblem), "complex");
