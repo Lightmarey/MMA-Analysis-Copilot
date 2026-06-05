@@ -28,6 +28,8 @@ Tool discipline:
 - When several small algebraic identities share assumptions, combine them as a Wolfram list in one simplification call instead of spending one tool call per identity.
 - When local estimate pattern hints recommend a compact ledger, prefer that ledger unless an expression is missing or ambiguous.
 - If the local context gives a first_tool_hint for explicit expressions, try that compact check before following a sequential decomposition.
+- Treat first_tool_hint as the first tool attempt when its expressions are explicit; do not let the sequential decomposition override it.
+- When a local pattern gives a stable ledger expression, use that ledger form first instead of rebuilding it from raw inequalities.
 - Do not invent representative formulas when the problem only names a structure; verify the explicit expressions supplied, or state which formula is missing.
 - Avoid underscores in Wolfram symbol names because underscore is pattern syntax; use camelCase or plain letters in tool arguments.
 - Parenthesize every derivative substitution, e.g. (D[expr, r] /. r -> 1), including repeated derivatives inside list entries, so replacement rules do not bind to the derivative variable.
@@ -40,6 +42,7 @@ Tool discipline:
 - For 0 < q <= 1 power bounds, once Wolfram verifies p >= 0 and p*Log[q] <= 0, use q^p <= 1 as the justified consequence; do not spend more tool calls retrying the same bare power inequality.
 - For positive-factor bound checks, verify the full target inequality under assumptions; do not replace it with a stricter side goal unless the side goal is explicitly requested.
 - If a Wolfram list ledger returns True entries for the requested checks, summarize the ledger and stop; do not spend follow-up calls on confirmatory Reduce.
+- For small-radius coercivity checks, use Reduce to identify the explicit radius threshold, then verify that threshold equivalence; do not repeatedly simplify the raw inequality if Wolfram leaves it symbolic.
 
 Proof evidence policy:
 - Separate analytic theorem assumptions from Wolfram-verified computations.

@@ -13,6 +13,8 @@ assert.match(system, /one to five explicit expressions/);
 assert.match(system, /combine them as a Wolfram list/);
 assert.match(system, /local estimate pattern hints recommend a compact ledger/);
 assert.match(system, /first_tool_hint/);
+assert.match(system, /sequential decomposition override/);
+assert.match(system, /stable ledger expression/);
 assert.match(system, /Do not invent representative formulas/);
 assert.match(system, /original and rescaled variables/);
 assert.match(system, /\(D\[expr, r\] \/. r -> 1\)/);
@@ -24,6 +26,7 @@ assert.match(system, /dimensionless substitution d = a\*q/);
 assert.match(system, /do not spend more tool calls retrying the same bare power inequality/);
 assert.match(system, /positive-factor bound checks/);
 assert.match(system, /do not spend follow-up calls on confirmatory Reduce/);
+assert.match(system, /small-radius coercivity checks/);
 
 const planner = buildPlannerPrompt("Base planner prompt.", { plannerAddendum: "Custom planner prompt marker." });
 assert.match(planner, /Base planner prompt/);

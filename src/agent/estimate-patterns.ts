@@ -7,6 +7,7 @@ export type EstimatePatternEntry = {
   verificationTargets: string[];
   tools: string[];
   minScore?: number;
+  firstToolHint?: string;
 };
 
 export type EstimatePatternSuggestion = {
@@ -17,6 +18,7 @@ export type EstimatePatternSuggestion = {
   verificationTargets: string[];
   tools: string[];
   score: number;
+  firstToolHint: string;
 };
 
 const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
@@ -161,6 +163,35 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
     ],
     tools: ["wolfram_simplify"],
     minScore: 2
+  },
+  {
+    id: "appendix_lower_bound_scaling",
+    name: "Appendix lower-bound scaling",
+    signals: [
+      /\blower\s+bound\b|\bv\s*>=\s*Lambda\/M|\bLambda\s*M\^-?1/i,
+      /\bu\s*>=\s*Lambda|\bv\s*=\s*M\^-?1\s*\*?\s*u/i,
+      /\bM\^\(?-2\/\(n-2\)\)?|\bM\^\(-2\/\(n-2\)\)/i,
+      /\bdelta\/2\b|\bphysical\s+(?:point\s+)?distance\b|\bouter\s+radius\b/i,
+      /\bcn\s*-\s*CR\s*\*?\s*CP\s*\*?\s*r\^2|\bcoerciv/i
+    ],
+    why: "appendix lower-bound checks are a short ledger: lower-bound scaling, radius scaling, and a coercivity radius threshold",
+    firstToolHint: "Run wolfram_simplify first with expr={u/M >= Lambda/M, M^(-2/(n-2))*Y <= delta/2 /. Y -> (delta/2)*M^(2/(n-2)), Reduce[cn - CR*CP*r^2 >= cn/2 && cn > 0 && CR > 0 && CP > 0 && r > 0, r, Reals] == (0 < r <= Sqrt[cn/(2*CR*CP)])}.",
+    mayUse: [
+      "use one wolfram_simplify list for the explicit algebraic ledger",
+      "check u/M >= Lambda/M under u >= Lambda and M > 0 directly in assumptions",
+      "check radius scaling by substituting Y -> (delta/2)*M^(2/(n-2)) in M^(-2/(n-2))*Y <= delta/2",
+      "for cn - CR*CP*r^2 >= cn/2, compare Reduce[...] with 0 < r <= Sqrt[cn/(2*CR*CP)] instead of repeatedly simplifying the raw inequality",
+      "a stable ledger is {u/M >= Lambda/M, M^(-2/(n-2))*Y <= delta/2 /. Y -> (delta/2)*M^(2/(n-2)), Reduce[cn - CR*CP*r^2 >= cn/2 && cn > 0 && CR > 0 && CP > 0 && r > 0, r, Reals] == (0 < r <= Sqrt[cn/(2*CR*CP)])}",
+      "do not put the raw radius inequality or raw coercivity inequality into the first ledger when the goal is the endpoint threshold",
+      "leave isolated singularity positivity, Lax-Milgram, Harnack, maximum principle, and Hopf lemma as analytic assumptions"
+    ],
+    verificationTargets: [
+      "lower bound propagation through v = M^-1 u",
+      "outer radius scaling cancellation",
+      "coercivity threshold r <= Sqrt[cn/(2*CR*CP)]"
+    ],
+    tools: ["wolfram_simplify"],
+    minScore: 2
   }
 ];
 
@@ -180,6 +211,7 @@ export function matchEstimatePatterns(text: string): EstimatePatternSuggestion[]
     mayUse: pattern.mayUse,
     verificationTargets: pattern.verificationTargets,
     tools: pattern.tools,
-    score
+    score,
+    firstToolHint: pattern.firstToolHint ?? ""
   }));
 }

@@ -85,6 +85,19 @@ assert.match(transitionRescaleContext, /full inequality list/);
 assert.match(transitionRescaleContext, /rather than Implies\[\.\.\., \{\.\.\.\}\]/);
 assert.match(transitionRescaleContext, /tauhat >= 0/);
 
+const appendixLowerProblem = "Yamabe appendix lower bound: u>=Lambda, v=M^-1*u, outer radius M^(-2/(n-2))*Y with Y <= delta/2*M^(2/(n-2)), and coercivity cn - CR*CP*r^2 >= cn/2.";
+const appendixLowerAnalysis = analyzeProblem(appendixLowerProblem);
+const appendixLowerPlan = createPreplan(appendixLowerProblem, appendixLowerAnalysis);
+const appendixLowerContext = buildPreplanContext(appendixLowerAnalysis, appendixLowerPlan);
+assert.ok(appendixLowerAnalysis.estimatePatterns.some(item => item.id === "appendix_lower_bound_scaling"));
+assert.ok(appendixLowerPlan.recommendedTools.includes("wolfram_simplify"));
+assert.match(appendixLowerContext, /lower-bound scaling/);
+assert.match(appendixLowerContext, /Sqrt\[cn\/\(2\*CR\*CP\)\]/);
+assert.match(appendixLowerContext, /first_tool_hint: Run wolfram_simplify first with expr=\{u\/M >= Lambda\/M/);
+assert.match(appendixLowerContext, /stable ledger is/);
+assert.match(appendixLowerContext, /do not put the raw radius inequality/);
+assert.match(appendixLowerContext, /isolated singularity positivity/);
+
 const integrationByPartsProblem = "Use integration by parts on Integrate[u'[x] v[x], {x, a, b}] and track boundary terms.";
 const integrationByPartsPlan = createPreplan(integrationByPartsProblem);
 assert.equal(classifyDifficulty(integrationByPartsProblem), "complex");
