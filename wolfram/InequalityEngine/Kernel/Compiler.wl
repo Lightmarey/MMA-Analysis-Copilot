@@ -2,10 +2,11 @@ IneqCompilerSchemaSummary[] := <|
   "Operation" -> "compile",
   "RequiredKeys" -> {"Rule", "Transforms", "Bindings", "MissingConditions"},
   "AcceptedAliases" -> <|
-    "Rule" -> {"rule"},
-    "Transforms" -> {"transforms"},
-    "Bindings" -> {"bindings"},
-    "MissingConditions" -> {"missingConditions", "missing_conditions"}
+    "Rule" -> {"rule", "RuleIntent", "ruleIntent", "TransformIntent", "transformIntent", "SuppliedTransform", "suppliedTransform", "MoveName", "moveName"},
+    "Transforms" -> {"transforms", "Steps", "steps", "TransformSteps", "transformSteps"},
+    "Bindings" -> {"bindings", "BindingMap", "bindingMap"},
+    "MissingConditions" -> {"missingConditions", "missing_conditions", "MissingSideConditions", "missingSideConditions", "MissingAnalyticAssumptions", "missingAnalyticAssumptions"},
+    "SideConditions" -> {"sideConditions", "side_conditions", "RequiredConditions", "requiredConditions"}
   |>,
   "OutputKind" -> "RulePlan",
   "Safety" -> "Bindings are retained as inert strings; compile never evaluates LLM-proposed Wolfram code."
@@ -14,19 +15,27 @@ IneqCompilerSchemaSummary[] := <|
 IneqLookupSchemaField[payload_Association, key_String, default_: Missing["NotProvided"]] := Module[
   {aliases},
   aliases = Switch[key,
-    "Rule", {"Rule", "rule"},
-    "Transforms", {"Transforms", "transforms"},
-    "Bindings", {"Bindings", "bindings"},
-    "MissingConditions", {"MissingConditions", "missingConditions", "missing_conditions"},
+    "Rule", {"Rule", "rule", "RuleIntent", "ruleIntent", "TransformIntent", "transformIntent", "SuppliedTransform", "suppliedTransform", "MoveName", "moveName"},
+    "Transforms", {"Transforms", "transforms", "Steps", "steps", "TransformSteps", "transformSteps"},
+    "Bindings", {"Bindings", "bindings", "BindingMap", "bindingMap"},
+    "MissingConditions", {"MissingConditions", "missingConditions", "missing_conditions", "MissingSideConditions", "missingSideConditions", "MissingAnalyticAssumptions", "missingAnalyticAssumptions"},
+    "SideConditions", {"SideConditions", "sideConditions", "side_conditions", "RequiredConditions", "requiredConditions"},
     _, {key}
   ];
   FirstCase[aliases, alias_ /; KeyExistsQ[payload, alias] :> Lookup[payload, alias], default]
 ];
 
+IneqInertString[value_] := If[StringQ[value], StringTrim[value], StringTrim[ToString[value, InputForm]]];
+
 IneqNormalizeStringList[value_] := Module[{trimmed},
+  If[AssociationQ[value],
+    Return[KeyValueMap[
+      IneqInertString[#1] <> ": " <> IneqInertString[#2] &,
+      value
+    ]]
+  ];
   If[! ListQ[value], Return[$Failed]];
-  If[! AllTrue[value, StringQ], Return[$Failed]];
-  trimmed = StringTrim /@ value;
+  trimmed = IneqInertString /@ value;
   If[! AllTrue[trimmed, # =!= "" &], Return[$Failed]];
   trimmed
 ];
@@ -49,38 +58,63 @@ IneqCanonicalRegistryName[registry_Association, name_String] := Module[
 IneqKnownRuleNameQ[name_String] := StringQ[IneqCanonicalRegistryName[$IneqRuleRegistry, name]];
 IneqKnownTransformNameQ[name_String] := StringQ[IneqCanonicalRegistryName[$IneqTransformRegistry, name]];
 
-IneqValidateBindingSchema[bindings_Association] := Module[{rules = Normal[bindings]},
-  AllTrue[rules, StringQ[First[#]] && StringTrim[First[#]] =!= "" && StringQ[Last[#]] &]
+IneqNormalizeBindings[bindings_Association] := Module[{rules = Normal[bindings]},
+  If[
+    AllTrue[rules, IneqInertString[First[#]] =!= "" &],
+    Association @ Map[
+      IneqInertString[First[#]] -> IneqInertString[Last[#]] &,
+      rules
+    ],
+    $Failed
+  ]
 ];
 
-IneqValidateBindingSchema[_] := False;
+IneqNormalizeBindings[bindings_List] := Module[{rules = bindings},
+  If[
+    AllTrue[rules, MatchQ[#, (_Rule | _RuleDelayed)] &],
+    Association @ Map[
+      IneqInertString[First[#]] -> IneqInertString[Last[#]] &,
+      rules
+    ],
+    $Failed
+  ]
+];
+
+IneqNormalizeBindings[_] := $Failed;
 
 ValidateIneqMoveSchema[schema_Association] := Module[
-  {issues = {}, ruleRaw, rule, transformsRaw, transforms, bindings, missingRaw, missing, unknownTransforms},
+  {issues = {}, ruleRaw, rule, ruleKnown = False, transformsRaw, transforms, registeredTransforms, adHocTransforms, bindings, normalizedBindings, missingRaw, missing, sideRaw, side},
   ruleRaw = IneqLookupSchemaField[schema, "Rule", ""];
   transformsRaw = IneqLookupSchemaField[schema, "Transforms", {}];
   bindings = IneqLookupSchemaField[schema, "Bindings", <||>];
   missingRaw = IneqLookupSchemaField[schema, "MissingConditions", {}];
+  sideRaw = IneqLookupSchemaField[schema, "SideConditions", {}];
 
   If[! StringQ[ruleRaw] || StringTrim[ruleRaw] === "",
     AppendTo[issues, "Rule must be a non-empty string."];
     rule = Missing["InvalidRule"],
     rule = IneqCanonicalRegistryName[$IneqRuleRegistry, ruleRaw];
-    If[! StringQ[rule], AppendTo[issues, "Unknown rule: " <> StringTrim[ruleRaw]]]
+    If[StringQ[rule],
+      ruleKnown = True,
+      rule = StringTrim[ruleRaw]
+    ]
   ];
 
   transforms = IneqNormalizeStringList[transformsRaw];
   If[transforms === $Failed,
     AppendTo[issues, "Transforms must be a string list."];
-    transforms = {},
-    transforms = IneqCanonicalRegistryName[$IneqTransformRegistry, #] & /@ transforms;
-    unknownTransforms = Select[transforms, ! StringQ[#] &];
-    If[unknownTransforms =!= {},
-      AppendTo[issues, "Every transform must already be registered."]
+    transforms = {};
+    registeredTransforms = {};
+    adHocTransforms = {},
+    registeredTransforms = DeleteDuplicates[Select[IneqCanonicalRegistryName[$IneqTransformRegistry, #] & /@ transforms, StringQ]];
+    adHocTransforms = DeleteDuplicates @ Select[
+      transforms,
+      ! StringQ[IneqCanonicalRegistryName[$IneqTransformRegistry, #]] &
     ]
   ];
 
-  If[! IneqValidateBindingSchema[bindings],
+  normalizedBindings = IneqNormalizeBindings[bindings];
+  If[normalizedBindings === $Failed,
     AppendTo[issues, "Bindings must be an Association of non-empty string keys to inert string values."]
   ];
 
@@ -90,13 +124,22 @@ ValidateIneqMoveSchema[schema_Association] := Module[
     missing = {}
   ];
 
+  side = IneqNormalizeStringList[sideRaw];
+  If[side === $Failed,
+    AppendTo[issues, "SideConditions must be a string list."];
+    side = {}
+  ];
+
   <|
     "Valid" -> issues === {},
     "Issues" -> issues,
     "Normalized" -> <|
       "Rule" -> rule,
-      "Transforms" -> DeleteDuplicates[Select[transforms, StringQ]],
-      "Bindings" -> If[AssociationQ[bindings], Association @ KeyValueMap[#1 -> StringTrim[#2] &, bindings], <||>],
+      "RuleSource" -> If[ruleKnown, "Registered", "AdHocRuleIntent"],
+      "Transforms" -> DeleteDuplicates[registeredTransforms],
+      "AdHocTransforms" -> DeleteDuplicates[adHocTransforms],
+      "Bindings" -> If[AssociationQ[normalizedBindings], normalizedBindings, <||>],
+      "SideConditions" -> side,
       "MissingConditions" -> missing
     |>
   |>
@@ -128,8 +171,11 @@ CompileIneqMoveSchema[schema_Association] := Module[
     "Status" -> "Compiled",
     "Kind" -> "RulePlan",
     "Rule" -> Lookup[normalized, "Rule", ""],
+    "RuleSource" -> Lookup[normalized, "RuleSource", "AdHocRuleIntent"],
     "Transforms" -> Lookup[normalized, "Transforms", {}],
+    "AdHocTransforms" -> Lookup[normalized, "AdHocTransforms", {}],
     "Bindings" -> Lookup[normalized, "Bindings", <||>],
+    "SideConditions" -> Lookup[normalized, "SideConditions", {}],
     "MissingConditions" -> missing,
     "ConditionStatus" -> Map[
       IneqConditionStatus["MissingCondition", "NeedsUser", <|"Condition" -> #|>] &,

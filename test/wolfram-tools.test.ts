@@ -253,7 +253,7 @@ try {
   assert.match(compiledMoveSchema.output ?? "", /inert strings/);
   assert.doesNotMatch(compiledMoveSchema.output ?? "", /ToExpression/);
 
-  const rejectedMoveSchema = await backend.call("proof_pattern_engine", {
+  const adHocMoveSchema = await backend.call("proof_pattern_engine", {
     operation: "compile",
     goal: "",
     known: "",
@@ -261,12 +261,14 @@ try {
     state: "",
     moveId: "",
     ruleName: "",
-    payload: "<|\"Rule\" -> \"NotARealRule\", \"Transforms\" -> {\"unknown_transform\"}, \"Bindings\" -> <|\"f\" -> \"f[x]\"|>, \"MissingConditions\" -> {}|>"
+    payload: "<|\"moveName\" -> \"quotient difference rewrite\", \"steps\" -> {\"common denominator\", \"cancel shared numerator term\"}, \"bindings\" -> {a -> a[x], b -> b[x]}, \"sideConditions\" -> <|\"denominator\" -> \"b != 0\"|>, \"missingSideConditions\" -> <|\"perturbed denominator\" -> \"b + db != 0\"|>|>"
   });
-  assert.equal(rejectedMoveSchema.ok, true);
-  assert.match(rejectedMoveSchema.output ?? "", /Rejected/);
-  assert.match(rejectedMoveSchema.output ?? "", /Unknown rule/);
-  assert.match(rejectedMoveSchema.output ?? "", /registered/);
+  assert.equal(adHocMoveSchema.ok, true);
+  assert.match(adHocMoveSchema.output ?? "", /Compiled/);
+  assert.match(adHocMoveSchema.output ?? "", /AdHocRuleIntent/);
+  assert.match(adHocMoveSchema.output ?? "", /quotient difference rewrite/);
+  assert.match(adHocMoveSchema.output ?? "", /common denominator/);
+  assert.match(adHocMoveSchema.output ?? "", /b != 0/);
 
   const noCandidateMove = await backend.call("proof_pattern_engine", {
     operation: "suggest",

@@ -1,6 +1,6 @@
 import type { TheoremSuggestion } from "./planning.js";
 
-const INEQUALITY_ENGINE_RE = /\b(inequality|estimate|bound|absorb|absorption|epsilon|young|holder|hoelder|h[oö]lder|cauchy[-\s]?schwarz|poincare|sobolev|interpolation|integration\s+by\s+parts|integrate\s+by\s+parts|product[-\s]?rule|proof\s+transform|parameter\s+(choice|absorption)|large[-\s]?constant|small\s+enough|large\s+enough)\b|\u4e0d\u7b49\u5f0f|\u4f30\u8ba1|\u5438\u6536|\u5206\u90e8\u79ef\u5206|\u4e58\u79ef\u6cd5\u5219|\u5c0f\u53c2\u6570|\u5927\u53c2\u6570|\u5e9e\u52a0\u83b1|\u63d2\u503c|\u8d6b\u5c14\u5fb7/i;
+const INEQUALITY_ENGINE_RE = /\b(inequality|estimate|bound|absorb|absorption|epsilon|young|holder|hoelder|h[oö]lder|cauchy[-\s]?schwarz|poincare|sobolev|interpolation|integration\s+by\s+parts|integrate\s+by\s+parts|product[-\s]?rule|proof[-\s]?(?:level|move|transform|transformation)|formula\s+transformation|transformation\s+ledger|side[-\s]?condition|parameter\s+(choice|absorption)|large[-\s]?constant|small\s+enough|large\s+enough)\b|\u4e0d\u7b49\u5f0f|\u4f30\u8ba1|\u5438\u6536|\u5206\u90e8\u79ef\u5206|\u4e58\u79ef\u6cd5\u5219|\u5c0f\u53c2\u6570|\u5927\u53c2\u6570|\u5e9e\u52a0\u83b1|\u63d2\u503c|\u8d6b\u5c14\u5fb7/i;
 
 export function hasInequalityToolHint(problem: string): boolean {
   return INEQUALITY_ENGINE_RE.test(problem);
@@ -41,4 +41,3 @@ function appendUnique(target: string[], values: string[]): void {
     seen.add(cleaned);
   }
 }
-

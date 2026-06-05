@@ -115,6 +115,10 @@ const integrationByPartsPlan = createPreplan(integrationByPartsProblem);
 assert.equal(classifyDifficulty(integrationByPartsProblem), "complex");
 assert.ok(integrationByPartsPlan.recommendedTools.includes("proof_pattern_engine"));
 
+const formulaTransformProblem = "Need a proof-level transformation ledger: choose the formula transformation, record side conditions, then verify the resulting explicit identity.";
+const formulaTransformPlan = createPreplan(formulaTransformProblem);
+assert.ok(formulaTransformPlan.recommendedTools.includes("proof_pattern_engine"));
+
 const variationalProblem = "Check the first variation and Euler-Lagrange equation for a constrained nonlinear functional on a Nehari manifold.";
 const variationalAnalysis = analyzeProblem(variationalProblem);
 const variationalPlan = createPreplan(variationalProblem, variationalAnalysis);
