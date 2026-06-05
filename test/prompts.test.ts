@@ -13,6 +13,7 @@ assert.match(system, /one to five explicit expressions/);
 assert.match(system, /original and rescaled variables/);
 assert.match(system, /do not use SameQ\/===/);
 assert.match(system, /hypotheses in the tool assumptions field/);
+assert.match(system, /Do not call wolfram_solve with variables=\{\}/);
 
 const planner = buildPlannerPrompt("Base planner prompt.", { plannerAddendum: "Custom planner prompt marker." });
 assert.match(planner, /Base planner prompt/);

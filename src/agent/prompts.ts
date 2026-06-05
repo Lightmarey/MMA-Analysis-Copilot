@@ -30,6 +30,7 @@ Tool discipline:
 - For inequality equivalence, implication, or logarithmic rearrangement under conditions, prefer Reduce via wolfram_solve over Refine-only simplification.
 - For mathematical equivalence of equations, use Equivalent or Reduce; do not use SameQ/=== except for intentional syntax identity checks.
 - To verify a conclusion under stated hypotheses, put the hypotheses in the tool assumptions field and simplify/refine the conclusion directly before trying a bare Implies.
+- Do not call wolfram_solve with variables={}; for propositions without concrete solve variables, use wolfram_simplify.
 
 Proof evidence policy:
 - Separate analytic theorem assumptions from Wolfram-verified computations.
