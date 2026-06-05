@@ -12,6 +12,7 @@ assert.match(system, /Avoid underscores in Wolfram symbol names/);
 assert.match(system, /one to five explicit expressions/);
 assert.match(system, /original and rescaled variables/);
 assert.match(system, /do not use SameQ\/===/);
+assert.match(system, /hypotheses in the tool assumptions field/);
 
 const planner = buildPlannerPrompt("Base planner prompt.", { plannerAddendum: "Custom planner prompt marker." });
 assert.match(planner, /Base planner prompt/);
@@ -32,12 +33,17 @@ assert.ok(simplifyTool);
 assert.match(simplifyTool.description, /analytic/);
 assert.match(simplifyTool.description, /prefer wolfram_solve with method Reduce/);
 assert.match(simplifyTool.description, /simplify Equivalent/);
+assert.match(simplifyTool.description, /place the hypotheses in assumptions/);
 assert.match(simplifyTool.description, /Do not use it to choose a proof rule/);
+assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /Do not include Assumptions ->/);
+assert.match(simplifyTool.schema.function.parameters.properties.assumptions.description, /Put hypotheses here/);
 
 const solveTool = toolDefinitions.find(tool => tool.name === "wolfram_solve");
 assert.ok(solveTool);
 assert.match(solveTool.description, /conditional inequality equivalence/);
 assert.match(solveTool.description, /log\/exponential rearrangements/);
+assert.match(solveTool.description, /instead of variables=\{\}/);
+assert.match(solveTool.schema.function.parameters.properties.variables.description, /do not use \{\}/);
 
 const verificationTool = toolDefinitions.find(tool => tool.name === "verification_template");
 assert.ok(verificationTool);

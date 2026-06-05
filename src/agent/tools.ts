@@ -133,10 +133,10 @@ export const toolDefinitions: ToolDefinition[] = [
   ),
   defineTool(
     "wolfram_simplify",
-    "Simplify, refine, or power-expand an explicit Wolfram Language expression under stated assumptions. Use this for algebraic, analytic, asymptotic, trigonometric, exponential, sign, monotonicity, and conditional expression simplification when the expression and assumptions are already chosen. For inequality equivalence, implication, or logarithmic rearrangement under domain conditions, prefer wolfram_solve with method Reduce. For mathematical equation equivalence or swapped equation sides, simplify Equivalent[...] rather than SameQ/=== unless syntax identity is the actual target. Do not use it to choose a proof rule such as Holder/Young/Cauchy-Schwarz, Poincare/Sobolev, parameter absorption, or integration by parts; use proof_pattern_engine for rule/transform selection and side-condition tracking.",
+    "Simplify, refine, or power-expand an explicit Wolfram Language expression under stated assumptions. Use this for algebraic, analytic, asymptotic, trigonometric, exponential, sign, monotonicity, and conditional expression simplification when the expression and assumptions are already chosen. To verify a conclusion under hypotheses, place the hypotheses in assumptions and simplify/refine the conclusion directly before proving a bare Implies. For inequality equivalence, implication, or logarithmic rearrangement under domain conditions, prefer wolfram_solve with method Reduce. For mathematical equation equivalence or swapped equation sides, simplify Equivalent[...] rather than SameQ/=== unless syntax identity is the actual target. Do not use it to choose a proof rule such as Holder/Young/Cauchy-Schwarz, Poincare/Sobolev, parameter absorption, or integration by parts; use proof_pattern_engine for rule/transform selection and side-condition tracking.",
     {
-      expr: { type: "string", description: "Expression in Wolfram Language InputForm syntax." },
-      assumptions: { type: "string", description: "Wolfram assumptions, e.g. x > 0 && Element[n, Integers], or empty string." },
+      expr: { type: "string", description: "Expression in Wolfram Language InputForm syntax. Do not include Assumptions -> here; use the assumptions field." },
+      assumptions: { type: "string", description: "Wolfram assumptions, e.g. x > 0 && Element[n, Integers], or empty string. Put hypotheses here when checking whether a conclusion follows." },
       operation: { type: "string", enum: ["Simplify", "FullSimplify", "Refine", "PowerExpand"], description: "Simplification operation." }
     }
   ),
@@ -174,10 +174,10 @@ export const toolDefinitions: ToolDefinition[] = [
   ),
   defineTool(
     "wolfram_solve",
-    "Solve or reduce equations and inequalities using Wolfram Language. Use == for equations. Prefer method Reduce for conditional inequality equivalence, implication checks, log/exponential rearrangements, and domains with parameters.",
+    "Solve or reduce equations and inequalities using Wolfram Language. Use == for equations. Prefer method Reduce for conditional inequality equivalence, implication checks, log/exponential rearrangements, and domains with parameters. Provide concrete variables such as x or {x, y}; for a proposition with no variables to solve for, use wolfram_simplify instead of variables={}.",
     {
       equations: { type: "string", description: "Equation, inequality, or list of equations in Wolfram syntax." },
-      variables: { type: "string", description: "Variable or list of variables in Wolfram syntax." },
+      variables: { type: "string", description: "Variable or list of variables in Wolfram syntax, e.g. x or {x, y}; do not use {}." },
       method: { type: "string", enum: ["Solve", "Reduce", "NSolve", "FindInstance"], description: "Solving method." },
       assumptions: { type: "string", description: "Wolfram assumptions, or empty string." }
     }
