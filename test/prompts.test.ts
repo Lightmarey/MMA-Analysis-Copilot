@@ -35,6 +35,7 @@ assert.match(simplifyTool.description, /analytic/);
 assert.match(simplifyTool.description, /prefer wolfram_solve with method Reduce/);
 assert.match(simplifyTool.description, /simplify Equivalent/);
 assert.match(simplifyTool.description, /place the hypotheses in assumptions/);
+assert.match(simplifyTool.description, /radial Laplacians may put D\[\.\.\.\] directly in expr/);
 assert.match(simplifyTool.description, /Do not use it to choose a proof rule/);
 assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /Do not include Assumptions ->/);
 assert.match(simplifyTool.schema.function.parameters.properties.assumptions.description, /Put hypotheses here/);
