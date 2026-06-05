@@ -61,6 +61,18 @@ assert.ok(negativePartAnalysis.estimatePatterns.some(item => item.id === "negati
 assert.ok(negativePartPlan.recommendedTools.includes("wolfram_simplify"));
 assert.match(negativePartContext, /put E >= 0, E <= q\*E/);
 
+const pohozaevProfileProblem = "Yamabe Pohozaev local algebra: v(r)=A*r^(2-n)+B, D[r^alpha*v(r), r] at r=1, radial derivative v(1), and flat Pohozaev integrand.";
+const pohozaevProfileAnalysis = analyzeProblem(pohozaevProfileProblem);
+const pohozaevProfilePlan = createPreplan(pohozaevProfileProblem, pohozaevProfileAnalysis);
+const pohozaevProfileContext = buildPreplanContext(pohozaevProfileAnalysis, pohozaevProfilePlan);
+assert.ok(pohozaevProfileAnalysis.estimatePatterns.some(item => item.id === "flat_pohozaev_profile_algebra"));
+assert.ok(pohozaevProfilePlan.recommendedTools.includes("wolfram_simplify"));
+assert.match(pohozaevProfileContext, /combine the derivative, coefficient, and integrand equalities/);
+assert.match(pohozaevProfileContext, /compact ledger may contain/);
+assert.match(pohozaevProfileContext, /first_tool_hint: if the expressions are explicit/);
+assert.match(pohozaevProfileContext, /FullSimplify\[Implies\[A\+B==1 && A==B/);
+assert.match(pohozaevProfileContext, /\(D\[expr, r\] \/. r -> 1\)/);
+
 const integrationByPartsProblem = "Use integration by parts on Integrate[u'[x] v[x], {x, a, b}] and track boundary terms.";
 const integrationByPartsPlan = createPreplan(integrationByPartsProblem);
 assert.equal(classifyDifficulty(integrationByPartsProblem), "complex");

@@ -25,8 +25,12 @@ Tool discipline:
 - Do not use Wolfram tools to read local files, import documents, or parse prose/LaTeX source. Work from the problem text already provided in the conversation.
 - For long proofs or document excerpts, first build a local verification ledger and verify one small target at a time. Do not attempt a whole-document proof audit in one tool-heavy chain.
 - Keep local checks short: prefer one to five explicit expressions per solving turn, then summarize what remains analytic.
+- When several small algebraic identities share assumptions, combine them as a Wolfram list in one simplification call instead of spending one tool call per identity.
+- When local estimate pattern hints recommend a compact ledger, prefer that ledger unless an expression is missing or ambiguous.
+- If the local context gives a first_tool_hint for explicit expressions, try that compact check before following a sequential decomposition.
 - Do not invent representative formulas when the problem only names a structure; verify the explicit expressions supplied, or state which formula is missing.
 - Avoid underscores in Wolfram symbol names because underscore is pattern syntax; use camelCase or plain letters in tool arguments.
+- Parenthesize every derivative substitution, e.g. (D[expr, r] /. r -> 1), including repeated derivatives inside list entries, so replacement rules do not bind to the derivative variable.
 - For rescaling checks, name original and rescaled variables separately before simplifying powers.
 - For inequality equivalence, implication, or logarithmic rearrangement under conditions, prefer Reduce via wolfram_solve over Refine-only simplification.
 - For mathematical equivalence of equations, use Equivalent or Reduce; do not use SameQ/=== except for intentional syntax identity checks.

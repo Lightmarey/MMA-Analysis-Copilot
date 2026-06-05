@@ -431,6 +431,9 @@ export function buildPreplanContext(analysis: ProblemAnalysis, plan: Preplan, de
     lines.push("Estimate pattern hints:");
     for (const pattern of analysis.estimatePatterns) {
       lines.push(`- ${pattern.name} (score=${pattern.score}): ${pattern.why}`);
+      if (pattern.score >= 4 && pattern.tools.includes("wolfram_simplify")) {
+        lines.push("  first_tool_hint: if the expressions are explicit, try one compact wolfram_simplify ledger before sequential checks.");
+      }
       lines.push(`  may_use: ${pattern.mayUse.join(" -> ")}`);
       lines.push(`  check: ${pattern.verificationTargets.join(" | ")}`);
       lines.push(`  tools: ${pattern.tools.join(", ")}`);

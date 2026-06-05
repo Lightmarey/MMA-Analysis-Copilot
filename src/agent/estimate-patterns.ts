@@ -110,6 +110,31 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
     ],
     tools: ["wolfram_simplify", "wolfram_limit"],
     minScore: 2
+  },
+  {
+    id: "flat_pohozaev_profile_algebra",
+    name: "Flat Pohozaev profile algebra",
+    signals: [
+      /\bpohozaev\b/i,
+      /A\s*\*?\s*r\^\(?2\s*-\s*n\)?\s*\+\s*B|A\s*r\^\{?2-n\}?\s*\+\s*B/i,
+      /D\[\s*r\^|D\[\s*\w+\^\(?\(?n-2\)?\/2\)?/i,
+      /flat\s+Pohozaev\s+integrand|Pohozaev\s+integrand/i,
+      /v\(1\)|vr\(1\)|radial\s+derivative/i
+    ],
+    why: "the limit-profile Pohozaev algebra consists of several small identities under the same assumptions",
+    mayUse: [
+      "combine the derivative, coefficient, and integrand equalities as a Wolfram list in one FullSimplify call",
+      "a compact ledger may contain {(D[r^((n-2)/2)*(A*r^(2-n)+B), r] /. r -> 1) == ((n-2)/2)*(B-A), FullSimplify[Implies[A+B==1 && A==B, A==1/2 && B==1/2], Assumptions -> Element[A, Reals] && Element[B, Reals]], ...}",
+      "write every derivative substitution as (D[expr, r] /. r -> 1), including repeated derivatives inside list entries",
+      "use Implies[...] or Reduce only for the A = B consequence, not for each scalar identity"
+    ],
+    verificationTargets: [
+      "derivative condition reduces to ((n-2)/2)*(B-A)",
+      "A+B==1 with A==B gives A==B==1/2",
+      "v(1), radial derivative, and flat Pohozaev coefficient"
+    ],
+    tools: ["wolfram_simplify"],
+    minScore: 2
   }
 ];
 
