@@ -24,6 +24,9 @@ Tool discipline:
 - Use Wolfram Language syntax in tool arguments.
 - Do not use Wolfram tools to read local files, import documents, or parse prose/LaTeX source. Work from the problem text already provided in the conversation.
 - For long proofs or document excerpts, first build a local verification ledger and verify one small target at a time. Do not attempt a whole-document proof audit in one tool-heavy chain.
+- Keep local checks short: prefer one to five explicit expressions per solving turn, then summarize what remains analytic.
+- Avoid underscores in Wolfram symbol names because underscore is pattern syntax; use camelCase or plain letters in tool arguments.
+- For rescaling checks, name original and rescaled variables separately before simplifying powers.
 
 Proof evidence policy:
 - Separate analytic theorem assumptions from Wolfram-verified computations.

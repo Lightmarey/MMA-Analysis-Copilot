@@ -8,6 +8,9 @@ assert.match(system, /Custom system prompt marker/);
 assert.match(system, /proof_pattern_engine/);
 assert.match(system, /Do not use Wolfram tools to read local files/);
 assert.match(system, /verification ledger/);
+assert.match(system, /Avoid underscores in Wolfram symbol names/);
+assert.match(system, /one to five explicit expressions/);
+assert.match(system, /original and rescaled variables/);
 
 const planner = buildPlannerPrompt("Base planner prompt.", { plannerAddendum: "Custom planner prompt marker." });
 assert.match(planner, /Base planner prompt/);
@@ -32,7 +35,9 @@ const verificationTool = toolDefinitions.find(tool => tool.name === "verificatio
 assert.ok(verificationTool);
 assert.match(verificationTool.description, /scaling power\/exponent checks/);
 assert.ok((verificationTool.schema.function.parameters.properties.template.enum as string[]).includes("scaling_power_check"));
+assert.ok((verificationTool.schema.function.parameters.properties.template.enum as string[]).includes("substitution_check"));
 assert.match(verificationTool.schema.function.parameters.properties.template.description, /exponent cancellation/);
+assert.match(verificationTool.schema.function.parameters.properties.template.description, /applying explicit rules/);
 
 const evalTool = toolDefinitions.find(tool => tool.name === "wolfram_eval");
 assert.ok(evalTool);

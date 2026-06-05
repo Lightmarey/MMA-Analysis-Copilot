@@ -7,6 +7,7 @@ export const verificationTemplateNames = [
   "fourier_coefficient",
   "candidate_solution_check",
   "first_variation_derivative",
+  "substitution_check",
   "parameter_absorption_check",
   "scaling_power_check",
   "barrier_operator_check",
@@ -38,6 +39,8 @@ export async function runVerificationTemplate(
       return await simplifyExpression(backend, "Candidate solution check", readString(args.expr), readString(args.assumptions));
     case "first_variation_derivative":
       return await verifyFirstVariation(backend, args);
+    case "substitution_check":
+      return await simplifyExpression(backend, "Substitution check", expressionWithRules(args), readString(args.assumptions));
     case "parameter_absorption_check":
       return await simplifyExpression(backend, "Parameter absorption check", readString(args.expr), readString(args.assumptions));
     case "scaling_power_check":

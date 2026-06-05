@@ -383,6 +383,20 @@ try {
   assert.equal(firstVariation.ok, true);
   assert.equal(firstVariation.output, "True");
 
+  const substitutionCheck = await runVerificationTemplate(backend, {
+    template: "substitution_check",
+    expr: "normal + (n-2)/2*M*w",
+    assumptions: "",
+    variable: "",
+    lower: "",
+    upper: "",
+    expected: "",
+    claimed: "",
+    rules: "{normal -> -(n-2)/2*M*w}"
+  });
+  assert.equal(substitutionCheck.ok, true);
+  assert.equal(substitutionCheck.output, "0");
+
   const radialLaplacian = await runVerificationTemplate(backend, {
     template: "radial_laplacian_check",
     expr: "r^2",
