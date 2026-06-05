@@ -22,6 +22,8 @@ assert.match(system, /hypotheses in the tool assumptions field/);
 assert.match(system, /Do not call wolfram_solve with variables=\{\}/);
 assert.match(system, /dimensionless substitution d = a\*q/);
 assert.match(system, /do not spend more tool calls retrying the same bare power inequality/);
+assert.match(system, /positive-factor bound checks/);
+assert.match(system, /do not spend follow-up calls on confirmatory Reduce/);
 
 const planner = buildPlannerPrompt("Base planner prompt.", { plannerAddendum: "Custom planner prompt marker." });
 assert.match(planner, /Base planner prompt/);
@@ -46,6 +48,7 @@ assert.match(simplifyTool.description, /place the hypotheses in assumptions/);
 assert.match(simplifyTool.description, /radial Laplacians may put D\[\.\.\.\] directly in expr/);
 assert.match(simplifyTool.description, /not wolfram_algebra, for plain Simplify/);
 assert.match(simplifyTool.description, /Wolfram list such as \{id1, id2, id3\}/);
+assert.match(simplifyTool.description, /confirmatory Reduce calls/);
 assert.match(simplifyTool.description, /\(D\[expr, r\] \/. r -> 1\)/);
 assert.match(simplifyTool.description, /each repeated derivative inside a list entry/);
 assert.match(simplifyTool.description, /dimensionless substitution like d -> a\*q/);
@@ -54,6 +57,8 @@ assert.match(simplifyTool.description, /stop retrying the bare q\^p inequality/)
 assert.match(simplifyTool.description, /Do not use it to choose a proof rule/);
 assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /Do not include Assumptions ->/);
 assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /short verification ledger/);
+assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /do not wrap a list conclusion as Implies/);
+assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /not underscores/);
 assert.match(simplifyTool.schema.function.parameters.properties.assumptions.description, /Put hypotheses here/);
 
 const solveTool = toolDefinitions.find(tool => tool.name === "wolfram_solve");
@@ -77,6 +82,7 @@ assert.ok((verificationTool.schema.function.parameters.properties.template.enum 
 assert.ok((verificationTool.schema.function.parameters.properties.template.enum as string[]).includes("substitution_check"));
 assert.match(verificationTool.schema.function.parameters.properties.template.description, /exponent cancellation/);
 assert.match(verificationTool.schema.function.parameters.properties.template.description, /applying explicit rules/);
+assert.match(verificationTool.schema.function.parameters.properties.rules.description, /not underscores/);
 
 const evalTool = toolDefinitions.find(tool => tool.name === "wolfram_eval");
 assert.ok(evalTool);

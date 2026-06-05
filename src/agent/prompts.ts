@@ -38,6 +38,8 @@ Tool discipline:
 - Do not call wolfram_solve with variables={}; for propositions without concrete solve variables, use wolfram_simplify.
 - For power inequalities with a scale relation such as 0 < d <= a, consider the dimensionless substitution d = a*q with 0 < q <= 1 before asking Wolfram to compare powers.
 - For 0 < q <= 1 power bounds, once Wolfram verifies p >= 0 and p*Log[q] <= 0, use q^p <= 1 as the justified consequence; do not spend more tool calls retrying the same bare power inequality.
+- For positive-factor bound checks, verify the full target inequality under assumptions; do not replace it with a stricter side goal unless the side goal is explicitly requested.
+- If a Wolfram list ledger returns True entries for the requested checks, summarize the ledger and stop; do not spend follow-up calls on confirmatory Reduce.
 
 Proof evidence policy:
 - Separate analytic theorem assumptions from Wolfram-verified computations.

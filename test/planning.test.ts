@@ -73,6 +73,18 @@ assert.match(pohozaevProfileContext, /first_tool_hint: if the expressions are ex
 assert.match(pohozaevProfileContext, /FullSimplify\[Implies\[A\+B==1 && A==B/);
 assert.match(pohozaevProfileContext, /\(D\[expr, r\] \/. r -> 1\)/);
 
+const transitionRescaleProblem = "Transition barrier dyadic rescaling: rho^(n/2+1)*(tau_y*s_y^(-n/2-1)) with tau_y -> rho*tau_hat, s_y -> rho*s_hat and rho <= 2 c0 a.";
+const transitionRescaleAnalysis = analyzeProblem(transitionRescaleProblem);
+const transitionRescalePlan = createPreplan(transitionRescaleProblem, transitionRescaleAnalysis);
+const transitionRescaleContext = buildPreplanContext(transitionRescaleAnalysis, transitionRescalePlan);
+assert.ok(transitionRescaleAnalysis.estimatePatterns.some(item => item.id === "transition_rescaling_powers"));
+assert.ok(transitionRescalePlan.recommendedTools.includes("wolfram_simplify"));
+assert.match(transitionRescaleContext, /rename symbols with underscores to camelCase/);
+assert.match(transitionRescaleContext, /rho power cancellation/);
+assert.match(transitionRescaleContext, /full inequality list/);
+assert.match(transitionRescaleContext, /rather than Implies\[\.\.\., \{\.\.\.\}\]/);
+assert.match(transitionRescaleContext, /tauhat >= 0/);
+
 const integrationByPartsProblem = "Use integration by parts on Integrate[u'[x] v[x], {x, a, b}] and track boundary terms.";
 const integrationByPartsPlan = createPreplan(integrationByPartsProblem);
 assert.equal(classifyDifficulty(integrationByPartsProblem), "complex");

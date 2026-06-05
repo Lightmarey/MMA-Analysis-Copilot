@@ -135,6 +135,32 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
     ],
     tools: ["wolfram_simplify"],
     minScore: 2
+  },
+  {
+    id: "transition_rescaling_powers",
+    name: "Transition rescaling powers",
+    signals: [
+      /\btransition\s+barrier\b|\bdyadic\s+scale\b|\brescal(?:e|ing)\b/i,
+      /\brho\^\(?(?:n\/2|n\s*\/\s*2)/i,
+      /\btau[_a-zA-Z]*\s*->\s*rho\*|\btau[_a-zA-Z]*\s*=\s*rho/i,
+      /\bs[_a-zA-Z]*\s*->\s*rho\*|\bs[_a-zA-Z]*\s*=\s*rho/i,
+      /\brho\s*(?:<=|\\leq?)\s*2\s*c0\s*a/i
+    ],
+    why: "transition-barrier rescaling needs simultaneous tau and s substitutions, and Wolfram variable names cannot use underscores",
+    mayUse: [
+      "rename symbols with underscores to camelCase before calling Wolfram, e.g. tau_y -> tauy and tau_hat -> tauhat",
+      "combine rescaled source and boundary terms in one Wolfram list after substituting tauy -> rho*tauhat and sy -> rho*shat",
+      "check rho-control as the full inequality list, not by proving a stricter rho < 2*c0 side goal",
+      "put the hypotheses in the assumptions field and use expr={rho*tauhat*shat^(-n/2-1) <= 2*c0*tauhat*shat^(-n/2-1), rho*tauhat*shat^(-n/2) <= 2*c0*tauhat*shat^(-n/2)} rather than Implies[..., {...}]",
+      "use assumptions 0 < rho <= 2*c0*a, 0 < a < 1, c0 > 0, tauhat >= 0, and shat > 0"
+    ],
+    verificationTargets: [
+      "rho power cancellation after tau and s are both rescaled",
+      "remaining rho factor bounded by 2*c0",
+      "analytic Lipschitz or elliptic estimates kept separate"
+    ],
+    tools: ["wolfram_simplify"],
+    minScore: 2
   }
 ];
 
