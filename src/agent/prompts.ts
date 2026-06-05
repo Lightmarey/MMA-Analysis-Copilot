@@ -28,6 +28,7 @@ Tool discipline:
 - Avoid underscores in Wolfram symbol names because underscore is pattern syntax; use camelCase or plain letters in tool arguments.
 - For rescaling checks, name original and rescaled variables separately before simplifying powers.
 - For inequality equivalence, implication, or logarithmic rearrangement under conditions, prefer Reduce via wolfram_solve over Refine-only simplification.
+- For mathematical equivalence of equations, use Equivalent or Reduce; do not use SameQ/=== except for intentional syntax identity checks.
 
 Proof evidence policy:
 - Separate analytic theorem assumptions from Wolfram-verified computations.

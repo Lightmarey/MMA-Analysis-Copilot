@@ -11,6 +11,7 @@ assert.match(system, /verification ledger/);
 assert.match(system, /Avoid underscores in Wolfram symbol names/);
 assert.match(system, /one to five explicit expressions/);
 assert.match(system, /original and rescaled variables/);
+assert.match(system, /do not use SameQ\/===/);
 
 const planner = buildPlannerPrompt("Base planner prompt.", { plannerAddendum: "Custom planner prompt marker." });
 assert.match(planner, /Base planner prompt/);
@@ -30,6 +31,7 @@ const simplifyTool = toolDefinitions.find(tool => tool.name === "wolfram_simplif
 assert.ok(simplifyTool);
 assert.match(simplifyTool.description, /analytic/);
 assert.match(simplifyTool.description, /prefer wolfram_solve with method Reduce/);
+assert.match(simplifyTool.description, /simplify Equivalent/);
 assert.match(simplifyTool.description, /Do not use it to choose a proof rule/);
 
 const solveTool = toolDefinitions.find(tool => tool.name === "wolfram_solve");
@@ -47,6 +49,8 @@ assert.match(verificationTool.schema.function.parameters.properties.template.des
 
 const evalTool = toolDefinitions.find(tool => tool.name === "wolfram_eval");
 assert.ok(evalTool);
+assert.match(evalTool.description, /Do not use this for simple Simplify/);
+assert.match(evalTool.description, /use wolfram_solve/);
 assert.match(evalTool.description, /Do not use this tool to read local files/);
 
 console.log("prompt tests passed");

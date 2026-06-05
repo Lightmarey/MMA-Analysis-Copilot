@@ -123,7 +123,7 @@ export const toolDefinitions: ToolDefinition[] = [
   ),
   defineTool(
     "wolfram_eval",
-    "Evaluate Wolfram Language code. Use only as an advanced escape hatch when structured tools are not enough. Do not use this tool to read local files, import documents, or parse prose/LaTeX source; use only the mathematical expressions already supplied in the prompt.",
+    "Evaluate Wolfram Language code. Use only as an advanced escape hatch when structured tools are not enough. Do not use this for simple Simplify/FullSimplify/Refine/Equivalent checks; use wolfram_simplify. Do not use this for Solve/Reduce checks; use wolfram_solve. Do not use this tool to read local files, import documents, or parse prose/LaTeX source; use only the mathematical expressions already supplied in the prompt.",
     {
       code: {
         type: "string",
@@ -133,7 +133,7 @@ export const toolDefinitions: ToolDefinition[] = [
   ),
   defineTool(
     "wolfram_simplify",
-    "Simplify, refine, or power-expand an explicit Wolfram Language expression under stated assumptions. Use this for algebraic, analytic, asymptotic, trigonometric, exponential, sign, monotonicity, and conditional expression simplification when the expression and assumptions are already chosen. For inequality equivalence, implication, or logarithmic rearrangement under domain conditions, prefer wolfram_solve with method Reduce. Do not use it to choose a proof rule such as Holder/Young/Cauchy-Schwarz, Poincare/Sobolev, parameter absorption, or integration by parts; use proof_pattern_engine for rule/transform selection and side-condition tracking.",
+    "Simplify, refine, or power-expand an explicit Wolfram Language expression under stated assumptions. Use this for algebraic, analytic, asymptotic, trigonometric, exponential, sign, monotonicity, and conditional expression simplification when the expression and assumptions are already chosen. For inequality equivalence, implication, or logarithmic rearrangement under domain conditions, prefer wolfram_solve with method Reduce. For mathematical equation equivalence or swapped equation sides, simplify Equivalent[...] rather than SameQ/=== unless syntax identity is the actual target. Do not use it to choose a proof rule such as Holder/Young/Cauchy-Schwarz, Poincare/Sobolev, parameter absorption, or integration by parts; use proof_pattern_engine for rule/transform selection and side-condition tracking.",
     {
       expr: { type: "string", description: "Expression in Wolfram Language InputForm syntax." },
       assumptions: { type: "string", description: "Wolfram assumptions, e.g. x > 0 && Element[n, Integers], or empty string." },
