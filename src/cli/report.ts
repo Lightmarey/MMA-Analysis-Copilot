@@ -1,8 +1,10 @@
 import type { WolframResponse } from "../wolfram/types.js";
+import type { AgentHookResult } from "../agent/hooks.js";
 
 export type TraceEvent =
   | { type: "route"; difficulty: "simple" | "complex"; model: string }
   | { type: "plan"; context: string }
+  | { type: "hook"; result: AgentHookResult }
   | { type: "tool_call"; name: string; args: Record<string, unknown> }
   | { type: "tool_result"; name: string; markdown: string; result?: WolframResponse };
 
@@ -82,6 +84,16 @@ export function formatTrace(trace: TraceEvent[], mode: TraceMode = "full"): stri
     if (event.type === "tool_result") {
       lines.push(mode === "compact" ? formatCompactResult(event) : event.markdown || "(no display result)");
       lines.push("");
+      continue;
+    }
+    if (event.type === "hook") {
+      lines.push(`### Hook: ${event.result.id}`);
+      lines.push("");
+      lines.push(`- phase: ${event.result.phase}`);
+      lines.push(`- severity: ${event.result.severity}`);
+      if (event.result.traceTag) lines.push(`- tag: ${event.result.traceTag}`);
+      lines.push(`- message: ${event.result.message}`);
+      lines.push("");
     }
   }
   return lines.length ? lines.join("\n").trim() : "No tool calls recorded.";
@@ -91,6 +103,7 @@ export function formatVerificationSummary(trace: TraceEvent[]): string {
   const plan = trace.find((event): event is Extract<TraceEvent, { type: "plan" }> => event.type === "plan");
   const toolResults = trace.filter((event): event is Extract<TraceEvent, { type: "tool_result" }> => event.type === "tool_result");
   const toolCalls = trace.filter((event): event is Extract<TraceEvent, { type: "tool_call" }> => event.type === "tool_call");
+  const hookEvents = trace.filter((event): event is Extract<TraceEvent, { type: "hook" }> => event.type === "hook");
   const targets = plan ? parsePlanList(plan.context, "verification_targets") : [];
   const invariants = plan ? parsePlanList(plan.context, "key_invariants") : [];
   const conditions = toolResults
@@ -103,6 +116,7 @@ export function formatVerificationSummary(trace: TraceEvent[]): string {
   lines.push(`- Tool calls recorded: ${toolCalls.length}`);
   lines.push(`- Structured tools used: ${formatList(structuredTools)}`);
   lines.push(`- Tool errors: ${failedTools.length ? failedTools.map(event => `${event.name}: ${event.result?.error ?? "unknown"}`).join(" | ") : "none recorded"}`);
+  lines.push(`- Workflow hooks: ${hookEvents.length ? hookEvents.map(event => `${event.result.id}(${event.result.severity})`).join(", ") : "none recorded"}`);
   lines.push(`- Conditions returned by Wolfram: ${conditions.length ? conditions.join(" | ") : "none recorded"}`);
   lines.push(`- Preplanned invariants: ${formatList(invariants)}`);
   lines.push(`- Preplanned verification targets: ${formatList(targets)}`);

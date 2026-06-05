@@ -270,6 +270,38 @@ try {
   assert.match(adHocMoveSchema.output ?? "", /common denominator/);
   assert.match(adHocMoveSchema.output ?? "", /b != 0/);
 
+  const naturalMoveSchema = await backend.call("proof_pattern_engine", {
+    operation: "compile",
+    goal: "",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: "<|\"moveLabel\" -> \"scale balance solve\", \"transformation\" -> \"solve a supplied scale equation and verify the candidate\", \"bindings\" -> <|\"R\" -> \"rho^(2/(2+gamma))\"|>, \"sideConditions\" -> {\"rho > 0\", \"gamma > 0\"}, \"missingAssumptions\" -> \"None\"|>"
+  });
+  assert.equal(naturalMoveSchema.ok, true);
+  assert.match(naturalMoveSchema.output ?? "", /Compiled/);
+  assert.match(naturalMoveSchema.output ?? "", /AdHocRuleIntent/);
+  assert.match(naturalMoveSchema.output ?? "", /scale balance solve/);
+  assert.doesNotMatch(naturalMoveSchema.output ?? "", /Rejected/);
+
+  const naturalBindingNotesSchema = await backend.call("proof_pattern_engine", {
+    operation: "compile",
+    goal: "",
+    known: "",
+    context: "",
+    state: "",
+    moveId: "",
+    ruleName: "",
+    payload: "<|\"suppliedMove\" -> \"differentiate then substitute\", \"steps\" -> {\"differentiate\", \"substitute\"}, \"bindings\" -> {\"f[s] -> A[s]\", \"g[s] -> c0 + c1*s\"}, \"sideConditions\" -> {\"A differentiable at 0\"}, \"missingConditions\" -> {}|>"
+  });
+  assert.equal(naturalBindingNotesSchema.ok, true);
+  assert.match(naturalBindingNotesSchema.output ?? "", /Compiled/);
+  assert.match(naturalBindingNotesSchema.output ?? "", /differentiate then substitute/);
+  assert.match(naturalBindingNotesSchema.output ?? "", /binding1/);
+  assert.doesNotMatch(naturalBindingNotesSchema.output ?? "", /Rejected/);
+
   const noCandidateMove = await backend.call("proof_pattern_engine", {
     operation: "suggest",
     goal: "foo[x]",

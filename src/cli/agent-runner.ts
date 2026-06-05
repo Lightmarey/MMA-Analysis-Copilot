@@ -23,6 +23,10 @@ export async function askOnceWithTrace(question: string, printTrace: boolean, th
       onPlan(context) {
         trace.push({ type: "plan", context });
       },
+      onHook(result) {
+        trace.push({ type: "hook", result });
+        if (printTrace) console.error(chalk.dim(`hook ${result.id} ${result.severity}: ${result.message}`));
+      },
       onToolCall(name, args) {
         trace.push({ type: "tool_call", name, args });
         if (printTrace) console.error(chalk.dim(`\ntool ${name} ${JSON.stringify(args)}`));
@@ -37,4 +41,3 @@ export async function askOnceWithTrace(question: string, printTrace: boolean, th
     agent.close();
   }
 }
-

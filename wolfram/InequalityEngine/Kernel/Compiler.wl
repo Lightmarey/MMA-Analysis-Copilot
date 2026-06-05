@@ -2,10 +2,10 @@ IneqCompilerSchemaSummary[] := <|
   "Operation" -> "compile",
   "RequiredKeys" -> {"Rule", "Transforms", "Bindings", "MissingConditions"},
   "AcceptedAliases" -> <|
-    "Rule" -> {"rule", "RuleIntent", "ruleIntent", "TransformIntent", "transformIntent", "SuppliedTransform", "suppliedTransform", "MoveName", "moveName"},
-    "Transforms" -> {"transforms", "Steps", "steps", "TransformSteps", "transformSteps"},
+    "Rule" -> {"rule", "RuleIntent", "ruleIntent", "TransformIntent", "transformIntent", "SuppliedTransform", "suppliedTransform", "MoveName", "moveName", "MoveLabel", "moveLabel", "SuppliedMove", "suppliedMove", "Name", "name", "Label", "label"},
+    "Transforms" -> {"transforms", "Steps", "steps", "TransformSteps", "transformSteps", "TransformationSteps", "transformationSteps", "Transformation", "transformation", "Transform", "transform"},
     "Bindings" -> {"bindings", "BindingMap", "bindingMap"},
-    "MissingConditions" -> {"missingConditions", "missing_conditions", "MissingSideConditions", "missingSideConditions", "MissingAnalyticAssumptions", "missingAnalyticAssumptions"},
+    "MissingConditions" -> {"missingConditions", "missing_conditions", "MissingSideConditions", "missingSideConditions", "MissingAnalyticAssumptions", "missingAnalyticAssumptions", "MissingAssumptions", "missingAssumptions"},
     "SideConditions" -> {"sideConditions", "side_conditions", "RequiredConditions", "requiredConditions"}
   |>,
   "OutputKind" -> "RulePlan",
@@ -15,10 +15,10 @@ IneqCompilerSchemaSummary[] := <|
 IneqLookupSchemaField[payload_Association, key_String, default_: Missing["NotProvided"]] := Module[
   {aliases},
   aliases = Switch[key,
-    "Rule", {"Rule", "rule", "RuleIntent", "ruleIntent", "TransformIntent", "transformIntent", "SuppliedTransform", "suppliedTransform", "MoveName", "moveName"},
-    "Transforms", {"Transforms", "transforms", "Steps", "steps", "TransformSteps", "transformSteps"},
+    "Rule", {"Rule", "rule", "RuleIntent", "ruleIntent", "TransformIntent", "transformIntent", "SuppliedTransform", "suppliedTransform", "MoveName", "moveName", "MoveLabel", "moveLabel", "SuppliedMove", "suppliedMove", "Name", "name", "Label", "label"},
+    "Transforms", {"Transforms", "transforms", "Steps", "steps", "TransformSteps", "transformSteps", "TransformationSteps", "transformationSteps", "Transformation", "transformation", "Transform", "transform"},
     "Bindings", {"Bindings", "bindings", "BindingMap", "bindingMap"},
-    "MissingConditions", {"MissingConditions", "missingConditions", "missing_conditions", "MissingSideConditions", "missingSideConditions", "MissingAnalyticAssumptions", "missingAnalyticAssumptions"},
+    "MissingConditions", {"MissingConditions", "missingConditions", "missing_conditions", "MissingSideConditions", "missingSideConditions", "MissingAnalyticAssumptions", "missingAnalyticAssumptions", "MissingAssumptions", "missingAssumptions"},
     "SideConditions", {"SideConditions", "sideConditions", "side_conditions", "RequiredConditions", "requiredConditions"},
     _, {key}
   ];
@@ -28,6 +28,10 @@ IneqLookupSchemaField[payload_Association, key_String, default_: Missing["NotPro
 IneqInertString[value_] := If[StringQ[value], StringTrim[value], StringTrim[ToString[value, InputForm]]];
 
 IneqNormalizeStringList[value_] := Module[{trimmed},
+  If[StringQ[value],
+    trimmed = StringTrim[value];
+    Return[If[trimmed === "" || ToLowerCase[trimmed] === "none", {}, {trimmed}]]
+  ];
   If[AssociationQ[value],
     Return[KeyValueMap[
       IneqInertString[#1] <> ": " <> IneqInertString[#2] &,
@@ -70,6 +74,12 @@ IneqNormalizeBindings[bindings_Association] := Module[{rules = Normal[bindings]}
 ];
 
 IneqNormalizeBindings[bindings_List] := Module[{rules = bindings},
+  If[AllTrue[rules, StringQ],
+    Return[Association @ MapIndexed[
+      "binding" <> ToString[First[#2]] -> IneqInertString[#1] &,
+      rules
+    ]]
+  ];
   If[
     AllTrue[rules, MatchQ[#, (_Rule | _RuleDelayed)] &],
     Association @ Map[

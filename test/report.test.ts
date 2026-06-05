@@ -31,6 +31,16 @@ const trace: TraceEvent[] = [
       conditions: "Re[a] > -1",
       conditionLatex: "\\Re(a)>-1"
     }
+  },
+  {
+    type: "hook",
+    result: {
+      id: "proof-pattern-opportunity",
+      phase: "after_plan",
+      severity: "hint",
+      traceTag: "proof-transform-ledger",
+      message: "A supplied formula transformation may benefit from a proof ledger."
+    }
   }
 ];
 
@@ -38,6 +48,7 @@ const summary = formatVerificationSummary(trace);
 assert.match(summary, /Structured tools used: wolfram_integrate/);
 assert.match(summary, /Conditions returned by Wolfram: Re\[a\] > -1 \(\$\\Re\(a\)>-1\$\)/);
 assert.match(summary, /Preplanned invariants: dominating function, exceptional null set/);
+assert.match(summary, /Workflow hooks: proof-pattern-opportunity\(hint\)/);
 assert.match(summary, /check integrability of the bound/);
 assert.match(summary, /both visible/);
 
@@ -49,6 +60,8 @@ const report = formatMarkdownReport("Compute the integral and conditions.", run,
 assert.match(report, /## Verification Summary/);
 assert.match(report, /Elapsed: 1\.2s/);
 assert.match(report, /## Tool Trace/);
+assert.match(report, /### Hook: proof-pattern-opportunity/);
+assert.match(report, /proof-transform-ledger/);
 assert.match(report, /## Answer/);
 
 const compactReport = formatMarkdownReport("Compute the integral and conditions.", run, 1234, "compact");

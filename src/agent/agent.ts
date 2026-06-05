@@ -12,10 +12,12 @@ import { buildAgentSystemPrompt } from "./prompts.js";
 import { collectStreamedMessage } from "./streaming.js";
 import type { AgentToolName, LocalToolName } from "./tools.js";
 import type { WolframResponse } from "../wolfram/types.js";
+import { hookResultsToPrompt, runAgentHooks, type AgentHookResult, type ToolHistoryEntry } from "./hooks.js";
 
 export type AgentCallbacks = {
   onToolCall?: (name: string, args: Record<string, unknown>) => void;
   onToolResult?: (name: string, markdown: string, result: WolframResponse) => void;
+  onHook?: (result: AgentHookResult) => void;
   onRoute?: (difficulty: "simple" | "complex", model: string) => void;
   onPlan?: (context: string) => void;
   onThinkingDelta?: (text: string) => void;
@@ -85,6 +87,21 @@ export class MathAgent {
     }
     const collected: string[] = [];
     let sawToolCall = false;
+    const toolHistory: ToolHistoryEntry[] = [];
+    const firedHookIds = new Set<string>();
+
+    if (config.preplanEnabled) {
+      const afterPlanHooks = runAgentHooks({
+        phase: "after_plan",
+        userMessage,
+        planContext: this.messages.at(-1)?.role === "system" ? String(this.messages.at(-1)?.content ?? "") : "",
+        messages: this.messages,
+        toolHistory,
+        firedHookIds
+      });
+      emitHooks(afterPlanHooks, callbacks, firedHookIds);
+      pushHookPrompt(this.messages, afterPlanHooks);
+    }
 
     for (let iteration = 0; iteration < config.maxIterations; iteration += 1) {
       const stream = await this.client.chat.completions.create({
@@ -117,6 +134,25 @@ export class MathAgent {
       }
 
       if (!message.tool_calls?.length) {
+        const finalText = collected.join("\n\n").trim();
+        const beforeFinalHooks = runAgentHooks({
+          phase: "before_final",
+          userMessage,
+          messages: this.messages,
+          toolHistory,
+          finalText,
+          firedHookIds
+        });
+        emitHooks(beforeFinalHooks, callbacks, firedHookIds);
+        const beforeFinalPrompt = hookResultsToPrompt(beforeFinalHooks);
+        if (beforeFinalPrompt) {
+          this.messages.push({ role: "system", content: beforeFinalPrompt });
+          this.messages.push({
+            role: "user",
+            content: "Use the workflow hook guidance to decide whether a short structured verification is needed before the final answer. If no explicit check is possible, state the missing formula or analytic assumption."
+          });
+          continue;
+        }
         if (!message.content && sawToolCall) {
           this.messages.push({
             role: "user",
@@ -134,9 +170,21 @@ export class MathAgent {
         sawToolCall = true;
         const name = toolCall.function.name as AgentToolName;
         const args = safeParseObject(toolCall.function.arguments);
+        const proposedTool: ToolHistoryEntry = { name, args };
+        const beforeToolHooks = runAgentHooks({
+          phase: "before_tool_call",
+          userMessage,
+          messages: this.messages,
+          toolHistory,
+          proposedTool,
+          firedHookIds
+        });
+        emitHooks(beforeToolHooks, callbacks, firedHookIds);
         callbacks.onToolCall?.(name, args);
 
         const result = await this.callTool(name, args);
+        const latestTool: ToolHistoryEntry = { name, args, result };
+        toolHistory.push(latestTool);
         const toolText = formatToolResult(name, args, result);
         const toolMarkdown = formatToolResultMarkdown(name, result);
         callbacks.onToolResult?.(name, toolMarkdown, result);
@@ -146,6 +194,16 @@ export class MathAgent {
           tool_call_id: toolCall.id,
           content: toolText
         });
+        const afterToolHooks = runAgentHooks({
+          phase: "after_tool_call",
+          userMessage,
+          messages: this.messages,
+          toolHistory,
+          latestTool,
+          firedHookIds
+        });
+        emitHooks(afterToolHooks, callbacks, firedHookIds);
+        pushHookPrompt(this.messages, [...beforeToolHooks, ...afterToolHooks]);
       }
     }
 
@@ -165,6 +223,18 @@ export class MathAgent {
     }
     return runLocalTool(name as LocalToolName, args);
   }
+}
+
+function emitHooks(results: AgentHookResult[], callbacks: AgentCallbacks, firedHookIds: Set<string>): void {
+  for (const result of results) {
+    callbacks.onHook?.(result);
+    if (result.promptHint) firedHookIds.add(result.id);
+  }
+}
+
+function pushHookPrompt(messages: ChatCompletionMessageParam[], results: AgentHookResult[]): void {
+  const prompt = hookResultsToPrompt(results);
+  if (prompt) messages.push({ role: "system", content: prompt });
 }
 
 function resolveDifficulty(

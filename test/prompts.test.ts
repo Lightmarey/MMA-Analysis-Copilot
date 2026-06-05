@@ -7,6 +7,7 @@ assert.match(system, /Proof evidence policy/);
 assert.match(system, /Custom system prompt marker/);
 assert.match(system, /proof_pattern_engine/);
 assert.match(system, /supplied formula transformation ledgers/);
+assert.match(system, /do not call it again merely to restate Wolfram-verified checks/);
 assert.doesNotMatch(system, /integration-by-parts|product-rule transforms/i);
 assert.match(system, /Do not use Wolfram tools to read local files/);
 assert.match(system, /verification ledger/);
