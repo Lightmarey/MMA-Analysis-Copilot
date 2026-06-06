@@ -19,8 +19,13 @@ Implemented core capabilities:
   raw Wolfram evaluation.
 - OpenAI-compatible streaming tool loop with flash/pro model routing.
 - LLM planning plus local theorem/preplanning fallback.
-- Structured Wolfram tools for simplification, calculus, algebra, matrices,
-  series, sums, convergence, ODEs, transforms, and residues.
+- Structured Wolfram tools for simplification, equivalence checks, calculus,
+  algebra, matrices, series/coefficient checks, sums, convergence, ODEs,
+  transforms, and residues.
+- Configurable workflow hooks for formula extraction, transform ledgers,
+  assumption ledgers, equivalence-check hints, case-split tracking, and final
+  answer condition checks. Hooks are bounded and can run as hints, trace-only
+  diagnostics, or be disabled.
 - `proof_pattern_engine` for interactive proof-rule and transform suggestions,
   especially Holder, Cauchy-Schwarz, Young, Poincare, Sobolev, parameter
   choices, and integration-by-parts seeds.
@@ -113,6 +118,12 @@ Hook modes control token cost:
 extra model round before the answer is returned. Set it to `off` for minimum
 latency and token usage.
 
+Hook environment overrides:
+
+- `WOLFRAM_AGENT_HOOK_MODE`
+- `WOLFRAM_AGENT_HOOK_PROMPT_MAX_CHARS`
+- `WOLFRAM_AGENT_HOOK_BEFORE_FINAL`
+
 ## Commands
 
 Build and check the project:
@@ -197,6 +208,7 @@ question
 -> optional @file inlining
 -> LLM planner on the flash model
 -> local theorem/preplanning analysis
+-> optional bounded workflow hooks
 -> merged route: simple -> flash, complex -> pro
 -> streaming OpenAI-compatible tool loop
 -> structured Wolfram tools and local tools
@@ -211,6 +223,31 @@ The planner is advisory. The final answer should distinguish:
 - theorem-level assumptions supplied by analysis;
 - proof obligations still requiring user or author input.
 
+## Workflow Hooks
+
+Workflow hooks are deterministic TypeScript checks around the LLM tool loop.
+They do not call the LLM or Wolfram by themselves. In `hint` mode they add short,
+bounded guidance to the next model request; in `trace_only` mode they only appear
+in saved traces; in `off` mode they do not run.
+
+Current hook families:
+
+- expression candidates from pasted formulas;
+- transform ledger hints for `proof_pattern_engine compile`;
+- assumption ledger hints with source labels such as `Supplied`,
+  `DerivedByWolfram`, `AssumedFromContext`, `NeedsUser`, and
+  `GeneratedByParameterChoice`;
+- equivalence-check hints when a before/after expression or candidate result is
+  already supplied;
+- case-split ledger hints for coverage and mutual exclusion;
+- tool-loop guard hints for repeated checks or compact successful
+  verification;
+- before-final warnings for unverified symbolic claims or hidden Wolfram
+  conditions.
+
+Only before-final warning hooks can add an extra model round, and only when
+`hooks.beforeFinal` is `warning`.
+
 ## Tool Layers
 
 ### Structured Wolfram Tools
@@ -222,6 +259,7 @@ Supported tool names:
 
 - `wolfram_eval`
 - `wolfram_simplify`
+- `wolfram_equivalence_check`
 - `wolfram_integrate`
 - `wolfram_differentiate`
 - `wolfram_limit`
@@ -229,6 +267,7 @@ Supported tool names:
 - `wolfram_algebra`
 - `wolfram_matrix`
 - `wolfram_series`
+- `series_coefficient_check`
 - `wolfram_sum`
 - `wolfram_convergence`
 - `wolfram_dsolve`
