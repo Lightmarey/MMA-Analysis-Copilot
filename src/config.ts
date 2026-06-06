@@ -41,6 +41,11 @@ type WmaConfigFile = {
     plannerPromptPath?: string;
     plannerAddendum?: string;
   };
+  hooks?: {
+    mode?: string;
+    promptMaxChars?: number;
+    beforeFinal?: string;
+  };
 };
 
 export type ConfigDiagnostic = {
@@ -84,6 +89,18 @@ function boolEnv(name: string, fallback: boolean): boolean {
   if (["1", "true", "yes", "on"].includes(normalized)) return true;
   if (["0", "false", "no", "off"].includes(normalized)) return false;
   return fallback;
+}
+
+function enumValue<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  if (typeof value !== "string") return fallback;
+  const normalized = value.trim().toLowerCase();
+  return allowed.includes(normalized as T) ? normalized as T : fallback;
+}
+
+function enumEnv<T extends string>(name: string, allowed: readonly T[], fallback: T): T {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  return enumValue(raw, allowed, fallback);
 }
 
 function optionalBoolEnv(name: string, fallback: boolean | null): boolean | null {
@@ -141,7 +158,10 @@ export const config = {
   systemPromptPath: process.env.WOLFRAM_AGENT_SYSTEM_PROMPT_PATH?.trim() || process.env.AI4MATH_SYSTEM_PROMPT_PATH?.trim() || stringValue(fileConfig.prompts?.systemPromptPath),
   systemPromptAddendum: process.env.WOLFRAM_AGENT_SYSTEM_PROMPT_APPEND?.trim() || process.env.AI4MATH_SYSTEM_PROMPT_APPEND?.trim() || stringValue(fileConfig.prompts?.systemAddendum),
   plannerPromptPath: process.env.WOLFRAM_AGENT_PLANNER_PROMPT_PATH?.trim() || process.env.AI4MATH_PLANNER_PROMPT_PATH?.trim() || stringValue(fileConfig.prompts?.plannerPromptPath),
-  plannerPromptAddendum: process.env.WOLFRAM_AGENT_PLANNER_PROMPT_APPEND?.trim() || process.env.AI4MATH_PLANNER_PROMPT_APPEND?.trim() || stringValue(fileConfig.prompts?.plannerAddendum)
+  plannerPromptAddendum: process.env.WOLFRAM_AGENT_PLANNER_PROMPT_APPEND?.trim() || process.env.AI4MATH_PLANNER_PROMPT_APPEND?.trim() || stringValue(fileConfig.prompts?.plannerAddendum),
+  hookMode: enumEnv("WOLFRAM_AGENT_HOOK_MODE", ["off", "trace_only", "hint"] as const, enumValue(fileConfig.hooks?.mode, ["off", "trace_only", "hint"] as const, "hint")),
+  hookPromptMaxChars: intEnv("WOLFRAM_AGENT_HOOK_PROMPT_MAX_CHARS", numberValue(fileConfig.hooks?.promptMaxChars, 1200)),
+  hookBeforeFinal: enumEnv("WOLFRAM_AGENT_HOOK_BEFORE_FINAL", ["off", "warning"] as const, enumValue(fileConfig.hooks?.beforeFinal, ["off", "warning"] as const, "warning"))
 };
 
 function readConfigFile(filePath: string): { config: WmaConfigFile; diagnostics: ConfigDiagnostic[] } {
@@ -204,6 +224,11 @@ export function validateConfigPayload(payload: unknown): ConfigDiagnostic[] {
       systemAddendum: "string",
       plannerPromptPath: "string",
       plannerAddendum: "string"
+    },
+    hooks: {
+      mode: "string",
+      promptMaxChars: "number",
+      beforeFinal: "string"
     }
   };
   const record = payload as Record<string, unknown>;
@@ -226,6 +251,13 @@ export function validateConfigPayload(payload: unknown): ConfigDiagnostic[] {
       }
       if (!matchesConfigType(sectionRecord[field], expected)) {
         diagnostics.push({ level: "error", message: `Config key ${key}.${field} must be ${expected === "nullableBoolean" ? "boolean or null" : expected}.` });
+        continue;
+      }
+      if (key === "hooks" && field === "mode" && !["off", "trace_only", "hint"].includes(String(sectionRecord[field]))) {
+        diagnostics.push({ level: "error", message: "Config key hooks.mode must be one of off, trace_only, hint." });
+      }
+      if (key === "hooks" && field === "beforeFinal" && !["off", "warning"].includes(String(sectionRecord[field]))) {
+        diagnostics.push({ level: "error", message: "Config key hooks.beforeFinal must be one of off, warning." });
       }
     }
   }

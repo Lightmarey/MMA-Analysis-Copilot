@@ -242,12 +242,12 @@ export function runAgentHooks(context: AgentHookContext): AgentHookResult[] {
     .flatMap(hook => hook.run(context));
 }
 
-export function hookResultsToPrompt(results: AgentHookResult[]): string {
+export function hookResultsToPrompt(results: AgentHookResult[], options: { maxChars?: number } = {}): string {
   const hints = results
     .map(result => result.promptHint?.trim())
     .filter((hint): hint is string => Boolean(hint));
   if (!hints.length) return "";
-  return ["Agent workflow hook guidance:", ...hints.map(hint => `- ${hint}`)].join("\n");
+  return truncatePrompt(["Agent workflow hook guidance:", ...hints.map(hint => `- ${hint}`)].join("\n"), options.maxChars);
 }
 
 function toolSignature(entry: ToolHistoryEntry): string {
@@ -313,4 +313,10 @@ function buildTransformLedgerEvidence(text: string): Record<string, unknown> {
 
 function truncate(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3)}...`;
+}
+
+function truncatePrompt(value: string, maxChars?: number): string {
+  if (!maxChars || maxChars < 120 || value.length <= maxChars) return value;
+  const suffix = "\n- Hook guidance truncated by hookPromptMaxChars; use the trace for full hook evidence.";
+  return `${value.slice(0, Math.max(0, maxChars - suffix.length))}${suffix}`;
 }

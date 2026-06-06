@@ -90,7 +90,7 @@ export class MathAgent {
     const toolHistory: ToolHistoryEntry[] = [];
     const firedHookIds = new Set<string>();
 
-    if (config.preplanEnabled) {
+    if (config.preplanEnabled && config.hookMode !== "off") {
       const afterPlanHooks = runAgentHooks({
         phase: "after_plan",
         userMessage,
@@ -135,7 +135,7 @@ export class MathAgent {
 
       if (!message.tool_calls?.length) {
         const finalText = collected.join("\n\n").trim();
-        const beforeFinalHooks = runAgentHooks({
+        const beforeFinalHooks = config.hookMode === "off" ? [] : runAgentHooks({
           phase: "before_final",
           userMessage,
           messages: this.messages,
@@ -144,7 +144,9 @@ export class MathAgent {
           firedHookIds
         });
         emitHooks(beforeFinalHooks, callbacks, firedHookIds);
-        const beforeFinalPrompt = hookResultsToPrompt(beforeFinalHooks);
+        const beforeFinalPrompt = shouldInjectBeforeFinalPrompt(beforeFinalHooks)
+          ? hookResultsToPrompt(beforeFinalHooks, { maxChars: config.hookPromptMaxChars })
+          : "";
         if (beforeFinalPrompt) {
           this.messages.push({ role: "system", content: beforeFinalPrompt });
           this.messages.push({
@@ -171,7 +173,7 @@ export class MathAgent {
         const name = toolCall.function.name as AgentToolName;
         const args = safeParseObject(toolCall.function.arguments);
         const proposedTool: ToolHistoryEntry = { name, args };
-        const beforeToolHooks = runAgentHooks({
+        const beforeToolHooks = config.hookMode === "off" ? [] : runAgentHooks({
           phase: "before_tool_call",
           userMessage,
           messages: this.messages,
@@ -194,7 +196,7 @@ export class MathAgent {
           tool_call_id: toolCall.id,
           content: toolText
         });
-        const afterToolHooks = runAgentHooks({
+        const afterToolHooks = config.hookMode === "off" ? [] : runAgentHooks({
           phase: "after_tool_call",
           userMessage,
           messages: this.messages,
@@ -233,8 +235,15 @@ function emitHooks(results: AgentHookResult[], callbacks: AgentCallbacks, firedH
 }
 
 function pushHookPrompt(messages: ChatCompletionMessageParam[], results: AgentHookResult[]): void {
-  const prompt = hookResultsToPrompt(results);
+  if (config.hookMode !== "hint") return;
+  const prompt = hookResultsToPrompt(results, { maxChars: config.hookPromptMaxChars });
   if (prompt) messages.push({ role: "system", content: prompt });
+}
+
+function shouldInjectBeforeFinalPrompt(results: AgentHookResult[]): boolean {
+  if (config.hookMode !== "hint") return false;
+  if (config.hookBeforeFinal === "off") return false;
+  return results.some(result => result.severity === "warning" || result.severity === "block");
 }
 
 function resolveDifficulty(

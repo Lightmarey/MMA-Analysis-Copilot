@@ -30,9 +30,9 @@ export async function runDoctor(): Promise<void> {
   }
   console.log(`${chalk.bold("Preplanning:")} ${config.preplanEnabled ? "enabled" : "disabled"}`);
   console.log(`${chalk.bold("LLM planning:")} ${config.llmPlanningEnabled ? "enabled" : "disabled"}`);
+  console.log(`${chalk.bold("Hooks:")} mode=${config.hookMode}, beforeFinal=${config.hookBeforeFinal}, promptMaxChars=${config.hookPromptMaxChars}`);
   console.log(`${chalk.bold("Max iterations:")} ${config.maxIterations}`);
   console.log(`${chalk.bold("Temperature:")} ${config.temperature}`);
   console.log(`${chalk.bold("OpenAI API key:")} ${config.openaiApiKey ? "set" : "missing"}`);
   console.log(`${chalk.bold("OpenAI base URL:")} ${config.openaiBaseUrl ?? "(default)"}`);
 }
-

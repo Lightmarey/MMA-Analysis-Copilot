@@ -25,6 +25,10 @@ assert.match(prompt, /Agent workflow hook guidance/);
 assert.match(prompt, /proof_pattern_engine/);
 assert.match(prompt, /assumption ledger/);
 
+const cappedPrompt = hookResultsToPrompt(proofHints, { maxChars: 180 });
+assert.ok(cappedPrompt.length <= 260);
+assert.match(cappedPrompt, /truncated by hookPromptMaxChars/);
+
 const expressionHint = proofHints.find(result => result.id === "expression-candidate-hook");
 assert.ok(expressionHint);
 assert.deepEqual(expressionHint.evidence?.candidates, ["A==B"]);

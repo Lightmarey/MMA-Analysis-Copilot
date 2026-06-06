@@ -90,12 +90,28 @@ Minimal useful fields:
     "systemAddendum": "",
     "plannerPromptPath": "",
     "plannerAddendum": ""
+  },
+  "hooks": {
+    "mode": "hint",
+    "promptMaxChars": 1200,
+    "beforeFinal": "warning"
   }
 }
 ```
 
 Environment variables are supported as temporary overrides. The config file is
 preferred for local development.
+
+Hook modes control token cost:
+
+- `hint` records hook hits and injects bounded workflow guidance into the model
+  context.
+- `trace_only` records hook hits in traces without adding model context.
+- `off` disables hook execution.
+
+`hooks.beforeFinal` controls whether warning-level final-answer hooks may add one
+extra model round before the answer is returned. Set it to `off` for minimum
+latency and token usage.
 
 ## Commands
 

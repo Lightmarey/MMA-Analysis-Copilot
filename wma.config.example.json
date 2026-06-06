@@ -30,5 +30,10 @@
     "systemAddendum": "",
     "plannerPromptPath": "",
     "plannerAddendum": ""
+  },
+  "hooks": {
+    "mode": "hint",
+    "promptMaxChars": 1200,
+    "beforeFinal": "warning"
   }
 }
