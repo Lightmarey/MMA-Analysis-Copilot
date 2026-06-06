@@ -93,6 +93,7 @@ export function formatTrace(trace: TraceEvent[], mode: TraceMode = "full"): stri
       lines.push(`- severity: ${event.result.severity}`);
       if (event.result.traceTag) lines.push(`- tag: ${event.result.traceTag}`);
       lines.push(`- message: ${event.result.message}`);
+      if (event.result.evidence) lines.push(`- evidence: ${truncateInline(JSON.stringify(event.result.evidence), mode === "compact" ? 180 : 500)}`);
       lines.push("");
     }
   }

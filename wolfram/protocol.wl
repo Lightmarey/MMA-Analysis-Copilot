@@ -68,7 +68,8 @@ WMAHandleRequest[req_Association] := Module[
   {
     id, tool, args, timeoutMs, start, expr, var, lower, upper, assumptions,
     operation, point, direction, method, result, order, funcs, transform,
-    targetVar, matrix
+    targetVar, matrix, lhs, rhs, expected, series, normal, difference,
+    coefficientRules, residual
   },
   id = Lookup[req, "id", Null];
   tool = Lookup[req, "tool", ""];
@@ -100,6 +101,32 @@ WMAHandleRequest[req_Association] := Module[
       timeoutMs
     ];
     Return[WMAFormatResult[id, operation, start, result]];
+  ];
+
+  If[tool === "wolfram_equivalence_check",
+    lhs = WMAParseInput[Lookup[args, "lhs", ""]];
+    rhs = WMAParseInput[Lookup[args, "rhs", ""]];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
+    method = Lookup[args, "mode", "auto"];
+    result = WMAWithTime[
+      Assuming[assumptions,
+        Switch[method,
+          "difference_zero",
+            FullSimplify[lhs - rhs == 0, assumptions],
+          "equivalent",
+            FullSimplify[Equivalent[lhs, rhs], assumptions],
+          "reduce_equivalence",
+            FullSimplify[Reduce[Implies[assumptions, Equivalent[lhs, rhs]]], assumptions],
+          _,
+            <|
+              "DifferenceZero" -> FullSimplify[lhs - rhs == 0, assumptions],
+              "Equivalent" -> FullSimplify[Equivalent[lhs, rhs], assumptions]
+            |>
+        ]
+      ],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, "Equivalence check", start, result]];
   ];
 
   If[tool === "wolfram_integrate",
@@ -243,6 +270,47 @@ WMAHandleRequest[req_Association] := Module[
       timeoutMs
     ];
     Return[WMAFormatResult[id, "Series", start, result]];
+  ];
+
+  If[tool === "series_coefficient_check",
+    expr = WMAParseInput[Lookup[args, "expr", ""]];
+    var = WMAParseInput[Lookup[args, "variable", "x"]];
+    point = WMAParseInput[Lookup[args, "point", "0"]];
+    order = WMAParseInteger[Lookup[args, "order", 5], 5];
+    expected = WMAParseInput[Lookup[args, "expected", ""]];
+    assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
+    result = WMAWithTime[
+      Assuming[assumptions,
+        With[{v = var, pt = point, ord = order, exp = expected},
+          series = Series[expr, {v, pt, ord}];
+          normal = Normal[series];
+          coefficientRules = Table[
+            (v - pt)^k -> FullSimplify[SeriesCoefficient[expr, {v, pt, k}], assumptions],
+            {k, 0, ord}
+          ];
+          If[exp === $Failed,
+            <|
+              "Series" -> series,
+              "Normal" -> normal,
+              "CoefficientRules" -> coefficientRules
+            |>,
+            difference = FullSimplify[normal - exp, assumptions];
+            residual = Quiet@Check[Series[expr - exp, {v, pt, ord}], $Failed];
+            <|
+              "Series" -> series,
+              "Normal" -> normal,
+              "Expected" -> exp,
+              "DifferenceZero" -> FullSimplify[difference == 0, assumptions],
+              "Difference" -> difference,
+              "ResidualSeries" -> residual,
+              "CoefficientRules" -> coefficientRules
+            |>
+          ]
+        ]
+      ],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, "Series coefficient check", start, result]];
   ];
 
   If[tool === "wolfram_sum",

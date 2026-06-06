@@ -24,6 +24,7 @@ assert.match(system, /\(D\[expr, r\] \/. r -> 1\)/);
 assert.match(system, /repeated derivatives inside list entries/);
 assert.match(system, /do not use SameQ\/===/);
 assert.match(system, /hypotheses in the tool assumptions field/);
+assert.match(system, /prefer wolfram_equivalence_check over solving the original equation/);
 assert.match(system, /Do not call wolfram_solve with variables=\{\}/);
 assert.match(system, /dimensionless substitution d = a\*q/);
 assert.match(system, /do not spend more tool calls retrying the same bare power inequality/);
@@ -78,10 +79,26 @@ assert.match(simplifyTool.schema.function.parameters.properties.expr.description
 assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /not underscores/);
 assert.match(simplifyTool.schema.function.parameters.properties.assumptions.description, /Put hypotheses here/);
 
+const equivalenceTool = toolDefinitions.find(tool => tool.name === "wolfram_equivalence_check");
+assert.ok(equivalenceTool);
+assert.match(equivalenceTool.description, /two already chosen/);
+assert.match(equivalenceTool.description, /does not choose formulas/);
+assert.ok((equivalenceTool.schema.function.parameters.properties.mode.enum as string[]).includes("auto"));
+assert.ok((equivalenceTool.schema.function.parameters.properties.mode.enum as string[]).includes("reduce_equivalence"));
+assert.doesNotMatch(equivalenceTool.description, /Hessian|Pohozaev|Yamabe|WHY|quotient/i);
+
+const seriesCoefficientTool = toolDefinitions.find(tool => tool.name === "series_coefficient_check");
+assert.ok(seriesCoefficientTool);
+assert.match(seriesCoefficientTool.description, /local expansion coefficients/);
+assert.match(seriesCoefficientTool.description, /does not select the expansion target/);
+assert.match(seriesCoefficientTool.schema.function.parameters.properties.expected.description, /Expected truncated expression/);
+assert.doesNotMatch(seriesCoefficientTool.description, /zeta|Laurent residue|WHY|Hessian|Yamabe/i);
+
 const solveTool = toolDefinitions.find(tool => tool.name === "wolfram_solve");
 assert.ok(solveTool);
-assert.match(solveTool.description, /conditional inequality equivalence/);
+assert.match(solveTool.description, /conditional inequality implication checks/);
 assert.match(solveTool.description, /log\/exponential rearrangements/);
+assert.match(solveTool.description, /use wolfram_equivalence_check first/);
 assert.match(solveTool.description, /simple proposition or implication/);
 assert.match(solveTool.description, /instead of variables=\{\}/);
 assert.match(solveTool.schema.function.parameters.properties.variables.description, /do not use \{\}/);

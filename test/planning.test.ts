@@ -119,6 +119,15 @@ const formulaTransformProblem = "Need a proof-level transformation ledger: choos
 const formulaTransformPlan = createPreplan(formulaTransformProblem);
 assert.ok(formulaTransformPlan.recommendedTools.includes("proof_pattern_engine"));
 
+const equivalenceProblem = "Verify that the before/after expressions are equivalent: lhs and rhs should be the same under the stated assumptions.";
+const equivalencePlan = createPreplan(equivalenceProblem);
+assert.ok(equivalencePlan.recommendedTools.includes("wolfram_equivalence_check"));
+
+const coefficientProblem = "Check the Laurent series coefficient and residual order for an explicit local expansion.";
+const coefficientPlan = createPreplan(coefficientProblem);
+assert.ok(coefficientPlan.recommendedTools.includes("wolfram_series"));
+assert.ok(coefficientPlan.recommendedTools.includes("series_coefficient_check"));
+
 const variationalProblem = "Check the first variation and Euler-Lagrange equation for a constrained nonlinear functional on a Nehari manifold.";
 const variationalAnalysis = analyzeProblem(variationalProblem);
 const variationalPlan = createPreplan(variationalProblem, variationalAnalysis);

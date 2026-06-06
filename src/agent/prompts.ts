@@ -36,6 +36,7 @@ Tool discipline:
 - Parenthesize every derivative substitution, e.g. (D[expr, r] /. r -> 1), including repeated derivatives inside list entries, so replacement rules do not bind to the derivative variable.
 - For rescaling checks, name original and rescaled variables separately before simplifying powers.
 - For inequality equivalence, implication, or logarithmic rearrangement under conditions, prefer Reduce via wolfram_solve over Refine-only simplification.
+- When a candidate expression or before/after transformation is already supplied, prefer wolfram_equivalence_check over solving the original equation from scratch.
 - For mathematical equivalence of equations, use Equivalent or Reduce; do not use SameQ/=== except for intentional syntax identity checks.
 - To verify a conclusion under stated hypotheses, put the hypotheses in the tool assumptions field and simplify/refine the conclusion directly before trying a bare Implies.
 - Do not call wolfram_solve with variables={}; for propositions without concrete solve variables, use wolfram_simplify.

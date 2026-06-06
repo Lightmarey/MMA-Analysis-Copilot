@@ -13,6 +13,25 @@ try {
   assert.equal(simplify.ok, true);
   assert.equal(simplify.output, "1");
 
+  const equivalence = await backend.call("wolfram_equivalence_check", {
+    lhs: "(K+dK)/(L+dL) - K/L",
+    rhs: "(dK*L - dL*K)/(L*(L+dL))",
+    assumptions: "L != 0 && L + dL != 0",
+    mode: "auto"
+  });
+  assert.equal(equivalence.ok, true);
+  assert.match(equivalence.output ?? "", /DifferenceZero.*True/);
+  assert.match(equivalence.output ?? "", /Equivalent.*True/);
+
+  const reduceEquivalence = await backend.call("wolfram_equivalence_check", {
+    lhs: "x > 1",
+    rhs: "x >= 1 && x != 1",
+    assumptions: "Element[x, Reals]",
+    mode: "reduce_equivalence"
+  });
+  assert.equal(reduceEquivalence.ok, true);
+  assert.equal(reduceEquivalence.output, "True");
+
   const integral = await backend.call("wolfram_integrate", {
     expr: "x^2 Exp[-x]",
     variable: "x",
@@ -81,6 +100,18 @@ try {
   });
   assert.equal(series.ok, true);
   assert.match(series.output ?? "", /x\^5\/120/);
+
+  const seriesCoefficient = await backend.call("series_coefficient_check", {
+    expr: "Exp[x]",
+    variable: "x",
+    point: "0",
+    order: 3,
+    expected: "1 + x + x^2/2 + x^3/6",
+    assumptions: ""
+  });
+  assert.equal(seriesCoefficient.ok, true);
+  assert.match(seriesCoefficient.output ?? "", /DifferenceZero.*True/);
+  assert.match(seriesCoefficient.output ?? "", /CoefficientRules/);
 
   const sum = await backend.call("wolfram_sum", {
     expr: "k",

@@ -10,18 +10,47 @@ const baseContext = {
 const proofHints = runAgentHooks({
   ...baseContext,
   phase: "after_plan",
-  userMessage: "Create a proof-level ledger for this supplied formula transformation and its side conditions.",
+  userMessage: "Create a proof-level ledger for this supplied formula transformation $A==B$ and its side conditions.",
   planContext: "local_tool_hints: proof_pattern_engine"
 });
-assert.equal(proofHints.length, 1);
-assert.equal(proofHints[0].id, "proof-pattern-opportunity");
-assert.equal(proofHints[0].severity, "hint");
-assert.match(proofHints[0].promptHint ?? "", /operation=compile/);
-assert.doesNotMatch(proofHints[0].promptHint ?? "", /Hessian|Pohozaev|Yamabe|quotient/i);
+assert.ok(proofHints.some(result => result.id === "transform-ledger-hook"));
+const transformHint = proofHints.find(result => result.id === "transform-ledger-hook");
+assert.ok(transformHint);
+assert.equal(transformHint.severity, "hint");
+assert.match(transformHint.promptHint ?? "", /operation=compile/);
+assert.doesNotMatch(transformHint.promptHint ?? "", /Hessian|Pohozaev|Yamabe|quotient/i);
 
 const prompt = hookResultsToPrompt(proofHints);
 assert.match(prompt, /Agent workflow hook guidance/);
 assert.match(prompt, /proof_pattern_engine/);
+assert.match(prompt, /assumption ledger/);
+
+const expressionHint = proofHints.find(result => result.id === "expression-candidate-hook");
+assert.ok(expressionHint);
+assert.deepEqual(expressionHint.evidence?.candidates, ["A==B"]);
+
+const assumptionHint = proofHints.find(result => result.id === "assumption-ledger-hook");
+assert.ok(assumptionHint);
+assert.match(assumptionHint.promptHint ?? "", /Supplied/);
+
+const caseHints = runAgentHooks({
+  ...baseContext,
+  phase: "after_plan",
+  userMessage: "Split into cases lambda<a, lambda==a, and lambda>a, then verify each target.",
+  planContext: ""
+});
+assert.ok(caseHints.some(result => result.id === "case-split-hook"));
+
+const noCaseHints = runAgentHooks({
+  ...baseContext,
+  phase: "after_plan",
+  userMessage: "Track side conditions rho>0 and gamma>0 for a candidate substitution.",
+  planContext: ""
+});
+assert.equal(noCaseHints.some(result => result.id === "case-split-hook"), false);
+assert.ok(noCaseHints.some(result => result.id === "equivalence-check-hook"));
+assert.match(hookResultsToPrompt(noCaseHints), /wolfram_equivalence_check/);
+assert.match(hookResultsToPrompt(noCaseHints), /Do not solve or reduce/);
 
 const repeatedTool: ToolHistoryEntry = {
   name: "wolfram_simplify",
@@ -69,7 +98,7 @@ const convergenceHints = runAgentHooks({
   toolHistory: [
     { name: "proof_pattern_engine", args: { operation: "compile" } },
     {
-      name: "wolfram_simplify",
+      name: "wolfram_equivalence_check",
       args: { expr: "{id1,id2}" },
       result: {
         id: "test",
@@ -80,7 +109,7 @@ const convergenceHints = runAgentHooks({
     }
   ],
   latestTool: {
-    name: "wolfram_simplify",
+    name: "wolfram_equivalence_check",
     args: { expr: "{id1,id2}" },
     result: {
       id: "test",
@@ -112,5 +141,35 @@ const verifiedFinal = runAgentHooks({
   finalText: "Therefore A[0] + B[0] == C[0]."
 });
 assert.equal(verifiedFinal.length, 0);
+
+const seriesVerifiedFinal = runAgentHooks({
+  ...baseContext,
+  phase: "before_final",
+  userMessage: "Check the expansion.",
+  toolHistory: [{ name: "series_coefficient_check", args: { expr: "1+x", variable: "x" } }],
+  finalText: "Therefore H[s] = c0 + c1*s + O[s]^2."
+});
+assert.equal(seriesVerifiedFinal.some(result => result.id === "symbolic-target-before-final"), false);
+
+const conditionFinalWarnings = runAgentHooks({
+  ...baseContext,
+  phase: "before_final",
+  userMessage: "Compute the integral.",
+  toolHistory: [{
+    name: "wolfram_integrate",
+    args: { expr: "x^a" },
+    result: {
+      id: "test",
+      ok: true,
+      title: "Integrate",
+      output: "(1+a)^(-1)",
+      conditions: "Re[a] > -1"
+    }
+  }],
+  finalText: "The integral equals 1/(a+1)."
+});
+assert.equal(conditionFinalWarnings.length, 1);
+assert.equal(conditionFinalWarnings[0].id, "assumption-ledger-before-final");
+assert.match(conditionFinalWarnings[0].promptHint ?? "", /conditions explicitly/);
 
 console.log("hook tests passed");

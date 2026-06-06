@@ -22,6 +22,7 @@ export const publicWolframToolNames = [
   "proof_pattern_engine",
   "wolfram_eval",
   "wolfram_simplify",
+  "wolfram_equivalence_check",
   "wolfram_integrate",
   "wolfram_differentiate",
   "wolfram_limit",
@@ -29,6 +30,7 @@ export const publicWolframToolNames = [
   "wolfram_algebra",
   "wolfram_matrix",
   "wolfram_series",
+  "series_coefficient_check",
   "wolfram_sum",
   "wolfram_convergence",
   "wolfram_dsolve",
@@ -67,7 +69,7 @@ export const toolDefinitions: ToolDefinition[] = [
       state: { type: "string", description: "Existing proof-state Association in Wolfram InputForm syntax, or empty to create one from goal/context/known." },
       moveId: { type: "string", description: "Candidate move identifier returned by suggest, or empty to apply the first suitable candidate." },
       ruleName: { type: "string", description: "Optional abstract transform family name for focused operations, or empty." },
-      payload: { type: "string", description: "Auxiliary proof-transform data as a Wolfram Association in InputForm. Include only formulas, bindings, parameters, proposed transforms, and side conditions supplied by the problem or already derived in the conversation. For compile, provide the supplied move name or rule intent, transformation steps, bindings, side conditions, and missing conditions to track; bindings are stored inertly rather than evaluated." }
+      payload: { type: "string", description: "Auxiliary proof-transform data as a Wolfram Association in InputForm using <|key -> value|> syntax. Do not use JSON, XML-like wrappers, or <Association[...]> syntax. Include only formulas, bindings, parameters, proposed transforms, and side conditions supplied by the problem or already derived in the conversation. For compile, provide the supplied move name or rule intent, transformation steps, bindings, side conditions, and missing conditions to track; bindings are stored inertly rather than evaluated." }
     }
   ),
   defineTool(
@@ -141,6 +143,16 @@ export const toolDefinitions: ToolDefinition[] = [
     }
   ),
   defineTool(
+    "wolfram_equivalence_check",
+    "Verify whether two already chosen Wolfram Language expressions are equivalent under stated assumptions. Use this when the task is to check that a supplied transformation, substitution result, rearrangement, or before/after expression is consistent. It does not choose formulas, proof moves, side conditions, or case splits.",
+    {
+      lhs: { type: "string", description: "Left expression in Wolfram Language InputForm syntax. Do not include assumptions here." },
+      rhs: { type: "string", description: "Right expression in Wolfram Language InputForm syntax. Do not include assumptions here." },
+      assumptions: { type: "string", description: "Wolfram assumptions, or empty string." },
+      mode: { type: "string", enum: ["auto", "difference_zero", "equivalent", "reduce_equivalence"], description: "Equivalence strategy. Use auto for the default combined check; difference_zero for lhs-rhs simplification; equivalent for Equivalent[lhs,rhs]; reduce_equivalence for Reduce-based logical equivalence." }
+    }
+  ),
+  defineTool(
     "wolfram_integrate",
     "Compute an indefinite or definite integral with optional assumptions.",
     {
@@ -174,7 +186,7 @@ export const toolDefinitions: ToolDefinition[] = [
   ),
   defineTool(
     "wolfram_solve",
-    "Solve or reduce equations and inequalities using Wolfram Language. Use == for equations. Prefer method Reduce for conditional inequality equivalence, implication checks, log/exponential rearrangements, and domains with parameters. For a simple proposition or implication already expressed with Implies[...] under assumptions, use wolfram_simplify instead. Provide concrete variables such as x or {x, y}; for a proposition with no variables to solve for, use wolfram_simplify instead of variables={}.",
+    "Solve or reduce equations and inequalities using Wolfram Language when the unknown solution set or parameter domain must be derived. Use == for equations. Prefer method Reduce for conditional inequality implication checks, log/exponential rearrangements, and domains with parameters. If a candidate result, before/after expression, or transformation target is already supplied, use wolfram_equivalence_check first instead of solving the original equation from scratch. For a simple proposition or implication already expressed with Implies[...] under assumptions, use wolfram_simplify instead. Provide concrete variables such as x or {x, y}; for a proposition with no variables to solve for, use wolfram_simplify instead of variables={}.",
     {
       equations: { type: "string", description: "Equation, inequality, or list of equations in Wolfram syntax." },
       variables: { type: "string", description: "Variable or list of variables in Wolfram syntax, e.g. x or {x, y}; do not use {}." },
@@ -221,6 +233,18 @@ export const toolDefinitions: ToolDefinition[] = [
       variable: { type: "string", description: "Summation variable." },
       lower: { type: "string", description: "Lower bound, or empty string for an indefinite sum." },
       upper: { type: "string", description: "Upper bound, e.g. n or Infinity, or empty string." },
+      assumptions: { type: "string", description: "Wolfram assumptions, or empty string." }
+    }
+  ),
+  defineTool(
+    "series_coefficient_check",
+    "Verify local expansion coefficients, truncated normal form, and residual order for an already chosen expression. Use this when the expansion point, variable, order, and expected approximation or coefficient are explicit. It does not select the expansion target or justify analytic continuation assumptions.",
+    {
+      expr: { type: "string", description: "Expression to expand in Wolfram Language InputForm syntax." },
+      variable: { type: "string", description: "Expansion variable." },
+      point: { type: "string", description: "Expansion point, e.g. 0 or Infinity." },
+      order: { type: "integer", description: "Expansion order to compute." },
+      expected: { type: "string", description: "Expected truncated expression, coefficient rule, or empty string when only the expansion is requested." },
       assumptions: { type: "string", description: "Wolfram assumptions, or empty string." }
     }
   ),
