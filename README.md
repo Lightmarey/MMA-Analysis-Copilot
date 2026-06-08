@@ -1,100 +1,161 @@
 # Wolfram Math Agent
 
-Wolfram Math Agent is a TypeScript CLI for math assistance backed by Wolfram
-Engine. It is built for interactive analysis and PDE proof work: the LLM
-chooses a route, decomposes the problem, and calls structured Wolfram tools for
-explicit calculations. Analytic assumptions remain visible instead of being
-silently treated as computer-verified facts.
+**Wolfram Math Agent** is a TypeScript CLI that combines large language models (LLM) with a live Wolfram Engine for **interactive mathematical analysis and PDE proof assistance**.
+It does **not** treat analytic assumptions as computer‑verified facts – assumptions remain visible, traceable, and under your control.
 
-The current project lives in this repository as an interactive proof assistant,
-not a whole-paper verifier or corpus-indexing system. Local directories such as
-`testexamples/`, `output/`, and `auxiliary-scripts/` are ignored and may contain
-private experiments; do not commit or quote their contents in public docs.
+[![npm version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/your-org/wolfram-math-agent)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6)](https://www.typescriptlang.org/)
+[![Wolfram](https://img.shields.io/badge/Wolfram-Engine-DD1100)](https://www.wolfram.com/engine/)
 
-## Current Scope
+---
 
-Implemented core capabilities:
+## ✨ Key Features
 
-- CLI modes for REPL, one-shot prompts, file input, stdin input, batch runs, and
-  raw Wolfram evaluation.
-- OpenAI-compatible streaming tool loop with flash/pro model routing.
-- LLM planning plus local theorem/preplanning fallback.
-- Structured Wolfram tools for simplification, equivalence checks, calculus,
-  algebra, matrices, series/coefficient checks, sums, convergence, ODEs,
-  transforms, and residues.
-- Configurable workflow hooks for formula extraction, transform ledgers,
-  assumption ledgers, equivalence-check hints, case-split tracking, and final
-  answer condition checks. Hooks are bounded and can run as hints, trace-only
-  diagnostics, or be disabled.
-- `proof_pattern_engine` for interactive proof-rule and transform suggestions,
-  especially Holder, Cauchy-Schwarz, Young, Poincare, Sobolev, parameter
-  choices, and integration-by-parts seeds.
-- Verification templates for compact local symbolic checks such as product
-  rules, boundary cancellation, Fourier coefficients, first variations,
-  barriers, radial/ODE residuals, Kelvin power algebra, and Hessian matrix
-  invariants.
-- Theorem JSON guidance for theorem-level analysis and elliptic PDE reasoning.
-- Config diagnostics for malformed or unknown `wma.config.json` keys.
-- Tool registry drift tests across TypeScript schemas and the Wolfram protocol.
+- **LLM + Wolfram hybrid** – The LLM plans the approach, then calls structured Wolfram tools for exact calculations.
+- **Interactive proof assistance** – Not a whole‑paper verifier, but a step‑by‑step assistant that keeps assumptions explicit.
+- **Workflow hooks** – Optional, bounded checks (transform ledger, assumption ledger, case splits, final warnings) that can inject guidance or run silently.
+- **Proof Pattern Engine** – Suggests proof moves (Hölder, Cauchy‑Schwarz, Young, Poincaré, integration by parts, etc.) without claiming fully automated theorem proving.
+- **Verification templates** – Compact symbolic checks for product rules, boundary cancellation, Fourier coefficients, Hessian invariants, and more.
+- **Flexible routing** – Automatically routes simple queries to a “flash” model and complex ones to a “pro” model.
+- **Theorem guidance** – JSON‑based theorem library for elliptic PDE reasoning and tactical advice.
+- **CLI & REPL** – One‑shot questions, batch processing, raw Wolfram evaluation, and an interactive REPL with `/tools`, `/model`, `/reset` commands.
 
-Explicitly out of scope for the current release:
+---
 
-- Persistent Wolfram worker mode.
-- GUI or WLJS notebook integration.
-- Automatic whole-paper verification.
-- Corpus indexing over private TeX examples.
-- Broad automatic inequality proof generation.
-- Treating named analytic theorems as Wolfram-proved.
+## 🚀 Quick Start
 
-## Setup
+### Prerequisites
 
-Install dependencies:
+- [Node.js](https://nodejs.org/) 18+
+- [Wolfram Engine](https://www.wolfram.com/engine/) (or Mathematica) installed, with `wolframscript` in your PATH.
+- An OpenAI‑compatible API key (e.g., DeepSeek, OpenAI).
 
-```powershell
+### Installation
+
+```bash
+git clone https://github.com/your-org/wolfram-math-agent
+cd wolfram-math-agent
 npm install
+cp wma.config.example.json wma.config.json   # create your config file
 ```
 
-Create the local config file:
+Edit `wma.config.json` – at minimum set your API key, base URL, and the path to `wolframscript`.
 
-```powershell
-Copy-Item wma.config.example.json wma.config.json
+### Run your first query
+
+```bash
+npm run dev -- "Does ∑ 1/k^p converge?"
 ```
 
-Edit `wma.config.json`. This file is ignored by Git and is the normal place for
-API keys, model names, Wolfram path, and prompt overrides.
+Or start the REPL:
 
-Minimal useful fields:
+```bash
+npm run dev
+```
+
+Inside the REPL, you can paste multiline LaTeX problems, use `/help`, switch models with `/model`, and save sessions.
+
+---
+
+## 📦 Core Concepts
+
+### How it works
+
+```text
+Question → Planner (flash model) → Workflow hooks (optional) → Routing (simple/complex) → Tool loop (Wolfram + local tools) → Report + final answer
+```
+
+- The **planner** suggests a route – it does **not** execute code.
+- **Wolfram tools** return `ConditionalExpression` with explicit assumptions (e.g., `Converges if p > 1`). The agent preserves these in the final answer.
+- **Workflow hooks** (e.g., assumption ledger, case‑split ledger) are deterministic TypeScript checks. They can add short hints to the LLM (`mode: hint`), only log to traces (`mode: trace_only`), or be disabled (`mode: off`).
+- **Before‑final warning** hooks may trigger one extra LLM round when `hooks.beforeFinal: "warning"` (default) to catch unverified symbolic claims.
+
+### Wolfram Tools
+
+All tools are structured calls to Wolfram Engine. Supported operations:
+
+- `wolfram_eval` – arbitrary Wolfram code
+- `wolfram_simplify`, `equivalence_check`
+- `integrate`, `differentiate`, `limit`, `solve`, `dsolve`
+- `algebra`, `matrix`, `series`, `series_coefficient_check`
+- `sum`, `convergence`
+- `transform` (Laplace, Fourier, etc.)
+- `residue`
+
+Each tool returns both a value and its LaTeX representation, plus any `ConditionalExpression` conditions.
+
+### Proof Pattern Engine
+
+A Wolfram package (`wolfram/ProofPatternEngine.wl`) that suggests or records **small proof moves**:
+
+- `normalize`, `suggest`, `apply`, `trace`, `registry`, `parameter`, `compile`, `register`
+
+Use it to get hints for inequalities (Hölder, Cauchy‑Schwarz, Young) or integration‑by‑parts seeds – not to prove broad analytic theorems automatically.
+
+### Theorem Library
+
+JSON files in `theorems/` provide tactical guidance for theorems (e.g., Maximum Principle). You can generate a draft:
+
+```bash
+npm run theorem:generate -- --name "Maximum principle" --domain elliptic_pde --output output/maximum-principle.json
+```
+
+Lint all theorem files:
+
+```bash
+npm run theorem:lint
+```
+
+---
+
+## 🖥️ CLI Usage
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev -- "question"` | One‑shot query |
+| `npm run dev -- --direct-wolfram "Simplify[Sin[x]^2+Cos[x]^2]"` | Raw Wolfram evaluation (no LLM) |
+| `npm run dev -- -f question.md -o answer.md --trace` | Read prompt from file, save answer, enable trace |
+| `npm run dev -- --batch questions.md --output output/batch` | Batch process a file split by `---` |
+| `npm run dev -- --batch-start 6 --batch-count 3` | Resume batch from question #6 |
+| `npm run dev -- -t 0 -n 12 --thinking off` | Override temperature, max iterations, reasoning display |
+
+**REPL commands** (when running without a prompt):
+
+- `/help` – show help
+- `/tools` – list available Wolfram tools
+- `/model [id\|auto]` – switch model or enable auto‑routing
+- `/reset` – clear conversation history
+- `/last` – repeat last answer
+- `/save [path]` – save current session
+- `/quit` – exit
+
+### Output options
+
+- `--trace [compact\|full]` – saves planning, tool calls, and verification summary.
+- `-o, --output <path>` – writes the final answer (Markdown) to a file.
+
+---
+
+## ⚙️ Configuration
+
+All settings are in `wma.config.json`. Environment variables (e.g., `WOLFRAM_AGENT_HOOK_MODE`) override config values temporarily.
+
+### Minimal config example
 
 ```json
 {
   "openai": {
-    "apiKey": "your-api-key",
+    "apiKey": "your-key",
     "baseUrl": "https://api.deepseek.com",
     "model": "deepseek-chat",
     "flashModel": "deepseek-chat",
     "proModel": "deepseek-chat",
-    "autoDiscoverModels": true,
     "autoRoute": true,
     "llmPlanningEnabled": true,
-    "preplanEnabled": true,
-    "maxIterations": 20,
-    "maxTokens": 8192,
-    "temperature": 0
+    "maxIterations": 20
   },
   "wolfram": {
-    "command": "C:\\Program Files\\Wolfram Research\\WolframScript\\wolframscript.exe",
-    "backendMode": "oneshot",
-    "workerTimeoutMs": 120000
-  },
-  "theorems": {
-    "source": "merge",
-    "externalPath": ""
-  },
-  "prompts": {
-    "systemPromptPath": "",
-    "systemAddendum": "",
-    "plannerPromptPath": "",
-    "plannerAddendum": ""
+    "command": "C:\\Program Files\\Wolfram Research\\WolframScript\\wolframscript.exe"
   },
   "hooks": {
     "mode": "hint",
@@ -104,304 +165,46 @@ Minimal useful fields:
 }
 ```
 
-Environment variables are supported as temporary overrides. The config file is
-preferred for local development.
+### Hook modes
 
-Hook modes control token cost:
+- `hint` – add workflow guidance to the model context (moderate token cost)
+- `trace_only` – record hook hits in traces only (no extra tokens)
+- `off` – completely disable hooks
 
-- `hint` records hook hits and injects bounded workflow guidance into the model
-  context.
-- `trace_only` records hook hits in traces without adding model context.
-- `off` disables hook execution.
+Set `hooks.beforeFinal: "off"` to avoid the extra LLM round for final warnings (minimum latency).
 
-`hooks.beforeFinal` controls whether warning-level final-answer hooks may add one
-extra model round before the answer is returned. Set it to `off` for minimum
-latency and token usage.
+---
 
-Hook environment overrides:
+## 🔧 Development
 
-- `WOLFRAM_AGENT_HOOK_MODE`
-- `WOLFRAM_AGENT_HOOK_PROMPT_MAX_CHARS`
-- `WOLFRAM_AGENT_HOOK_BEFORE_FINAL`
+### Build & test
 
-## Commands
-
-Build and check the project:
-
-```powershell
-npm run build
-npm run doctor
-npm run verify
+```bash
+npm run build        # compile TypeScript
+npm run doctor       # check config and tool registration
+npm run verify       # full delivery gate (build + doctor + tests)
+npm test             # run tests
+npm run test:wolfram # Wolfram integration tests
 ```
 
-Start the interactive REPL:
+### Project structure
 
-```powershell
-npm run dev
+```
+src/
+  cli/          – REPL, batch processing, reports, CLI overrides
+  agent/        – main loop, prompts, planning, routing, tools
+  wolfram/      – Wolfram backend wrapper & types
+  theorems/     – theorem schema, generator, linter
+wolfram/
+  protocol.wl   – Wolfram request dispatcher
+  ProofPatternEngine/ – proof‑pattern package
+theorems/       – JSON theorem guidance
+test/           – TypeScript & Wolfram regression tests
 ```
 
-Ask one question:
+### Adding a new Wolfram tool
 
-```powershell
-npm run dev -- "Determine whether Sum[1/k^p,{k,1,Infinity}] converges."
-```
-
-Evaluate raw Wolfram Language without the LLM:
-
-```powershell
-npm run dev -- --direct-wolfram "FullSimplify[Sin[x]^2 + Cos[x]^2]"
-```
-
-Use file, stdin, or batch input:
-
-```powershell
-npm run dev -- --file question.md --output output/answer.md --trace
-Get-Content question.md | npm run dev -- --output output/answer.md --trace
-npm run dev -- --batch questions.md --output output/batch-run --trace compact
-npm run dev -- --batch questions.md --batch-start 6 --batch-count 3 --output output/batch-resume --trace compact
-```
-
-Runtime overrides:
-
-```powershell
-npm run dev -- -t 0 -n 12 --thinking off --trace compact "Compute a parameter integral and state conditions."
-```
-
-Common CLI options:
-
-| Option | Meaning |
-| --- | --- |
-| `-t, --temperature <number>` | Override `openai.temperature` for one run. |
-| `-n, --max-iterations <number>` | Override the tool-loop iteration budget. |
-| `--thinking off|brief|full` | Control streamed reasoning display. |
-| `--trace [compact|full]` | Save route, plan, tools, and verification summary. Bare `--trace` means compact. |
-| `-o, --output <path>` | Write the final answer or report. |
-| `-f, --file <path>` | Read one prompt from a file. |
-| `-b, --batch <path>` | Split a batch file on lines containing only `---`. |
-| `--batch-start <number>` | Resume from a 1-based source question number. |
-| `--batch-count <number>` | Limit how many source questions are processed. |
-| `--direct-wolfram` | Evaluate the prompt as raw Wolfram Language. |
-
-In REPL mode:
-
-```text
-/help
-/tools
-/model
-/model <id>
-/model auto
-/reset
-/last
-/save [path]
-/quit
-```
-
-Multiline paste is collected as one question, which is the recommended way to
-submit LaTeX problems.
-
-## Agent Flow
-
-The runtime flow is:
-
-```text
-question
--> optional @file inlining
--> LLM planner on the flash model
--> local theorem/preplanning analysis
--> optional bounded workflow hooks
--> merged route: simple -> flash, complex -> pro
--> streaming OpenAI-compatible tool loop
--> structured Wolfram tools and local tools
--> optional Markdown report
--> final answer
-```
-
-The planner is advisory. The final answer should distinguish:
-
-- computations verified by Wolfram;
-- conditions returned by Wolfram;
-- theorem-level assumptions supplied by analysis;
-- proof obligations still requiring user or author input.
-
-## Workflow Hooks
-
-Workflow hooks are deterministic TypeScript checks around the LLM tool loop.
-They do not call the LLM or Wolfram by themselves. In `hint` mode they add short,
-bounded guidance to the next model request; in `trace_only` mode they only appear
-in saved traces; in `off` mode they do not run.
-
-Current hook families:
-
-- expression candidates from pasted formulas;
-- transform ledger hints for `proof_pattern_engine compile`;
-- assumption ledger hints with source labels such as `Supplied`,
-  `DerivedByWolfram`, `AssumedFromContext`, `NeedsUser`, and
-  `GeneratedByParameterChoice`;
-- equivalence-check hints when a before/after expression or candidate result is
-  already supplied;
-- case-split ledger hints for coverage and mutual exclusion;
-- tool-loop guard hints for repeated checks or compact successful
-  verification;
-- before-final warnings for unverified symbolic claims or hidden Wolfram
-  conditions.
-
-Only before-final warning hooks can add an extra model round, and only when
-`hooks.beforeFinal` is `warning`.
-
-## Tool Layers
-
-### Structured Wolfram Tools
-
-The tool schema lives in `src/agent/tools.ts`. Wolfram execution lives in
-`src/wolfram/backend.ts` and `wolfram/protocol.wl`.
-
-Supported tool names:
-
-- `wolfram_eval`
-- `wolfram_simplify`
-- `wolfram_equivalence_check`
-- `wolfram_integrate`
-- `wolfram_differentiate`
-- `wolfram_limit`
-- `wolfram_solve`
-- `wolfram_algebra`
-- `wolfram_matrix`
-- `wolfram_series`
-- `series_coefficient_check`
-- `wolfram_sum`
-- `wolfram_convergence`
-- `wolfram_dsolve`
-- `wolfram_transform`
-- `wolfram_residue`
-
-The supported backend mode is `oneshot`: each call runs `wolframscript -code`.
-`WOLFRAM_BACKEND_MODE=worker` intentionally fails in this release.
-
-Wolfram `ConditionalExpression[value, condition]` results expose the value,
-LaTeX, condition, condition LaTeX, and raw output so reports can preserve
-assumptions.
-
-### Proof Pattern Engine
-
-`proof_pattern_engine` calls the standalone Wolfram package at
-`wolfram/ProofPatternEngine.wl`, with package entrypoint
-`wolfram/ProofPatternEngine/Kernel/init.wl`. The old
-`wolfram/InequalityEngine.wl` entrypoint remains only as a deprecated
-compatibility wrapper.
-
-Use it to suggest or record proof moves, not to prove broad analytic theorems.
-Current operations:
-
-- `normalize`
-- `suggest`
-- `apply`
-- `trace`
-- `registry`
-- `parameter`
-- `compile`
-- `register`
-
-When `suggest` has no candidate, the LLM may use `compile` with a restricted
-intent-only schema containing generic rule intent, transform intent, and
-condition intent labels. The schema must not contain concrete formulas,
-bindings, parameter values, or problem-specific side-condition text. The
-compiler validates this ledger and does not execute LLM-proposed Wolfram code.
-
-### Local Tools
-
-`theorem_advisor` reads theorem guidance from built-in fallback entries and
-`theorems/*.json`.
-
-`verification_template` packages repeated finite checks into compact Wolfram
-calls. Templates are for explicit symbolic targets, not for proving named
-inequality theorems.
-
-## Theorem Library
-
-The theorem library lives in `theorems/*.json`. Entries are tactical guidance:
-
-- keywords and signals for retrieval;
-- prerequisites to check;
-- invariants to track;
-- verification hints;
-- optional Wolfram tactics.
-
-Generate a draft:
-
-```powershell
-npm run theorem:generate -- --name "Maximum principle" --domain elliptic_pde --domain inequalities --keyword "maximum principle" --output output/maximum-principle.json
-```
-
-Lint theorem files:
-
-```powershell
-npm run theorem:lint
-```
-
-Keep theorem JSON at theorem level. Elementary proof moves such as product
-Holder, Cauchy-Schwarz, Young, parameter absorption, and simple
-integration-by-parts candidates belong in `proof_pattern_engine`.
-
-## Prompt Configuration
-
-Prompt construction is centralized in `src/agent/prompts.ts`.
-
-Config keys:
-
-- `prompts.systemPromptPath`
-- `prompts.systemAddendum`
-- `prompts.plannerPromptPath`
-- `prompts.plannerAddendum`
-
-Environment override names:
-
-- `WOLFRAM_AGENT_SYSTEM_PROMPT_PATH`
-- `WOLFRAM_AGENT_SYSTEM_PROMPT_APPEND`
-- `WOLFRAM_AGENT_PLANNER_PROMPT_PATH`
-- `WOLFRAM_AGENT_PLANNER_PROMPT_APPEND`
-
-Use these for prompt experiments instead of hardcoding prompt changes in the
-agent loop.
-
-## Reports And Validation
-
-Saved reports can include:
-
-- route and model;
-- merged preplanning context;
-- compact or full tool trace;
-- Wolfram conditions;
-- verification summary;
-- final answer.
-
-Run the delivery gate before treating changes as complete:
-
-```powershell
-npm run verify
-```
-
-Useful focused checks:
-
-```powershell
-npm run test
-npm run test:wolfram
-npm run test:prompts
-npm run test:theorems
-```
-
-## Project Map
-
-```text
-src/cli/                 CLI, REPL, batch, reports, runtime overrides
-src/agent/               agent loop, prompts, planning, routing, streaming, tools
-src/wolfram/             Node/Wolfram backend wrapper and types
-src/theorems/            theorem schema, generator, linter
-wolfram/protocol.wl      Wolfram request dispatcher
-wolfram/ProofPatternEngine proof-pattern package
-theorems/                theorem guidance data
-test/                    TypeScript and Wolfram-backed regression tests
-```
-
-For current module status and recommended refactors, read
-`IMPLEMENTATION_REPORT.md`. For continuation steps, read
-`NEXT_SESSION_HANDOFF.md`.
+1. Add the tool schema to `src/agent/tools.ts`.
+2. Implement the handler in `src/agent/toolHandlers.ts`.
+3. Add the corresponding Wolfram endpoint in `wolfram/protocol.wl`.
+4. Run `npm run test:wolfram` to verify.

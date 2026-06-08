@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.history
 .env
 .env.local
 wma.config.json
