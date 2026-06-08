@@ -18,6 +18,9 @@ const transformHint = proofHints.find(result => result.id === "transform-ledger-
 assert.ok(transformHint);
 assert.equal(transformHint.severity, "hint");
 assert.match(transformHint.promptHint ?? "", /operation=compile/);
+assert.match(transformHint.promptHint ?? "", /RuleIntent/);
+assert.match(transformHint.promptHint ?? "", /intent ledger/);
+assert.doesNotMatch(transformHint.promptHint ?? "", /bindings/i);
 assert.doesNotMatch(transformHint.promptHint ?? "", /Hessian|Pohozaev|Yamabe|quotient/i);
 
 const prompt = hookResultsToPrompt(proofHints);

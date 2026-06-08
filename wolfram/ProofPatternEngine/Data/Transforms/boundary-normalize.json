@@ -1,0 +1,4 @@
+{
+  "Name": "boundary-normalize",
+  "Description": "Use supplied zero trace or boundary data to select a Poincare normalization."
+}

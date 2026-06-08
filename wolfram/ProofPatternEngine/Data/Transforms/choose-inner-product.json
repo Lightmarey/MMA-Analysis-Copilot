@@ -1,0 +1,4 @@
+{
+  "Name": "choose-inner-product",
+  "Description": "Select the finite-dimensional or weighted inner product structure before applying Cauchy-Schwarz."
+}

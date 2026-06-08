@@ -1,0 +1,4 @@
+{
+  "Name": "abs-dominate",
+  "Description": "Replace |Integral[expr]| by Integral[Abs[expr]] as a proof move requiring integrability."
+}

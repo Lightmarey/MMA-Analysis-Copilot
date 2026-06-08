@@ -1,0 +1,8 @@
+{
+  "Name": "IntegrationByParts",
+  "Family": "identity-transform",
+  "CanonicalForm": "Integral[u' v] = [u v] - Integral[u v']",
+  "Conditions": ["regularity", "boundary traces", "integrability"],
+  "Transforms": ["product-rule", "boundary-term", "move-derivative"],
+  "DefaultVariant": "OneDimensionalProductDerivative"
+}

@@ -1,5 +1,5 @@
-import type { WolframBackend } from "../wolfram/backend.js";
-import type { WolframResponse } from "../wolfram/types.js";
+import type { WolframBackend } from "../../wolfram/backend.js";
+import type { WolframResponse } from "../../wolfram/types.js";
 
 export const verificationTemplateNames = [
   "integration_by_parts_product_rule",

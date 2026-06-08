@@ -1,0 +1,8 @@
+{
+  "Name": "Young",
+  "Family": "pointwise-product",
+  "CanonicalForm": "a b <= a^p/p + b^q/q with conjugate p,q; epsilon form records coefficient obligations",
+  "Conditions": ["p > 1", "q > 1", "1/p + 1/q == 1", "epsilon > 0 for epsilon form"],
+  "Transforms": ["abs-dominate", "choose-small-parameter"],
+  "DefaultVariant": "ConjugateExponentsWithEpsilon"
+}

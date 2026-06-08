@@ -1,0 +1,4 @@
+{
+  "Name": "replace-by-gradient-norm-when-poincare-applies",
+  "Description": "Use Poincare after Sobolev to replace a full Sobolev norm by a gradient norm when the hypotheses allow it."
+}

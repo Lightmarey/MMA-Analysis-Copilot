@@ -1,0 +1,4 @@
+{
+  "Name": "choose-small-parameter",
+  "Description": "Introduce an explicit small positive parameter and leave the finite-dimensional absorption condition visible."
+}

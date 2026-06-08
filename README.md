@@ -284,8 +284,10 @@ assumptions.
 ### Proof Pattern Engine
 
 `proof_pattern_engine` calls the standalone Wolfram package at
-`wolfram/InequalityEngine.wl`, with package entrypoint
-`wolfram/InequalityEngine/Kernel/init.wl`.
+`wolfram/ProofPatternEngine.wl`, with package entrypoint
+`wolfram/ProofPatternEngine/Kernel/init.wl`. The old
+`wolfram/InequalityEngine.wl` entrypoint remains only as a deprecated
+compatibility wrapper.
 
 Use it to suggest or record proof moves, not to prove broad analytic theorems.
 Current operations:
@@ -300,9 +302,10 @@ Current operations:
 - `register`
 
 When `suggest` has no candidate, the LLM may use `compile` with a restricted
-schema containing rule names, transform names, inert string bindings, and
-missing conditions. The compiler validates the schema and does not execute
-LLM-proposed Wolfram code.
+intent-only schema containing generic rule intent, transform intent, and
+condition intent labels. The schema must not contain concrete formulas,
+bindings, parameter values, or problem-specific side-condition text. The
+compiler validates this ledger and does not execute LLM-proposed Wolfram code.
 
 ### Local Tools
 
@@ -394,7 +397,7 @@ src/agent/               agent loop, prompts, planning, routing, streaming, tool
 src/wolfram/             Node/Wolfram backend wrapper and types
 src/theorems/            theorem schema, generator, linter
 wolfram/protocol.wl      Wolfram request dispatcher
-wolfram/InequalityEngine proof-pattern package
+wolfram/ProofPatternEngine proof-pattern package
 theorems/                theorem guidance data
 test/                    TypeScript and Wolfram-backed regression tests
 ```

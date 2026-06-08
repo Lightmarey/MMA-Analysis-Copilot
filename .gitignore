@@ -10,3 +10,5 @@ output/
 testexamples/
 auxiliary-scripts/
 *.log
+IMPLEMENTATION_REPORT.md
+NEXT_SESSION_HANDOFF.md

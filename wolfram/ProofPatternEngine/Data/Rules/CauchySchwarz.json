@@ -1,0 +1,8 @@
+{
+  "Name": "CauchySchwarz",
+  "Family": "integral-product",
+  "CanonicalForm": "Integral[Abs[f g], mu] <= L2Norm[f,mu] L2Norm[g,mu]",
+  "Conditions": ["f in L2", "g in L2", "measurable/integrable product"],
+  "Transforms": ["abs-dominate", "explicit-product", "choose-inner-product"],
+  "DefaultVariant": "IntegralL2"
+}

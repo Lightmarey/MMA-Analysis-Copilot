@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { WolframBackend } from "../src/wolfram/backend.js";
-import { runVerificationTemplate } from "../src/agent/verification-templates.js";
+import { runVerificationTemplate } from "../src/agent/tools/verification-template.js";
 
 const backend = new WolframBackend();
 
@@ -166,11 +166,17 @@ try {
   assert.equal(transform.ok, true);
   assert.match(transform.output ?? "", /a \+ s/);
 
-  const directIneq = await backend.call("wolfram_eval", {
-    code: "InequalityEngine`IneqSuggest[InequalityEngine`IneqNormalize[Integrate[f[x] g[x], {x, 0, 1}]]][[1, \"Rule\"]]"
+  const directProofPattern = await backend.call("wolfram_eval", {
+    code: "ProofPatternEngine`PPSuggest[ProofPatternEngine`PPNormalize[Integrate[f[x] g[x], {x, 0, 1}]]][[1, \"Rule\"]]"
   });
-  assert.equal(directIneq.ok, true);
-  assert.match(directIneq.output ?? "", /Holder/);
+  assert.equal(directProofPattern.ok, true);
+  assert.match(directProofPattern.output ?? "", /Holder/);
+
+  const compatIneq = await backend.call("wolfram_eval", {
+    code: "Get[\"wolfram/InequalityEngine.wl\"]; InequalityEngine`IneqSuggest[InequalityEngine`IneqNormalize[Integrate[f[x] g[x], {x, 0, 1}]]][[1, \"Rule\"]]"
+  });
+  assert.equal(compatIneq.ok, true);
+  assert.match(compatIneq.output ?? "", /Holder/);
 
   const suggestedMove = await backend.call("proof_pattern_engine", {
     operation: "suggest",
@@ -258,6 +264,9 @@ try {
   });
   assert.equal(registry.ok, true);
   assert.match(registry.output ?? "", /RuleCount/);
+  assert.match(registry.output ?? "", /ProofPatternEngine/);
+  assert.match(registry.output ?? "", /CompatibilityAliases/);
+  assert.match(registry.output ?? "", /HeuristicCount/);
   assert.match(registry.output ?? "", /Holder/);
   assert.match(registry.output ?? "", /CauchySchwarz/);
   assert.match(registry.output ?? "", /Young/);
@@ -265,6 +274,17 @@ try {
   assert.match(registry.output ?? "", /Sobolev/);
   assert.match(registry.output ?? "", /LLMMoveSchema/);
   assert.match(registry.output ?? "", /compile/);
+
+  const proofPatternStructure = await backend.call("wolfram_eval", {
+    code: "Module[{ruleFiles, transformFiles, rules, transforms, registry, compiler}, ruleFiles = FileNames[\"*.json\", FileNameJoin[{Directory[], \"wolfram\", \"ProofPatternEngine\", \"Data\", \"Rules\"}]]; transformFiles = FileNames[\"*.json\", FileNameJoin[{Directory[], \"wolfram\", \"ProofPatternEngine\", \"Data\", \"Transforms\"}]]; rules = Import[#, \"RawJSON\"] & /@ ruleFiles; transforms = Import[#, \"RawJSON\"] & /@ transformFiles; registry = ProofPatternEngine`PPHandleRequest[<|\"operation\" -> \"registry\"|>]; compiler = Import[FileNameJoin[{Directory[], \"wolfram\", \"ProofPatternEngine\", \"Kernel\", \"Compiler.wl\"}], \"Text\"]; <|\"RuleFiles\" -> Length[ruleFiles], \"RulesValid\" -> AllTrue[rules, TrueQ[Lookup[ProofPatternEngine`ValidatePPRule[#], \"Valid\", False]] &], \"TransformFiles\" -> Length[transformFiles], \"TransformsValid\" -> AllTrue[transforms, TrueQ[Lookup[ProofPatternEngine`ValidatePPTransform[#], \"Valid\", False]] &], \"HeuristicsLoaded\" -> Lookup[registry, \"HeuristicCount\", 0] >= 5, \"CompilerNoRegistration\" -> ! StringContainsQ[compiler, \"RegisterPPRule[\"] && ! StringContainsQ[compiler, \"RegisterPPTransform[\"]|>]"
+  });
+  assert.equal(proofPatternStructure.ok, true);
+  assert.match(proofPatternStructure.output ?? "", /"RuleFiles" -> 6/);
+  assert.match(proofPatternStructure.output ?? "", /"RulesValid" -> True/);
+  assert.match(proofPatternStructure.output ?? "", /"TransformFiles" -> 11/);
+  assert.match(proofPatternStructure.output ?? "", /"TransformsValid" -> True/);
+  assert.match(proofPatternStructure.output ?? "", /"HeuristicsLoaded" -> True/);
+  assert.match(proofPatternStructure.output ?? "", /"CompilerNoRegistration" -> True/);
 
   const compiledMoveSchema = await backend.call("proof_pattern_engine", {
     operation: "compile",
@@ -274,17 +294,19 @@ try {
     state: "",
     moveId: "",
     ruleName: "",
-    payload: "<|\"Rule\" -> \"Holder\", \"Transforms\" -> {\"abs_dominate\", \"explicit_product\"}, \"Bindings\" -> <|\"f\" -> \"f[x]\", \"g\" -> \"g[x]\", \"p\" -> \"2\", \"q\" -> \"2\"|>, \"MissingConditions\" -> {\"f in L2\", \"g in L2\"}|>"
+    payload: "<|\"RuleIntent\" -> \"Holder\", \"TransformIntents\" -> {\"abs_dominate\", \"explicit_product\"}, \"ConditionIntents\" -> {\"integrability\", \"conjugate exponents\"}, \"MissingConditionIntents\" -> {\"norm membership\"}|>"
   });
   assert.equal(compiledMoveSchema.ok, true);
   assert.match(compiledMoveSchema.output ?? "", /Compiled/);
   assert.match(compiledMoveSchema.output ?? "", /RulePlan/);
-  assert.match(compiledMoveSchema.output ?? "", /Holder/);
+  assert.match(compiledMoveSchema.output ?? "", /RuleIntent/);
   assert.match(compiledMoveSchema.output ?? "", /abs-dominate/);
-  assert.match(compiledMoveSchema.output ?? "", /inert strings/);
+  assert.match(compiledMoveSchema.output ?? "", /ConditionIntents/);
+  assert.match(compiledMoveSchema.output ?? "", /proof-move intent/);
   assert.doesNotMatch(compiledMoveSchema.output ?? "", /ToExpression/);
+  assert.doesNotMatch(compiledMoveSchema.output ?? "", /Bindings/);
 
-  const adHocMoveSchema = await backend.call("proof_pattern_engine", {
+  const problemSpecificSchema = await backend.call("proof_pattern_engine", {
     operation: "compile",
     goal: "",
     known: "",
@@ -294,12 +316,10 @@ try {
     ruleName: "",
     payload: "<|\"moveName\" -> \"quotient difference rewrite\", \"steps\" -> {\"common denominator\", \"cancel shared numerator term\"}, \"bindings\" -> {a -> a[x], b -> b[x]}, \"sideConditions\" -> <|\"denominator\" -> \"b != 0\"|>, \"missingSideConditions\" -> <|\"perturbed denominator\" -> \"b + db != 0\"|>|>"
   });
-  assert.equal(adHocMoveSchema.ok, true);
-  assert.match(adHocMoveSchema.output ?? "", /Compiled/);
-  assert.match(adHocMoveSchema.output ?? "", /AdHocRuleIntent/);
-  assert.match(adHocMoveSchema.output ?? "", /quotient difference rewrite/);
-  assert.match(adHocMoveSchema.output ?? "", /common denominator/);
-  assert.match(adHocMoveSchema.output ?? "", /b != 0/);
+  assert.equal(problemSpecificSchema.ok, true);
+  assert.match(problemSpecificSchema.output ?? "", /Rejected/);
+  assert.match(problemSpecificSchema.output ?? "", /intent-only/);
+  assert.match(problemSpecificSchema.output ?? "", /generic proof intent labels/);
 
   const naturalMoveSchema = await backend.call("proof_pattern_engine", {
     operation: "compile",
@@ -309,7 +329,7 @@ try {
     state: "",
     moveId: "",
     ruleName: "",
-    payload: "<|\"moveLabel\" -> \"scale balance solve\", \"transformation\" -> \"solve a supplied scale equation and verify the candidate\", \"bindings\" -> <|\"R\" -> \"rho^(2/(2+gamma))\"|>, \"sideConditions\" -> {\"rho > 0\", \"gamma > 0\"}, \"missingAssumptions\" -> \"None\"|>"
+    payload: "<|\"moveLabel\" -> \"scale balance solve\", \"transformation\" -> \"solve supplied scale equation\", \"conditionIntents\" -> {\"positive scale parameter\", \"positive exponent parameter\"}, \"missingAssumptions\" -> \"None\"|>"
   });
   assert.equal(naturalMoveSchema.ok, true);
   assert.match(naturalMoveSchema.output ?? "", /Compiled/);
@@ -317,7 +337,7 @@ try {
   assert.match(naturalMoveSchema.output ?? "", /scale balance solve/);
   assert.doesNotMatch(naturalMoveSchema.output ?? "", /Rejected/);
 
-  const naturalBindingNotesSchema = await backend.call("proof_pattern_engine", {
+  const formulaIntentSchema = await backend.call("proof_pattern_engine", {
     operation: "compile",
     goal: "",
     known: "",
@@ -325,13 +345,13 @@ try {
     state: "",
     moveId: "",
     ruleName: "",
-    payload: "<|\"suppliedMove\" -> \"differentiate then substitute\", \"steps\" -> {\"differentiate\", \"substitute\"}, \"bindings\" -> {\"f[s] -> A[s]\", \"g[s] -> c0 + c1*s\"}, \"sideConditions\" -> {\"A differentiable at 0\"}, \"missingConditions\" -> {}|>"
+    payload: "<|\"suppliedMove\" -> \"differentiate then substitute\", \"steps\" -> {\"differentiate\", \"substitute\"}, \"conditionIntents\" -> {\"differentiability\"}, \"missingConditionIntents\" -> {}|>"
   });
-  assert.equal(naturalBindingNotesSchema.ok, true);
-  assert.match(naturalBindingNotesSchema.output ?? "", /Compiled/);
-  assert.match(naturalBindingNotesSchema.output ?? "", /differentiate then substitute/);
-  assert.match(naturalBindingNotesSchema.output ?? "", /binding1/);
-  assert.doesNotMatch(naturalBindingNotesSchema.output ?? "", /Rejected/);
+  assert.equal(formulaIntentSchema.ok, true);
+  assert.match(formulaIntentSchema.output ?? "", /Compiled/);
+  assert.match(formulaIntentSchema.output ?? "", /differentiate then substitute/);
+  assert.doesNotMatch(formulaIntentSchema.output ?? "", /binding1/);
+  assert.doesNotMatch(formulaIntentSchema.output ?? "", /Rejected/);
 
   const noCandidateMove = await backend.call("proof_pattern_engine", {
     operation: "suggest",

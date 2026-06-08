@@ -1,6 +1,6 @@
 $HistoryLength = 0;
 
-Get[FileNameJoin[{DirectoryName[$InputFileName], "InequalityEngine.wl"}]];
+Get[FileNameJoin[{DirectoryName[$InputFileName], "ProofPatternEngine.wl"}]];
 
 ClearAll[
   WMASafeString, WMASafeTeX, WMAParseInput, WMAParseAssumptions,
@@ -83,7 +83,7 @@ WMAHandleRequest[req_Association] := Module[
   ];
 
   If[tool === "proof_pattern_engine" || tool === "inequality_engine",
-    result = WMAWithTime[InequalityEngine`IneqHandleRequest[args], timeoutMs];
+    result = WMAWithTime[ProofPatternEngine`PPHandleRequest[args], timeoutMs];
     Return[WMAFormatResult[id, "Proof pattern engine", start, result]];
   ];
 

@@ -78,8 +78,8 @@ const hooks: AgentHook[] = [
         message: "A supplied formula transformation or side-condition ledger may benefit from proof_pattern_engine compile before concrete Wolfram checks.",
         evidence: buildTransformLedgerEvidence(context.userMessage),
         promptHint: [
-          "Hook hint: if the task includes a supplied formula transformation, first identify source formula, target formula, bindings, side conditions, and missing assumptions.",
-          "Then consider proof_pattern_engine with operation=compile to record the proof move before concrete Wolfram checks; its payload must be a Wolfram InputForm Association like <|\"moveName\" -> \"...\", \"steps\" -> {...}|>, not pseudo XML, JSON, or <Association[...]> syntax.",
+          "Hook hint: if the task includes a supplied formula transformation, first identify the proof-move intent, transform intent, and generic side-condition kinds before concrete Wolfram checks.",
+          "Then consider proof_pattern_engine with operation=compile to record only that intent ledger; its payload must be a Wolfram InputForm Association like <|\"RuleIntent\" -> \"...\", \"TransformIntents\" -> {...}, \"ConditionIntents\" -> {...}|>, not pseudo XML, JSON, concrete formulas, or problem-specific details.",
           "This is optional guidance; verify explicit formulas with structured Wolfram tools when available."
         ].join(" ")
       }];
