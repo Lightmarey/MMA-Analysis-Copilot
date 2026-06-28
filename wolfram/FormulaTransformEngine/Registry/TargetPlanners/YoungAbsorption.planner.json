@@ -2,30 +2,47 @@
   "schemaVersion": 1,
   "kind": "TargetPlanner",
   "name": "YoungAbsorption",
-  "description": "Request-time planner for matching a Young inequality product estimate to an absorption target relation.",
+  "description": "Generic target planner for Young's inequality. Extracts product factors and bounds them using a dynamically inferred epsilon.",
   "rules": ["Young"],
   "families": ["pointwise-product-inequality"],
   "objective": "absorption-target",
-  "runtime": "YoungAbsorption",
-  "targetTemplate": "NotUsedDirectlyYet",
-  "unknownParameters": ["$epsilon", "$c2"],
+  "runtime": "GenericTargetPlanner",
+  "selectedTemplate": "$coeff * $f * $g",
+  "targetTemplate": "$c1 * Abs[$f]^$p + $c2 * Abs[$g]^$q",
+  "unknownParameters": ["$epsilon"],
   "equations": [
      "$c1 == $epsilon * $p^(-1) * $coeff",
      "$c2 == $epsilon^(-$q/$p) * $q^(-1) * $coeff"
   ],
-  "obligationsTemplate": [
-     {"predicate": "TargetCoefficientPositive", "arguments": ["$c1"]},
-     {"predicate": "WeightPositive", "arguments": ["$epsilon"]},
-     {"predicate": "YoungResidualCoefficient", "arguments": ["$residualTarget >= $c2"]}
+  "derivedBindings": {
+    "bound": "$c1 * Abs[$f]^$p + $c2 * Abs[$g]^$q"
+  },
+  "orientations": [
+    {
+      "name": "AbsUpper",
+      "direction": "Auto",
+      "relation": "LessEqual",
+      "lhs": "Abs[$selected]",
+      "rhs": "$bound"
+    },
+    {
+      "name": "SignedUpper",
+      "direction": "Upper",
+      "relation": "LessEqual",
+      "lhs": "$selected",
+      "rhs": "$bound",
+      "conditions": ["RealValued[$selected]"]
+    }
   ],
-  "primitives": [
-    "ParseTargetRelation",
-    "MatchTargetLHS",
-    "ExtractProductFactors",
-    "MatchAlgebraicStructure",
-    "AlgebraicUnification",
-    "InstantiateTemplate",
-    "InstantiateObligations"
+  "conditions": [
+     {
+       "predicate": "TargetCoefficientPositive",
+       "arguments": ["$c1"]
+     },
+     {
+       "predicate": "WeightPositive",
+       "arguments": ["$epsilon"]
+     }
   ],
   "registryMutation": false
 }
