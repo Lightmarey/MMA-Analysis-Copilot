@@ -121,14 +121,6 @@ Derivative product expansion, first-order derivative commutators, explicit facto
 
 Structural transforms use `runtime: "GenericStructural"` when their matcher and equality relation fit the restricted JSON DSL. `DerivativeProduct`, `CommutatorDerivative`, `NormalizeByFactor`, and `DropBoundaryTerm` use this path: JSON declares the matcher, expression parameters, derived bindings, equality template, and side-condition templates, while Wolfram supplies only the compiler primitives and obligation ledger.
 
-### Proof Pattern Engine
-
-A Wolfram package (`wolfram/ProofPatternEngine.wl`) kept as a legacy/internal helper that suggests or records **small proof moves**:
-
-- `normalize`, `suggest`, `apply`, `trace`, `registry`, `parameter`, `compile`, `register`
-
-Use `formula_transform` for concrete formula transformations. Use this engine only for compatibility, abstract proof-state hints, parameter ledgers, or older proof-pattern workflows.
-
 ### Theorem Library
 
 JSON files in `theorems/` provide tactical guidance for theorems (e.g., Maximum Principle). You can generate a draft:
@@ -258,7 +250,6 @@ src/
 wolfram/
   protocol.wl   – Wolfram request dispatcher
   FormulaTransformEngine/ – JSON registry for deterministic formula transforms
-  ProofPatternEngine/ – proof‑pattern package
 theorems/       – JSON theorem guidance
 test/           – TypeScript & Wolfram regression tests
 ```

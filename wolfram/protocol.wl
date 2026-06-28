@@ -1,6 +1,5 @@
 $HistoryLength = 0;
 
-Get[FileNameJoin[{DirectoryName[$InputFileName], "ProofPatternEngine.wl"}]];
 Get[FileNameJoin[{DirectoryName[$InputFileName], "FormulaTransformEngine.wl"}]];
 
 ClearAll[
@@ -100,12 +99,7 @@ WMAHandleRequest[req_Association] := Module[
     Return[WMAFormatResult[id, "Wolfram evaluation", start, result]];
   ];
 
-  If[tool === "proof_pattern_engine" || tool === "inequality_engine",
-    result = WMAWithTime[ProofPatternEngine`PPHandleRequest[args], timeoutMs];
-    Return[WMAFormatResult[id, "Proof pattern engine", start, result]];
-  ];
-
-  If[tool === "formula_transform",
+If[tool === "formula_transform",
     result = WMAWithTime[FormulaTransformEngine`FormulaTransformHandleRequest[args], timeoutMs];
     Return[WMAFormatFormulaTransformResult[id, "Formula transform", start, result]];
   ];

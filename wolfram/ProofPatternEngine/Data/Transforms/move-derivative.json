@@ -1,4 +1,0 @@
-{
-  "Name": "move-derivative",
-  "Description": "Move a derivative from one factor to another using integration by parts under stated assumptions."
-}

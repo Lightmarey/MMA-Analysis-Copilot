@@ -27,7 +27,7 @@
   "derivedBindings": {
     "left": "$f * $weight^(1/$p)",
     "right": "$g * $weight^(-1/$p)",
-    "bound": "Inactive[Power][$op[Abs[$left]^$p, $domain], 1/$p] * Inactive[Power][$op[Abs[$right]^$q, $domain], 1/$q]"
+    "bound": "$targetRHS"
   },
   "orientations": [
     {

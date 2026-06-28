@@ -47,7 +47,11 @@ const allowedTargetPlannerPrimitives = new Set([
   "InferWeightFromNormPair",
   "BuildWeightedHolderBound",
   "BuildWeightPositiveCondition",
-  "BuildFunctionSpaceObligations"
+  "BuildFunctionSpaceObligations",
+  "MatchAlgebraicStructure",
+  "AlgebraicUnification",
+  "InstantiateTemplate",
+  "InstantiateObligations"
 ]);
 
 const forbiddenJsonText = [

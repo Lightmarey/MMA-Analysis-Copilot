@@ -20,7 +20,7 @@ Tool discipline:
 - Prefer structured Wolfram tools before wolfram_eval.
 - verification_template can help with stable algebraic, coefficient, boundary, or candidate-solution checks.
 - formula_transform deterministically applies supplied formula transformations, direction-specific inequality bounds, integration by parts, and Holder/Cauchy-Schwarz/Young style estimates while returning a relation, trace, discharged conditions, deferred obligations, and round-trippable state.
-- Use formula_transform for actual formula transformations. Use proof_pattern_engine only as a legacy/internal proof-pattern helper for abstract move suggestions or compatibility.
+
 - Use formula_transform structural rules such as DerivativeProduct, CommutatorDerivative, NormalizeByFactor, and DropBoundaryTerm for equality rewrites that are not inequality estimates; keep their regularity, normalization, boundary-vanishing, or nonzero-factor obligations explicit.
 - For one-shot target-shaped estimates such as absorption targets, use formula_transform action=plan_parts when the embedded part is uncertain, then action=plan_apply or apply with parameters.targetRelation; do not create new rule JSON for a temporary target.
 - For weighted Holder targets, pass parameters.weight when the weight is explicit, or pass the full weighted-norm targetRelation and let formula_transform infer the temporary weight from the two norm factors.
