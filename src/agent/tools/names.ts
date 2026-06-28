@@ -40,6 +40,7 @@ export const compatWolframToolNames = [
 ] as const satisfies readonly WolframToolName[];
 
 export const localToolNames = [
+  "load_tool",
   "theorem_advisor",
   "verification_template"
 ] as const satisfies readonly LocalToolName[];
