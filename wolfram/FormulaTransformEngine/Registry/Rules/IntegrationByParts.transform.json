@@ -8,7 +8,11 @@
     {
       "name": "OneDimensionalProductDerivative",
       "operator": "Integral",
-      "selectedTemplate": "Inactive[Integrate][Derivative[1][][] * [], {, , }]"
+      "body": {
+        "kind": "DerivativeProduct",
+        "slots": ["u", "v"]
+      },
+      "domainSlot": "domain"
     }
   ],
   "orientations": [
@@ -16,14 +20,42 @@
       "name": "Equality",
       "direction": "Equal",
       "relation": "Equal",
-      "lhs": "",
-      "rhs": "[] * [] - [] * [] - Inactive[Integrate][[] * Derivative[1][][], {, , }]"
+      "lhs": "$selected",
+      "rhs": "BoundaryTerm[$u,$v,$domain] - IBPIntegral[$u,$v,$domain]"
     }
   ],
   "conditions": [
-    "FunctionSpace[, RegularEnoughForIBP[{, , }]]",
-    "FunctionSpace[, RegularEnoughForIBP[{, , }]]",
-    "MeasurableIntegrable[{[] * [] - [] * [], -Inactive[Integrate][[] * Derivative[1][][], {, , }]}, {, , }]"
+    {
+      "predicate": "FunctionSpace",
+      "arguments": [
+        "$u",
+        {
+          "kind": "RegularEnoughForIBP",
+          "args": ["$domain"]
+        }
+      ]
+    },
+    {
+      "predicate": "FunctionSpace",
+      "arguments": [
+        "$v",
+        {
+          "kind": "RegularEnoughForIBP",
+          "args": ["$domain"]
+        }
+      ]
+    },
+    {
+      "predicate": "BoundaryTerm",
+      "arguments": ["BoundaryTerm[$u,$v,$domain]"]
+    },
+    {
+      "predicate": "MeasurableIntegrable",
+      "arguments": [
+        "{BoundaryTerm[$u,$v,$domain], IBPIntegral[$u,$v,$domain]}",
+        "$domain"
+      ]
+    }
   ],
   "compatibleHeuristics": []
 }

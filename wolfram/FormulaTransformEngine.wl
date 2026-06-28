@@ -118,6 +118,7 @@ FTParseState[value_] := Module[{text, parsed},
 FTConditionId[kind_, expr_] := "cond-" <> IntegerString[Hash[{kind, HoldComplete[expr]}, "CRC32"], 16, 8];
 
 FTConditionPredicate[kind_String, expr_] := Which[
+  kind === "BoundaryCondition", "BoundaryCondition",
   MatchQ[expr, Inactive[FunctionSpace][_, _]], "FunctionSpace",
   MatchQ[expr, Inactive[RealValued][_]], "RealValued",
   MatchQ[expr, Inactive[Measurable][_, _]], "Measurable",
@@ -1153,6 +1154,7 @@ FTTerms[expr_Plus] := List @@ expr;
 FTTerms[expr_] := {expr};
 
 FTExpressionFactors[expr_Times] := List @@ expr;
+FTExpressionFactors[Inactive[Times][args__]] := {args};
 FTExpressionFactors[expr_] := {expr};
 
 FTIntegralQ[expr_] := MatchQ[expr, Inactive[Integrate][_, _]];
@@ -1665,8 +1667,11 @@ FTGenericMatcherBindings[compiled_Association, selected_, parameters_Association
         parts = FTIntegralParts[selected];
         If[parts =!= $Failed,
           integrand = First[parts];
-          If[MatchQ[integrand, Derivative[1][_][_] * _],
-            integrand /. Derivative[1][uu_][xx_] * vv_ :> (derivU = uu; var = xx; companion = vv);
+          If[MatchQ[integrand, Derivative[1][_][_] * _ | _ * Derivative[1][_][_]],
+            integrand /. {
+              Derivative[1][uu_][xx_] * vv_ :> (derivU = uu; var = xx; companion = vv),
+              vv_ * Derivative[1][uu_][xx_] :> (derivU = uu; var = xx; companion = vv)
+            };
             result = Join[
               base,
               AssociationThread[slots -> {derivU, companion}],
@@ -2004,7 +2009,7 @@ FTApplyWeightedHolderPlanner[planner_Association, selected_, direction_, paramet
 ];
 
 FTApplyGenericTemplateRule[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", ""], runtime = Lookup[compiled, "Runtime", ""], targetText, targetExpr, selectedBindings, targetBindings, unknowns, equations, bindings, derived, orientations, orientation, relationHead, lhs, rhs, terms, relation, conditionTemplates, conditions, discharged, state2, trace2},
+  {name = Lookup[compiled, "Name", ""], runtime = Lookup[compiled, "Runtime", ""], targetText, targetExpr, selectedBindings, targetBindings, unknowns, equations, bindings, derived, orientations, orientation, relationHead, lhs, rhs, terms, relation, conditionTemplates, conditions, discharged, state2, trace2, search, rewritten, heuristicConditions},
   
   If[MemberQ[{"GenericTargetPlanner", "YoungAbsorption", "WeightedHolder"}, runtime],
     If[name === "YoungAbsorption" || Lookup[compiled, "Runtime", ""] === "YoungAbsorption" || Lookup[compiled, "Objective", ""] === "absorption-target",
@@ -2037,7 +2042,25 @@ FTApplyGenericTemplateRule[compiled_Association, selected_, direction_, paramete
   ,
     bindings = FTGenericMatcherBindings[compiled, selected, parameters];
     If[bindings === $Failed,
-      Return[FTFailure["Inapplicable", name <> " generic template matcher did not match the selected formula.", <|"Trace" -> trace, "State" -> state|>]]
+      search = FTHeuristicSearch[compiled, selected, parameters];
+      If[AssociationQ[search] && Lookup[search, "Status", ""] === "Success",
+        rewritten = Lookup[search, "Rewritten"];
+        bindings = FTGenericMatcherBindings[compiled, rewritten, parameters];
+        If[bindings =!= $Failed,
+          heuristicConditions = Flatten[Lookup[#, "Conditions", {}] & /@ Lookup[search, "HeuristicPipeline", {}]];
+          conditionTemplates = Lookup[compiled, "Conditions", {}];
+          conditions = Join[
+            heuristicConditions,
+            FTCompiledCondition[#, bindings, name] & /@ conditionTemplates,
+            {FTMeasurableIntegrableCondition[rewritten, Lookup[bindings, "domain", Missing["Domain"]], name]}
+          ];
+          trace2 = FTAppendTrace[trace, "HeuristicSearch", <|"HeuristicSearch" -> search, "MatchRule" -> name|>];
+          discharged = FTDischargeConditions[conditions, assumptions, assumptionsText, context, contextText];
+          state2 = FTAddObligations[state, Lookup[discharged, "Deferred", {}], trace2];
+          Return[FTSuccess[<|"Kind" -> "FormulaTransform", "Rule" -> name, "Runtime" -> "JSONHeuristic", "Original" -> selected, "Selected" -> selected, "Rewritten" -> rewritten, "HeuristicDepth" -> Lookup[search, "Depth", 0], "HeuristicSearch" -> search, "Trace" -> trace2, "Conditions" -> discharged, "Obligations" -> Lookup[discharged, "Deferred", {}], "State" -> state2|>]]
+        ]
+      ];
+      Return[FTFailure["Inapplicable", name <> " generic template matcher did not match the selected formula.", <|"Trace" -> trace, "State" -> state, "HeuristicSearch" -> search|>]]
     ]
   ];
   derived = Lookup[compiled, "DerivedBindings", <||>];
