@@ -5,6 +5,7 @@ import { equationSolvingToolDefinitions } from "./definitions/equation-solving-t
 import { localToolDefinitions } from "./definitions/local-tools.js";
 import { proofToolDefinitions } from "./definitions/proof-tools.js";
 import { transformConvergenceToolDefinitions } from "./definitions/transform-convergence-tools.js";
+import { discoveryToolDefinitions } from "./definitions/discovery-tools.js";
 
 const groupedToolDefinitions = [
   ...proofToolDefinitions,

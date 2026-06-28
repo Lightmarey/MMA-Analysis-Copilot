@@ -1,4 +1,3 @@
-import { hasInequalityToolHint } from "../tool-hints.js";
 import { analyzeProblem } from "./analysis.js";
 import type { RouteDifficulty } from "./types.js";
 
@@ -15,7 +14,6 @@ export function classifyDifficulty(problem: string, analysis = analyzeProblem(pr
   if (analysis.scale === "heavy" || analysis.scale === "infeasible_brute_force") return "complex";
   if (analysis.workflow.theoryFirst) return "complex";
   if (COMPLEX_ROUTING_PATTERNS.some(pattern => pattern.test(problem))) return "complex";
-  if (hasInequalityToolHint(problem)) return "complex";
   const matchedTheorems = analysis.suggestedTheorems.length;
   if (matchedTheorems >= 2 && analysis.detectedDomains.length >= 2) return "complex";
   return "simple";

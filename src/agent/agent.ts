@@ -30,6 +30,7 @@ export class MathAgent {
     { role: "system", content: this.systemPrompt }
   ];
   private forcedModel: string | null = null;
+  private activeToolNames = new Set<string>(["theorem_advisor", "verification_template", "wolfram_eval", "wolfram_simplify", "load_tool", "wolfram_equivalence_check"]);
 
   constructor(private readonly wolfram = new WolframBackend()) {
     if (!config.openaiApiKey) {
@@ -107,7 +108,7 @@ export class MathAgent {
       const stream = await this.client.chat.completions.create({
         model: effectiveModel,
         messages: this.messages,
-        tools: toolDefinitions.map(t => t.schema),
+        tools: toolDefinitions.filter(t => this.activeToolNames.has(t.name)).map(t => t.schema),
         tool_choice: "auto",
         max_tokens: config.maxTokens,
         temperature: config.temperature,
@@ -222,6 +223,17 @@ export class MathAgent {
   }
 
   private async callTool(name: AgentToolName, args: Record<string, unknown>) {
+    if (name === "load_tool") {
+      const toolNames = Array.isArray(args.tool_names) ? args.tool_names : [];
+      const loaded: string[] = [];
+      for (const t of toolNames) {
+        if (typeof t === "string") {
+          this.activeToolNames.add(t);
+          loaded.push(t);
+        }
+      }
+      return { id: null, ok: true, title: "load_tool", result: "Loaded tools: " + loaded.join(", ") };
+    }
     if (isWolframToolName(name)) {
       return await this.wolfram.call(name, args);
     }
