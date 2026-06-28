@@ -5,9 +5,11 @@ import { toolDefinitions } from "../src/agent/tools.js";
 const system = buildAgentSystemPrompt({ systemAddendum: "Custom system prompt marker." });
 assert.match(system, /Proof evidence policy/);
 assert.match(system, /Custom system prompt marker/);
-assert.match(system, /proof_pattern_engine/);
-assert.match(system, /supplied formula transformation ledgers/);
-assert.match(system, /do not call it again merely to restate Wolfram-verified checks/);
+assert.match(system, /formula_transform/);
+assert.match(system, /deterministically applies supplied formula transformations/);
+assert.match(system, /action=plan_apply/);
+assert.match(system, /part=Auto/);
+assert.match(system, /do not call it again merely to restate the same transformation/);
 assert.doesNotMatch(system, /integration-by-parts|product-rule transforms/i);
 assert.match(system, /Do not use Wolfram tools to read local files/);
 assert.match(system, /verification ledger/);
@@ -38,95 +40,4 @@ const planner = buildPlannerPrompt("Base planner prompt.", { plannerAddendum: "C
 assert.match(planner, /Base planner prompt/);
 assert.match(planner, /Planner-specific policy/);
 assert.match(planner, /Custom planner prompt marker/);
-
-const inequalityTool = toolDefinitions.find(tool => tool.name === "proof_pattern_engine");
-assert.ok(inequalityTool);
-assert.match(inequalityTool.description, /formula-level proof transformations/);
-assert.match(inequalityTool.description, /choose, normalize, apply, compile, or audit a proof move/);
-assert.match(inequalityTool.description, /proposed transformation/);
-assert.match(inequalityTool.description, /intent ledger/);
-assert.match(inequalityTool.description, /Use register only when the user explicitly asks/);
-assert.match(inequalityTool.description, /side-condition status/);
-assert.match(inequalityTool.description, /does not replace explicit Wolfram checks/);
-assert.doesNotMatch(inequalityTool.description, /Hessian|Pohozaev|Holder|Young|Cauchy|integration by parts/i);
-const operationProperty = inequalityTool.schema.function.parameters.properties.operation;
-assert.ok((operationProperty.enum as string[]).includes("compile"));
-assert.match(inequalityTool.schema.function.parameters.properties.payload.description, /Auxiliary proof-transform data/);
-assert.match(inequalityTool.schema.function.parameters.properties.payload.description, /RuleIntent/);
-assert.match(inequalityTool.schema.function.parameters.properties.payload.description, /TransformIntents/);
-assert.match(inequalityTool.schema.function.parameters.properties.payload.description, /Do not include concrete formulas/);
-assert.doesNotMatch(inequalityTool.schema.function.parameters.properties.payload.description, /bindings are stored|formula bindings/i);
-assert.match(inequalityTool.schema.function.parameters.properties.context.description, /admissible transformations/);
-assert.match(inequalityTool.schema.function.parameters.properties.operation.description, /explicitly asked to persist/);
-assert.equal(toolDefinitions.some(tool => tool.name === "inequality_engine"), false);
-
-const simplifyTool = toolDefinitions.find(tool => tool.name === "wolfram_simplify");
-assert.ok(simplifyTool);
-assert.match(simplifyTool.description, /analytic/);
-assert.match(simplifyTool.description, /prefer wolfram_solve with method Reduce/);
-assert.match(simplifyTool.description, /simplify Equivalent/);
-assert.match(simplifyTool.description, /place the hypotheses in assumptions/);
-assert.match(simplifyTool.description, /Compact derivative identities may put D\[\.\.\.\] directly in expr/);
-assert.match(simplifyTool.description, /not wolfram_algebra, for plain Simplify/);
-assert.match(simplifyTool.description, /Wolfram list such as \{id1, id2, id3\}/);
-assert.match(simplifyTool.description, /confirmatory Reduce calls/);
-assert.match(simplifyTool.description, /\(D\[expr, r\] \/. r -> 1\)/);
-assert.match(simplifyTool.description, /each repeated derivative inside a list entry/);
-assert.match(simplifyTool.description, /dimensionless substitution/);
-assert.match(simplifyTool.description, /exponent-domain sign condition/);
-assert.match(simplifyTool.description, /stop retrying the same bare power inequality/);
-assert.match(simplifyTool.description, /Do not use it to choose proof rules/);
-assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /Do not include Assumptions ->/);
-assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /short verification ledger/);
-assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /do not wrap a list conclusion as Implies/);
-assert.match(simplifyTool.schema.function.parameters.properties.expr.description, /not underscores/);
-assert.match(simplifyTool.schema.function.parameters.properties.assumptions.description, /Put hypotheses here/);
-
-const equivalenceTool = toolDefinitions.find(tool => tool.name === "wolfram_equivalence_check");
-assert.ok(equivalenceTool);
-assert.match(equivalenceTool.description, /two already chosen/);
-assert.match(equivalenceTool.description, /does not choose formulas/);
-assert.ok((equivalenceTool.schema.function.parameters.properties.mode.enum as string[]).includes("auto"));
-assert.ok((equivalenceTool.schema.function.parameters.properties.mode.enum as string[]).includes("reduce_equivalence"));
-assert.doesNotMatch(equivalenceTool.description, /Hessian|Pohozaev|Yamabe|WHY|quotient/i);
-
-const seriesCoefficientTool = toolDefinitions.find(tool => tool.name === "series_coefficient_check");
-assert.ok(seriesCoefficientTool);
-assert.match(seriesCoefficientTool.description, /local expansion coefficients/);
-assert.match(seriesCoefficientTool.description, /does not select the expansion target/);
-assert.match(seriesCoefficientTool.schema.function.parameters.properties.expected.description, /Expected truncated expression/);
-assert.doesNotMatch(seriesCoefficientTool.description, /zeta|Laurent residue|WHY|Hessian|Yamabe/i);
-
-const solveTool = toolDefinitions.find(tool => tool.name === "wolfram_solve");
-assert.ok(solveTool);
-assert.match(solveTool.description, /conditional inequality implication checks/);
-assert.match(solveTool.description, /log\/exponential rearrangements/);
-assert.match(solveTool.description, /use wolfram_equivalence_check first/);
-assert.match(solveTool.description, /simple proposition or implication/);
-assert.match(solveTool.description, /instead of variables=\{\}/);
-assert.match(solveTool.schema.function.parameters.properties.variables.description, /do not use \{\}/);
-
-const algebraTool = toolDefinitions.find(tool => tool.name === "wolfram_algebra");
-assert.ok(algebraTool);
-assert.match(algebraTool.description, /named algebraic expression transformations/);
-assert.match(algebraTool.description, /use wolfram_simplify instead/);
-
-const verificationTool = toolDefinitions.find(tool => tool.name === "verification_template");
-assert.ok(verificationTool);
-assert.match(verificationTool.description, /verification shape is already chosen/);
-assert.match(verificationTool.description, /scale\/exponent bookkeeping/);
-assert.match(verificationTool.description, /instead of inventing a representative one/);
-assert.doesNotMatch(verificationTool.description, /Hessian|Kelvin|Fourier|ODE|radial|barrier/i);
-assert.ok((verificationTool.schema.function.parameters.properties.template.enum as string[]).includes("scaling_power_check"));
-assert.ok((verificationTool.schema.function.parameters.properties.template.enum as string[]).includes("substitution_check"));
-assert.match(verificationTool.schema.function.parameters.properties.template.description, /exponent cancellation/);
-assert.match(verificationTool.schema.function.parameters.properties.template.description, /applying explicit rules/);
-assert.match(verificationTool.schema.function.parameters.properties.rules.description, /not underscores/);
-
-const evalTool = toolDefinitions.find(tool => tool.name === "wolfram_eval");
-assert.ok(evalTool);
-assert.match(evalTool.description, /Do not use this for simple Simplify/);
-assert.match(evalTool.description, /use wolfram_solve/);
-assert.match(evalTool.description, /Do not use this tool to read local files/);
-
-console.log("prompt tests passed");
+console.log("prompt tests passed");

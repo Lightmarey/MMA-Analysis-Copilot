@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "kind": "EstimateSeed",
+  "name": "Sobolev",
+  "description": "Sobolev embedding estimate seed. This introduces theorem-level obligations rather than a purely algebraic rewrite.",
+  "appliesTo": ["FunctionNormEstimate", "EmbeddingEstimate"],
+  "parameterDefaults": {
+    "domain": "Omega",
+    "p": 2,
+    "q": "q",
+    "constant": "CS"
+  },
+  "parameterExpressions": ["domain", "constant"],
+  "template": {
+    "relation": "Norm[$selected,Lq[$q,$domain]] <= $constant * Norm[Grad[$selected],Lp[$p,$domain]]"
+  },
+  "conditions": [
+    {
+      "kind": "DomainRegularity",
+      "expr": "domain supports the requested Sobolev embedding: $domain",
+      "machineCheckable": false
+    },
+    {
+      "kind": "FunctionSpaceMembership",
+      "expr": "selected function belongs to W^{1,$p} on $domain",
+      "machineCheckable": false
+    },
+    {
+      "kind": "ExponentRange",
+      "expr": "Sobolev embedding exponent q=$q is admissible for p=$p",
+      "machineCheckable": false
+    }
+  ]
+}

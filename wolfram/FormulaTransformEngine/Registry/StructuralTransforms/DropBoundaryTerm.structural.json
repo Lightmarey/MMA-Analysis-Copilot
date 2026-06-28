@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "kind": "StructuralTransform",
+  "name": "DropBoundaryTerm",
+  "runtime": "GenericStructural",
+  "description": "Structural equality transform that drops an explicitly identified boundary term under a boundary-vanishing obligation.",
+  "appliesTo": ["BoundaryTerm", "BoundaryCondition", "IntegrationByParts"],
+  "parameterExpressions": ["boundaryTerm"],
+  "matchers": [
+    {
+      "name": "WholeExpression",
+      "body": { "kind": "Whole", "slots": [] }
+    }
+  ],
+  "derivedBindings": {
+    "reduced": "$selected-$boundaryTerm"
+  },
+  "orientations": [
+    {
+      "name": "DropVanishingBoundaryTerm",
+      "direction": "Equal",
+      "relation": "Equal",
+      "lhs": "$selected",
+      "rhs": "$reduced",
+      "conditions": ["BoundaryTerm[$boundaryTerm]"]
+    }
+  ]
+}

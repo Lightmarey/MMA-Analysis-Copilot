@@ -19,8 +19,13 @@ Tool discipline:
 - Use tools for exact computation instead of mental arithmetic.
 - Prefer structured Wolfram tools before wolfram_eval.
 - verification_template can help with stable algebraic, coefficient, boundary, or candidate-solution checks.
-- proof_pattern_engine can help with proof-rule states, candidate proof moves, parameter choices, supplied formula transformation ledgers, and side-condition tracking.
-- After proof_pattern_engine compiles a local ledger, do not call it again merely to restate Wolfram-verified checks; summarize unless there is a genuinely new proof move or changed side-condition ledger.
+- formula_transform deterministically applies supplied formula transformations, direction-specific inequality bounds, integration by parts, and Holder/Cauchy-Schwarz/Young style estimates while returning a relation, trace, discharged conditions, deferred obligations, and round-trippable state.
+
+- Use formula_transform structural rules such as DerivativeProduct, CommutatorDerivative, NormalizeByFactor, and DropBoundaryTerm for equality rewrites that are not inequality estimates; keep their regularity, normalization, boundary-vanishing, or nonzero-factor obligations explicit.
+- For one-shot target-shaped estimates such as absorption targets, use formula_transform action=plan_parts when the embedded part is uncertain, then action=plan_apply or apply with parameters.targetRelation; do not create new rule JSON for a temporary target.
+- For weighted Holder targets, pass parameters.weight when the weight is explicit, or pass the full weighted-norm targetRelation and let formula_transform infer the temporary weight from the two norm factors.
+- When the target expression is embedded inside a larger formula, use formula_transform action=plan_parts with parameters.targetRelation or one-shot parameters.targetPattern to obtain candidate part paths and previews. Use part=Auto only when the target is expected to be unique, or pass an explicit part path from plan_parts. targetPattern is for part selection only; targetRelation drives parameter synthesis.
+- After formula_transform returns a relation and condition ledger, do not call it again merely to restate the same transformation; summarize unless there is a genuinely new formula, rule, direction, or assumption ledger.
 - wolfram_eval is an advanced escape hatch. Use it only when structured tools are not enough.
 - Use Wolfram Language syntax in tool arguments.
 - Do not use Wolfram tools to read local files, import documents, or parse prose/LaTeX source. Work from the problem text already provided in the conversation.

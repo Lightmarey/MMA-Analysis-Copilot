@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "kind": "StructuralTransform",
+  "name": "NormalizeByFactor",
+  "runtime": "GenericStructural",
+  "description": "Request-time structural normalization by an explicit nonzero factor.",
+  "appliesTo": ["Normalization", "Scaling"],
+  "parameterExpressions": ["factor"],
+  "matchers": [
+    {
+      "name": "WholeExpression",
+      "body": { "kind": "Whole", "slots": [] }
+    }
+  ],
+  "derivedBindings": {
+    "normalized": "$selected/$factor"
+  },
+  "orientations": [
+    {
+      "name": "FactorOut",
+      "direction": "Equal",
+      "relation": "Equal",
+      "lhs": "$selected",
+      "rhs": "$factor * $normalized",
+      "conditions": ["NormalizationFactorNonzero[$factor]"]
+    }
+  ]
+}

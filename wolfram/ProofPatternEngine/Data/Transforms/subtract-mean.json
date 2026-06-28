@@ -1,4 +1,0 @@
-{
-  "Name": "subtract-mean",
-  "Description": "Replace u by u minus its domain mean before applying Poincare."
-}

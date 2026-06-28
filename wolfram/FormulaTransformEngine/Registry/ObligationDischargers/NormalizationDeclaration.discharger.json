@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "kind": "ObligationDischarger",
+  "name": "NormalizationDeclaration",
+  "description": "Discharges normalization obligations such as zero mean, zero trace, and explicitly declared normalization conditions.",
+  "matchesObligation": ["NormalizationCondition", "NormalizationFactorNonzero"],
+  "evidence": [
+    {
+      "label": "ZeroMeanNormalization",
+      "source": "context",
+      "obligationKinds": ["NormalizationCondition"],
+      "containsAny": [
+        "zero mean",
+        "mean zero",
+        "average is zero",
+        "normalized to have zero mean"
+      ]
+    },
+    {
+      "label": "ZeroTraceNormalization",
+      "source": "context",
+      "obligationKinds": ["NormalizationCondition"],
+      "containsAny": [
+        "zero trace",
+        "vanishes on boundary",
+        "zero boundary trace",
+        "normalized by boundary trace"
+      ]
+    },
+    {
+      "label": "NonzeroNormalizationFactor",
+      "source": "assumptions",
+      "obligationKinds": ["NormalizationFactorNonzero"],
+      "containsAny": [
+        "normalization factor is nonzero",
+        "factor is nonzero"
+      ]
+    }
+  ],
+  "evidenceText": [
+    "zero mean",
+    "mean zero",
+    "zero trace",
+    "normalization factor is nonzero",
+    "factor is nonzero"
+  ]
+}

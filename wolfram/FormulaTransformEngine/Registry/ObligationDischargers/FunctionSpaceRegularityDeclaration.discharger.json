@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "kind": "ObligationDischarger",
+  "name": "FunctionSpaceRegularityDeclaration",
+  "description": "Discharges function-space, regularity, measurability, integrability, and domain-regularity obligations from explicit analytic context declarations.",
+  "matchesObligation": [
+    "FunctionSpaceMembership",
+    "Regularity",
+    "Measurability",
+    "MeasurabilityIntegrability",
+    "DomainRegularity",
+    "ExponentRange"
+  ],
+  "evidence": [
+    {
+      "label": "FunctionSpaceContextDeclaration",
+      "source": "context",
+      "obligationKinds": ["FunctionSpaceMembership"],
+      "containsAny": [
+        "belongs to",
+        "lies in",
+        "is in l^",
+        "is in w^",
+        "in l^p",
+        "in l2",
+        "in l^2",
+        "in w^{1",
+        "function space",
+        "weighted first factor belongs",
+        "weighted second factor belongs"
+      ]
+    },
+    {
+      "label": "RegularityContextDeclaration",
+      "source": "context",
+      "obligationKinds": ["Regularity"],
+      "containsAny": [
+        "regular enough",
+        "enough regularity",
+        "sufficiently smooth",
+        "smooth functions",
+        "differentiability",
+        "differentiable",
+        "c^1",
+        "c^2"
+      ]
+    },
+    {
+      "label": "MeasurableIntegrableContextDeclaration",
+      "source": "context",
+      "obligationKinds": ["Measurability", "MeasurabilityIntegrability"],
+      "containsAny": [
+        "measurable",
+        "integrable",
+        "measurable and integrable",
+        "products are integrable",
+        "locally integrable"
+      ]
+    },
+    {
+      "label": "DomainRegularityContextDeclaration",
+      "source": "context",
+      "obligationKinds": ["DomainRegularity", "ExponentRange"],
+      "containsAny": [
+        "bounded lipschitz domain",
+        "lipschitz domain",
+        "smooth bounded domain",
+        "domain supports the requested sobolev embedding",
+        "sobolev embedding holds",
+        "admissible exponent"
+      ]
+    }
+  ],
+  "evidenceText": [
+    "belongs to",
+    "function space",
+    "regular enough",
+    "enough regularity",
+    "sufficiently smooth",
+    "measurable",
+    "integrable",
+    "bounded lipschitz domain",
+    "sobolev embedding holds",
+    "admissible exponent"
+  ]
+}

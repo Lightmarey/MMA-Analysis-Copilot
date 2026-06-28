@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "kind": "StructuralTransform",
+  "name": "DerivativeProduct",
+  "runtime": "GenericStructural",
+  "description": "Structural equality transform for expanding an inactive derivative of a product.",
+  "appliesTo": ["InactiveD", "Derivative", "ProductRule"],
+  "matchers": [
+    {
+      "name": "PointwiseDerivativeProduct",
+      "operator": "PointwiseDerivative",
+      "body": { "kind": "DerivativeProduct", "slots": ["f", "g"] },
+      "varSlot": "var"
+    }
+  ],
+  "orientations": [
+    {
+      "name": "ExpandProductDerivative",
+      "direction": "Equal",
+      "relation": "Equal",
+      "lhs": "$selected",
+      "rhs": "D[$f,$var] * $g + $f * D[$g,$var]"
+    }
+  ]
+}

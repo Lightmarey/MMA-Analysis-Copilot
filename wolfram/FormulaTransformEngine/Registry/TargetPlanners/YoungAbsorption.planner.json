@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "TargetPlanner",
+  "name": "YoungAbsorption",
+  "description": "Generic target planner for Young's inequality. Extracts product factors and bounds them using a dynamically inferred epsilon.",
+  "rules": ["Young"],
+  "families": ["pointwise-product-inequality"],
+  "objective": "absorption-target",
+  "runtime": "GenericTargetPlanner",
+  "primitives": [
+    "ParseTargetRelation",
+    "MatchTargetLHS",
+    "ExtractProductFactors",
+    "InferAbsorbedQuadraticFactor",
+    "InferResidualFactor",
+    "ComputeProductCoefficient",
+    "BuildResidualCoefficientCondition"
+  ],
+  "selectedTemplate": "$coeff * $f * $g",
+  "targetTemplate": "$c1 * $f^$p + $c2 * $g^$q",
+  "unknownParameters": ["$epsilon"],
+  "equations": [
+     "$c1 == $epsilon * $p^(-1) * $coeff"
+  ],
+  "derivedBindings": {
+    "bound": "$c1 * $f^$p + $c2 * $g^$q"
+  },
+  "orientations": [
+    {
+      "name": "AbsUpper",
+      "direction": "Auto",
+      "relation": "LessEqual",
+      "lhs": "Abs[$selected]",
+      "rhs": "$bound"
+    },
+    {
+      "name": "SignedUpper",
+      "direction": "Upper",
+      "relation": "LessEqual",
+      "lhs": "$selected",
+      "rhs": "$bound",
+      "conditions": ["RealValued[$selected]"]
+    }
+  ],
+  "conditions": [
+     {
+       "predicate": "TargetCoefficientPositive",
+       "arguments": ["$c1"]
+     },
+     {
+       "predicate": "WeightPositive",
+       "arguments": ["$epsilon"]
+     }
+  ],
+  "registryMutation": false
+}

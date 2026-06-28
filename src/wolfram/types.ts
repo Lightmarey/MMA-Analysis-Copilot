@@ -1,6 +1,5 @@
 export type WolframToolName =
-  | "proof_pattern_engine"
-  | "inequality_engine"
+  | "formula_transform"
   | "wolfram_eval"
   | "wolfram_simplify"
   | "wolfram_equivalence_check"
@@ -35,6 +34,7 @@ export type WolframResponse = {
   conditionLatex?: string;
   rawOutput?: string;
   rawLatex?: string;
+  json?: unknown;
   error?: string;
   messages?: string[];
   elapsedMs?: number;

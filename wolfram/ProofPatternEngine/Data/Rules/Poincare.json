@@ -1,8 +1,0 @@
-{
-  "Name": "Poincare",
-  "Family": "function-space",
-  "CanonicalForm": "||u - mean(u)||_Lp <= C ||grad u||_Lp",
-  "Conditions": ["bounded connected domain", "domain regularity", "u in W^{1,p}", "zero trace or mean normalization"],
-  "Transforms": ["subtract-mean", "boundary-normalize"],
-  "DefaultVariant": "DomainConstant"
-}

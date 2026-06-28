@@ -1,8 +1,0 @@
-{
-  "Name": "Sobolev",
-  "Family": "function-space",
-  "CanonicalForm": "W^{1,p}(Omega) embeds into L^q(Omega) under dimension/exponent restrictions",
-  "Conditions": ["domain supports embedding", "u in W^{1,p}", "dimension and exponents satisfy embedding range"],
-  "Transforms": ["choose-exponents", "replace-by-gradient-norm-when-poincare-applies"],
-  "DefaultVariant": "FirstOrderEmbedding"
-}

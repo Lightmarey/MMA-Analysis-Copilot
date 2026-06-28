@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "kind": "ObligationDischarger",
+  "name": "BoundaryVanishes",
+  "description": "Discharges boundary-condition obligations when the context declares vanishing boundary trace, compact support, or retained boundary terms are zero.",
+  "matchesObligation": ["BoundaryCondition"],
+  "evidence": [
+    {
+      "label": "BoundaryTermVanishesInContext",
+      "source": "context",
+      "obligationKinds": ["BoundaryCondition"],
+      "containsAny": [
+        "boundary term vanishes",
+        "boundary terms vanish",
+        "zero boundary trace",
+        "dirichlet boundary condition",
+        "compact support",
+        "u vanishes on boundary",
+        "v vanishes on boundary"
+      ]
+    },
+    {
+      "label": "BoundaryTermVanishesInAssumptions",
+      "source": "assumptions",
+      "obligationKinds": ["BoundaryCondition"],
+      "containsAny": [
+        "boundary term vanishes",
+        "boundary terms vanish",
+        "zero boundary trace",
+        "dirichlet boundary condition",
+        "compact support",
+        "u vanishes on boundary",
+        "v vanishes on boundary"
+      ]
+    }
+  ],
+  "evidenceText": [
+    "boundary term vanishes",
+    "boundary terms vanish",
+    "zero boundary trace",
+    "dirichlet boundary condition",
+    "compact support",
+    "u vanishes on boundary",
+    "v vanishes on boundary"
+  ]
+}

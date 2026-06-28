@@ -16,7 +16,7 @@ const groupedToolDefinitions = [
 ];
 
 const toolDefinitionOrder = [
-  "proof_pattern_engine",
+  "formula_transform",
   "theorem_advisor",
   "verification_template",
   "wolfram_eval",

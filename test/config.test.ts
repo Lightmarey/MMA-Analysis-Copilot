@@ -9,8 +9,11 @@ assert.deepEqual(validateConfigPayload({
     temperature: 0
   },
   wolfram: {
-    backendMode: "oneshot",
-    bootstrapStdin: null
+    backendMode: "worker",
+    bootstrapStdin: null,
+    daemonHost: "127.0.0.1",
+    daemonPort: 37623,
+    daemonPidPath: ".wma.pid"
   },
   hooks: {
     mode: "hint",
@@ -38,5 +41,12 @@ assert.ok(diagnostics.some(item => item.message.includes("Unknown config key: op
 assert.ok(diagnostics.some(item => item.message.includes("hooks.mode must be one of")));
 assert.ok(diagnostics.some(item => item.message.includes("hooks.beforeFinal must be one of")));
 assert.ok(diagnostics.some(item => item.message.includes("wolfram") && item.level === "error"));
+
+const invalidBackend = validateConfigPayload({
+  wolfram: {
+    backendMode: "unsupported"
+  }
+});
+assert.ok(invalidBackend.some(item => item.message.includes("wolfram.backendMode must be one of")));
 
 console.log("config tests passed");

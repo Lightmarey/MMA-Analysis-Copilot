@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 .*/**
 *.und/**
@@ -9,3 +9,6 @@ testexamples/
 auxiliary-scripts/
 *.log
 
+*.md
+!README.md
+.ai_refs/

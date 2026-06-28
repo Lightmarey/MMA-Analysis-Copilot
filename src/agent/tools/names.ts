@@ -17,7 +17,7 @@ export type ToolProperty = {
 };
 
 export const publicWolframToolNames = [
-  "proof_pattern_engine",
+  "formula_transform",
   "wolfram_eval",
   "wolfram_simplify",
   "wolfram_equivalence_check",
@@ -36,8 +36,7 @@ export const publicWolframToolNames = [
   "wolfram_residue"
 ] as const satisfies readonly WolframToolName[];
 
-export const compatWolframToolNames = [
-  "inequality_engine"
+export const compatWolframToolNames = [
 ] as const satisfies readonly WolframToolName[];
 
 export const localToolNames = [

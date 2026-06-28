@@ -14,7 +14,7 @@ export function inferRecommendedTools(problem: string, suggestedTheorems: Theore
     appendUnique(tools, [...theorem.wolframHint.matchAll(/\bwolfram_[a-z_]+\b/g)].map(match => match[0]));
     appendUnique(tools, [...theorem.casHint.matchAll(/\bwolfram_[a-z_]+\b/g)].map(match => match[0]));
   }
-  if (hasInequalityToolHint(problem)) tools.push("proof_pattern_engine");
+  if (hasInequalityToolHint(problem)) tools.push("formula_transform");
   if (/integral|integrate|\u79ef\u5206|\u222b/.test(lowered)) tools.push("wolfram_integrate");
   if (/derivative|differentiate|d\/d|partial|\u6c42\u5bfc|\u5bfc\u6570|\u504f\u5bfc/.test(lowered)) tools.push("wolfram_differentiate");
   if (/limit|lim\b|\u6781\u9650/.test(lowered)) tools.push("wolfram_limit");

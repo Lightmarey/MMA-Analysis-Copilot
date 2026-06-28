@@ -15,11 +15,14 @@
   },
   "wolfram": {
     "command": "",
-    "backendMode": "oneshot",
+    "backendMode": "worker",
     "workerTimeoutMs": 120000,
     "debugStdio": false,
     "workerArgs": "",
-    "bootstrapStdin": null
+    "bootstrapStdin": null,
+    "daemonHost": "127.0.0.1",
+    "daemonPort": 37623,
+    "daemonPidPath": ""
   },
   "theorems": {
     "source": "merge",

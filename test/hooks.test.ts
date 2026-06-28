@@ -11,22 +11,22 @@ const proofHints = runAgentHooks({
   ...baseContext,
   phase: "after_plan",
   userMessage: "Create a proof-level ledger for this supplied formula transformation $A==B$ and its side conditions.",
-  planContext: "local_tool_hints: proof_pattern_engine"
+  planContext: "local_tool_hints: formula_transform"
 });
 assert.ok(proofHints.some(result => result.id === "transform-ledger-hook"));
 const transformHint = proofHints.find(result => result.id === "transform-ledger-hook");
 assert.ok(transformHint);
 assert.equal(transformHint.severity, "hint");
-assert.match(transformHint.promptHint ?? "", /operation=compile/);
-assert.match(transformHint.promptHint ?? "", /RuleIntent/);
-assert.match(transformHint.promptHint ?? "", /intent ledger/);
+assert.match(transformHint.promptHint ?? "", /formula_transform/);
+assert.match(transformHint.promptHint ?? "", /action=apply/);
+assert.match(transformHint.promptHint ?? "", /compile_rule\/compile_heuristic/);
 assert.doesNotMatch(transformHint.promptHint ?? "", /bindings/i);
 assert.doesNotMatch(transformHint.promptHint ?? "", /Hessian|Pohozaev|Yamabe|quotient/i);
 
 const prompt = hookResultsToPrompt(proofHints);
 assert.match(prompt, /Agent workflow hook guidance/);
-assert.match(prompt, /proof_pattern_engine/);
-assert.match(prompt, /assumption ledger/);
+assert.match(prompt, /formula_transform/);
+assert.match(prompt, /condition ledger/);
 
 const cappedPrompt = hookResultsToPrompt(proofHints, { maxChars: 180 });
 assert.ok(cappedPrompt.length <= 260);
@@ -80,18 +80,18 @@ const proofCompileWarnings = runAgentHooks({
   phase: "before_tool_call",
   userMessage: "Update the proof ledger.",
   toolHistory: [{
-    name: "proof_pattern_engine",
-    args: { operation: "compile", payload: "<|\"moveName\" -> \"move\"|>" },
+    name: "formula_transform",
+    args: { action: "compile_rule", payload: "{\"name\":\"Move\",\"templates\":[]}" },
     result: {
       id: "test",
       ok: true,
-      title: "Proof pattern engine",
+      title: "Formula transform",
       output: "<|\"Status\" -> \"Compiled\", \"RuleSource\" -> \"AdHocRuleIntent\"|>"
     }
   }],
   proposedTool: {
-    name: "proof_pattern_engine",
-    args: { operation: "compile", payload: "<|\"moveName\" -> \"move verified\"|>" }
+    name: "formula_transform",
+    args: { action: "compile_rule", payload: "{\"name\":\"Move\",\"templates\":[]}" }
   }
 });
 assert.equal(proofCompileWarnings.length, 1);
@@ -103,7 +103,7 @@ const convergenceHints = runAgentHooks({
   phase: "after_tool_call",
   userMessage: "Verify both identities.",
   toolHistory: [
-    { name: "proof_pattern_engine", args: { operation: "compile" } },
+    { name: "formula_transform", args: { action: "compile_rule" } },
     {
       name: "wolfram_equivalence_check",
       args: { expr: "{id1,id2}" },

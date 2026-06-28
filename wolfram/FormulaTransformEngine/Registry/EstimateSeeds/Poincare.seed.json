@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "kind": "EstimateSeed",
+  "name": "Poincare",
+  "description": "Poincare-type estimate seed. This is a theorem seed with domain, function-space, and normalization obligations, not a canonical formula rewrite.",
+  "appliesTo": ["FunctionNormEstimate", "EnergyEstimate"],
+  "parameterDefaults": {
+    "domain": "Omega",
+    "p": 2,
+    "constant": "CP"
+  },
+  "parameterExpressions": ["domain", "constant"],
+  "template": {
+    "relation": "Norm[$selected,Lp[$p,$domain]] <= $constant * Norm[Grad[$selected],Lp[$p,$domain]]"
+  },
+  "conditions": [
+    {
+      "kind": "DomainRegularity",
+      "expr": "domain is bounded Lipschitz: $domain",
+      "machineCheckable": false
+    },
+    {
+      "kind": "FunctionSpaceMembership",
+      "expr": "selected function belongs to W^{1,$p} on $domain",
+      "machineCheckable": false
+    },
+    {
+      "kind": "NormalizationCondition",
+      "expr": "selected function has zero trace or zero mean on $domain",
+      "machineCheckable": false
+    }
+  ]
+}

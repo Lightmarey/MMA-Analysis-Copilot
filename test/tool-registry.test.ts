@@ -16,11 +16,9 @@ import { transformConvergenceToolDefinitions } from "../src/agent/tools/definiti
 
 const toolDefinitionNames = toolDefinitions.map(tool => tool.name).sort();
 assert.deepEqual(toolDefinitionNames, [...publicAgentToolNames].sort());
-assert.equal(toolDefinitionNames.includes("inequality_engine"), false);
-assert.ok(compatWolframToolNames.includes("inequality_engine"));
 
 assert.deepEqual(toolDefinitions.map(tool => tool.name), [
-  "proof_pattern_engine",
+  "formula_transform",
   "theorem_advisor",
   "verification_template",
   "wolfram_eval",
@@ -57,33 +55,37 @@ const protocol = fs.readFileSync(path.join(process.cwd(), "wolfram", "protocol.w
 for (const toolName of publicWolframToolNames) {
   assert.match(protocol, new RegExp(`tool === "${toolName}"`), `${toolName} is missing from protocol dispatcher`);
 }
-assert.match(protocol, /tool === "inequality_engine"/);
-assert.match(protocol, /ProofPatternEngine`PPHandleRequest/);
-
-const proofPatternRoot = path.join(process.cwd(), "wolfram", "ProofPatternEngine");
-const proofPatternFiles = [
-  "Kernel/init.wl",
-  "Kernel/Core.wl",
-  "Kernel/Registry.wl",
-  "Kernel/Compiler.wl",
-  "Kernel/Heuristics/ProductIntegral.wl",
-  "Kernel/Heuristics/SumProduct.wl",
-  "Kernel/Heuristics/ProductPointwise.wl",
-  "Kernel/Heuristics/IntegrationByParts.wl",
-  "Kernel/Heuristics/FunctionSpace.wl",
-  "Data/Rules/Holder.json",
-  "Data/Rules/CauchySchwarz.json",
-  "Data/Rules/Young.json",
-  "Data/Rules/Poincare.json",
-  "Data/Rules/Sobolev.json",
-  "Data/Rules/IntegrationByParts.json"
+assert.match(protocol, /FormulaTransformEngine`FormulaTransformHandleRequest/);
+const formulaTransformRoot = path.join(process.cwd(), "wolfram", "FormulaTransformEngine");
+const formulaTransformFiles = [
+  "Registry/Rules/Holder.transform.json",
+  "Registry/Rules/CauchySchwarz.transform.json",
+  "Registry/Rules/Young.transform.json",
+  "Registry/Rules/IntegrationByParts.transform.json",
+  "Registry/Heuristics/SplitSqrt.heuristic.json",
+  "Registry/Heuristics/MultiplyByOne.heuristic.json",
+  "Registry/EstimateSeeds/Poincare.seed.json",
+  "Registry/EstimateSeeds/Sobolev.seed.json",
+  "Registry/StructuralTransforms/DerivativeProduct.structural.json",
+  "Registry/StructuralTransforms/CommutatorDerivative.structural.json",
+  "Registry/StructuralTransforms/NormalizeByFactor.structural.json",
+  "Registry/StructuralTransforms/DropBoundaryTerm.structural.json",
+  "Registry/TargetPlanners/YoungAbsorption.planner.json",
+  "Registry/TargetPlanners/WeightedHolder.planner.json",
+  "Registry/ObligationDischargers/BoundaryVanishes.discharger.json",
+  "Registry/ObligationDischargers/FunctionSpaceRegularityDeclaration.discharger.json",
+  "Registry/ObligationDischargers/NormalizationDeclaration.discharger.json",
+  "Registry/ObligationDischargers/RealValuedDeclaration.discharger.json",
+  "Registry/EstimateSeeds/.gitkeep"
 ];
-for (const relativePath of proofPatternFiles) {
-  assert.ok(fs.existsSync(path.join(proofPatternRoot, ...relativePath.split("/"))), `${relativePath} is missing`);
+for (const relativePath of formulaTransformFiles) {
+  assert.ok(fs.existsSync(path.join(formulaTransformRoot, ...relativePath.split("/"))), `${relativePath} is missing`);
 }
 
-const compiler = fs.readFileSync(path.join(proofPatternRoot, "Kernel", "Compiler.wl"), "utf8");
-assert.doesNotMatch(compiler, /RegisterPPRule\[/);
-assert.doesNotMatch(compiler, /RegisterPPTransform\[/);
+const formulaTransformCompiler = fs.readFileSync(path.join(process.cwd(), "wolfram", "FormulaTransformEngine.wl"), "utf8");
+assert.match(formulaTransformCompiler, /CompileFormulaTransformRule/);
+assert.match(formulaTransformCompiler, /CompileFormulaHeuristicRule/);
+assert.match(formulaTransformCompiler, /CompileFormulaStructuralTransform/);
+assert.doesNotMatch(formulaTransformCompiler, /ToExpression\[[^\n]+payload/i);
 
 console.log("tool registry tests passed");

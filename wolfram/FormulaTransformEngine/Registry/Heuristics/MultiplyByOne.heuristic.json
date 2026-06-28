@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "name": "MultiplyByOne",
+  "description": "Rewrite a single integrand body h as h * 1 before applying product inequalities.",
+  "appliesTo": ["Holder", "CauchySchwarz"],
+  "matchers": [
+    {
+      "name": "IntegralSingleBody",
+      "operator": "Integral",
+      "bodySlot": "h",
+      "domainSlot": "domain"
+    },
+    {
+      "name": "SumSingleBody",
+      "operator": "Sum",
+      "bodySlot": "h",
+      "domainSlot": "domain"
+    }
+  ],
+  "rewrite": {
+    "template": "Integral[Product[$h,1],$domain]"
+  },
+  "conditions": [],
+  "cost": 1,
+  "maxApplications": 1
+}
