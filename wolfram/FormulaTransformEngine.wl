@@ -493,7 +493,8 @@ CompileFormulaStructuralTransform[transform_Association] := FTCompileStructuralT
 CompileFormulaStructuralTransform[_] := FTFailure["InvalidRuleJSON", "Structural transform payload must be an Association."];
 
 FTCompileTargetPlanner[planner_Association] := Module[
-  {issues = {}, name, rules, family, runtime, objective, primitives, allowedPrimitives},
+  {issues = {}, name, rules, family, runtime, objective, primitives, allowedPrimitives,
+   targetTemplate, unknowns, equations, obligationsTemplate},
   If[! FTValidateName[planner], AppendTo[issues, "name must be a non-empty string."]];
   name = StringTrim[Lookup[planner, "name", ""]];
   rules = Lookup[planner, "rules", {}];
@@ -502,6 +503,12 @@ FTCompileTargetPlanner[planner_Association] := Module[
   If[StringQ[family], family = {family}];
   runtime = FTReadString[Lookup[planner, "runtime", ""]];
   objective = FTReadString[Lookup[planner, "objective", ""]];
+  
+  targetTemplate = Lookup[planner, "targetTemplate", ""];
+  unknowns = Lookup[planner, "unknownParameters", {}];
+  equations = Lookup[planner, "equations", {}];
+  obligationsTemplate = Lookup[planner, "obligationsTemplate", {}];
+
   primitives = Lookup[planner, "primitives", {}];
   If[StringQ[primitives], primitives = {primitives}];
   allowedPrimitives = {
@@ -510,7 +517,9 @@ FTCompileTargetPlanner[planner_Association] := Module[
     "ComputeProductCoefficient", "BuildResidualCoefficientCondition",
     "ParseIntegralOrSumProduct", "ParseWeightParameter",
     "InferWeightFromNormPair", "BuildWeightedHolderBound",
-    "BuildWeightPositiveCondition", "BuildFunctionSpaceObligations"
+    "BuildWeightPositiveCondition", "BuildFunctionSpaceObligations",
+    "MatchAlgebraicStructure", "AlgebraicUnification",
+    "InstantiateTemplate", "InstantiateObligations"
   };
   If[! FTValidateStringList[rules] && rules =!= {}, AppendTo[issues, "rules must be a string or string list."]];
   If[! FTValidateStringList[family] && family =!= {}, AppendTo[issues, "families must be a string or string list."]];
@@ -519,8 +528,8 @@ FTCompileTargetPlanner[planner_Association] := Module[
     AppendTo[issues, "primitives contains unsupported planner primitives: " <> StringRiffle[Complement[primitives, allowedPrimitives], ", "]]
   ];
   If[runtime === "", AppendTo[issues, "runtime must be a non-empty string."]];
-  If[! MemberQ[{"YoungAbsorption", "WeightedHolder"}, runtime],
-    AppendTo[issues, "runtime must be one of: YoungAbsorption, WeightedHolder."]
+  If[! MemberQ[{"YoungAbsorption", "WeightedHolder", "GenericTargetPlanner"}, runtime],
+    AppendTo[issues, "runtime must be one of: YoungAbsorption, WeightedHolder, GenericTargetPlanner."]
   ];
   issues = Join[issues, FTValidateTemplates[planner]];
   If[issues =!= {},
@@ -535,6 +544,10 @@ FTCompileTargetPlanner[planner_Association] := Module[
     "Runtime" -> runtime,
     "Objective" -> objective,
     "Primitives" -> primitives,
+    "TargetTemplate" -> targetTemplate,
+    "UnknownParameters" -> unknowns,
+    "Equations" -> equations,
+    "ObligationsTemplate" -> obligationsTemplate,
     "Raw" -> planner
   |>;
   Join[<|"Status" -> "Compiled", "Kind" -> "FormulaTargetPlanner"|>, $FTTargetPlannerRegistry[name]]
@@ -1281,27 +1294,68 @@ FTYoungInferResidualFactor[selected_, flatFactors_List, allCandidates_List, abso
 FTYoungComputeProductCoefficient[selected_, absorb_, residual_] :=
   FTProductCoefficient[selected, absorb, residual];
 
-FTYoungBuildResidualCoefficientCondition[terms_List, residual_, coeff_, theta_] := Module[
-  {residualTarget, residualRequired},
-  residualTarget = DeleteMissing[FTQuadraticCoefficient[#, residual] & /@ terms];
-  residualRequired = coeff^2/(4 theta);
-  <|
-    "ResidualTarget" -> residualTarget,
-    "ResidualRequired" -> residualRequired,
-    "Condition" -> If[residualTarget === {}, True, First[residualTarget] >= residualRequired]
-  |>
-];
 
 FTPrimitiveHeadQ[head_, name_String] := Module[{symbolName},
   symbolName = Quiet@Check[SymbolName[Unevaluated[head]], ""];
   symbolName === name || symbolName === "FTTemplate" <> name
 ];
 
+(* --- Generic Mathematical Primitives for Data-Driven Target Planners --- *)
+
+FTMatchAlgebraicStructure[expr_, templateString_String] := Module[
+  {templateExpr, syms, patternVars, rule, matches},
+  templateExpr = FTParseMaybeExpression[templateString];
+  If[templateExpr === $Failed, Return[$Failed]];
+  syms = Cases[templateExpr, s_Symbol /; StringStartsQ[SymbolName[s], "$"], Infinity];
+  syms = DeleteDuplicates[syms];
+  patternVars = (# -> Pattern[Evaluate[Symbol[StringDrop[SymbolName[#], 1]]], Blank[]]) & /@ syms;
+  rule = (templateExpr /. patternVars) :> Evaluate[Association[Map[SymbolName[#] -> Symbol[StringDrop[SymbolName[#], 1]] &, syms]]];
+  matches = Quiet@Check[ReplaceList[expr, rule], {}];
+  If[matches === {}, Return[$Failed]];
+  First[matches]
+];
+
+FTSolveParameters[bindings_Association, unknowns_List, eqns_List] := Module[
+  {parsedEqns, unkSyms, bindingRules, eqnsSubs, sol, finalBindings},
+  parsedEqns = Map[FTParseMaybeExpression, eqns];
+  If[MemberQ[parsedEqns, $Failed], Return[$Failed]];
+  unkSyms = Map[FTParseMaybeExpression, unknowns];
+  bindingRules = Normal[KeyMap[FTParseMaybeExpression, bindings]];
+  eqnsSubs = parsedEqns /. bindingRules;
+  sol = Quiet@Check[Solve[eqnsSubs, unkSyms], {}];
+  If[sol === {}, Return[$Failed]];
+  finalBindings = Association[Map[SymbolName[#[[1]]] -> #[[2]] &, sol[[1]]]];
+  Join[bindings, finalBindings]
+];
+
+FTInstantiateTemplate[templateString_String, bindings_Association] := Module[
+  {expr, bindingRules},
+  expr = FTParseMaybeExpression[templateString];
+  If[expr === $Failed, Return[$Failed]];
+  bindingRules = Normal[KeyMap[FTParseMaybeExpression, bindings]];
+  expr /. bindingRules
+];
+
+FTInstantiateObligations[obligationsTemplate_List, bindings_Association, source_String] := Module[
+  {bindingRules, conds = {}},
+  bindingRules = Normal[KeyMap[FTParseMaybeExpression, bindings]];
+  Do[
+    With[{pred = Lookup[t, "predicate"], args = Lookup[t, "arguments", {}]},
+      AppendTo[conds, FTConditionStructure[pred, Inactive[Evaluate[Symbol[pred]]] @@ Map[ReplaceAll[FTParseMaybeExpression[#], bindingRules]&, args]]]
+    ],
+    {t, obligationsTemplate}
+  ];
+  conds
+];
+
+(* ----------------------------------------------------------------------- *)
+
 FTIBPBoundaryTerm[u_, v_, {x_, a_, b_}] := u[b] * (v /. x -> b) - u[a] * (v /. x -> a);
 FTIBPBoundaryTerm[u_, v_, domain_] := Inactive[BoundaryTerm][u, v, domain];
 
 FTIBPInteriorIntegral[u_, v_, {x_, a_, b_}] := Inactive[Integrate][u[x] * D[v, x], {x, a, b}];
 FTIBPInteriorIntegral[u_, v_, domain_] := Inactive[IBPIntegral][u, v, domain];
+
 
 FTPrimitiveEvaluate[expr_] := FixedPoint[
   ReplaceAll[
@@ -1830,8 +1884,8 @@ FTPlanYoungGeneric[compiled_, selected_, direction_, parameters_, state_, trace_
 FTPlanYoungTarget[compiled_, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
   {
     name = Lookup[compiled, "Name", "Young"], targetText, targetData, target, lhs, rhs, productData,
-    allCandidates, terms, absorbData, absorb, other, coeff, theta, residualData, residualTarget, residualRequired,
-    bound, relation, conditions, discharged, state2, trace2, absorbParam, planner, requiredPrimitives, primitiveAudit, primitiveCheck
+    allCandidates, terms, absorbData, absorb, other, coeff, theta, residualTarget, residualRequired, residualTargetValue,
+    bound, relation, conditions, genericConditions, bindings, discharged, state2, trace2, absorbParam, planner, requiredPrimitives, primitiveAudit, primitiveCheck
   },
   targetText = FTTargetRelationText[parameters];
   If[targetText === "", Return[FTPlanYoungGeneric[compiled, selected, direction, parameters, state, trace]]];
@@ -1877,18 +1931,35 @@ FTPlanYoungTarget[compiled_, selected_, direction_, parameters_, assumptions_, a
   If[MatchQ[coeff, Missing[_]],
     Return[FTFailure["Inapplicable", "Could not factor the selected product into absorbed and residual factors.", <|"Trace" -> trace, "State" -> state|>]]
   ];
-  residualData = FTYoungBuildResidualCoefficientCondition[terms, other, coeff, theta];
-  residualTarget = Lookup[residualData, "ResidualTarget"];
-  residualRequired = Lookup[residualData, "ResidualRequired"];
+  
+  (* --- Data-Driven Unification via JSON Equations --- *)
+  With[{
+    unknowns = Lookup[planner, "UnknownParameters", {}],
+    equations = Lookup[planner, "Equations", {}],
+    obsTemplate = Lookup[planner, "ObligationsTemplate", {}],
+    p = Lookup[parameters, "p", 2],
+    q = Lookup[parameters, "q", 2]
+  },
+    bindings = <| "$p" -> p, "$q" -> q, "$c1" -> theta, "$coeff" -> coeff |>;
+    bindings = FTSolveParameters[bindings, unknowns, equations];
+    If[bindings === $Failed,
+      Return[FTFailure["Inapplicable", "Could not solve the target planner equations for the requested Young bound.", <|"Trace" -> trace, "State" -> state|>]]
+    ];
+    
+    residualTarget = DeleteMissing[FTQuadraticCoefficient[#, other] & /@ terms];
+    residualTargetValue = If[residualTarget === {}, 0, First[residualTarget]];
+    bindings = Join[bindings, <| "$residualTarget" -> residualTargetValue |>];
+    
+    residualRequired = Lookup[bindings, "$c2"];
+    genericConditions = FTInstantiateObligations[obsTemplate, bindings, name];
+  ];
+
   primitiveAudit = FTPlannerPrimitiveAudit[planner, requiredPrimitives];
   bound = rhs;
   relation = LessEqual[selected, bound];
   trace2 = FTAppendTrace[trace, "PlanTargetYoung", <|"TargetRelation" -> targetText, "TargetPlanner" -> Lookup[planner, "Name"], "PlannerPrimitives" -> Lookup[planner, "Primitives", {}], "PrimitiveAudit" -> primitiveAudit, "AbsorbFactor" -> absorb, "ResidualFactor" -> other|>];
-  conditions = {
-    FTCondition["TargetCoefficientPositive", theta > 0, name],
-    FTCondition["YoungResidualCoefficient", Lookup[residualData, "Condition"], name],
-    FTRealValuedCondition[selected, name]
-  };
+  
+  conditions = Join[genericConditions, {FTRealValuedCondition[selected, name]}];
   discharged = FTDischargeConditions[conditions, assumptions, assumptionsText, context, contextText];
   If[Length[Lookup[discharged, "Contradicted", {}]] > 0,
     Return[FTFailure["AssumptionContradiction", "Assumptions contradict a generated target-guided Young condition.", <|"Conditions" -> discharged, "Trace" -> trace2, "State" -> state|>]]

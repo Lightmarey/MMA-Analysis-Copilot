@@ -2,19 +2,30 @@
   "schemaVersion": 1,
   "kind": "TargetPlanner",
   "name": "YoungAbsorption",
-  "description": "Request-time planner for matching a Young inequality product estimate to an absorption target relation. This descriptor selects the restricted Wolfram runtime and is not a persistent transform rule.",
+  "description": "Request-time planner for matching a Young inequality product estimate to an absorption target relation.",
   "rules": ["Young"],
   "families": ["pointwise-product-inequality"],
   "objective": "absorption-target",
   "runtime": "YoungAbsorption",
+  "targetTemplate": "NotUsedDirectlyYet",
+  "unknownParameters": ["$epsilon", "$c2"],
+  "equations": [
+     "$c1 == $epsilon * $p^(-1) * $coeff",
+     "$c2 == $epsilon^(-$q/$p) * $q^(-1) * $coeff"
+  ],
+  "obligationsTemplate": [
+     {"predicate": "TargetCoefficientPositive", "arguments": ["$c1"]},
+     {"predicate": "WeightPositive", "arguments": ["$epsilon"]},
+     {"predicate": "YoungResidualCoefficient", "arguments": ["$residualTarget >= $c2"]}
+  ],
   "primitives": [
     "ParseTargetRelation",
     "MatchTargetLHS",
     "ExtractProductFactors",
-    "InferAbsorbedQuadraticFactor",
-    "InferResidualFactor",
-    "ComputeProductCoefficient",
-    "BuildResidualCoefficientCondition"
+    "MatchAlgebraicStructure",
+    "AlgebraicUnification",
+    "InstantiateTemplate",
+    "InstantiateObligations"
   ],
   "registryMutation": false
 }
