@@ -13,5 +13,6 @@ export type CliOptions = {
   temperature?: number;
   maxIterations?: number;
   thinking?: ThinkingMode;
+  plannerModel?: string;
 };
 

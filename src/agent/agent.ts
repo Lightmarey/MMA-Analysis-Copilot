@@ -30,7 +30,7 @@ export class MathAgent {
     { role: "system", content: this.systemPrompt }
   ];
   private forcedModel: string | null = null;
-  private activeToolNames = new Set<string>(["theorem_advisor", "verification_template", "wolfram_eval", "wolfram_simplify", "load_tool", "wolfram_equivalence_check"]);
+    private activeToolNames = new Set<string>(["theorem_advisor", "verification_template", "wolfram_eval", "wolfram_simplify", "load_tool", "wolfram_equivalence_check"]);
 
   constructor(private readonly wolfram = new WolframBackend()) {
     if (!config.openaiApiKey) {
@@ -56,7 +56,8 @@ export class MathAgent {
 
   async chat(userMessage: string, callbacks: AgentCallbacks = {}): Promise<string> {
     const modelRoute = await getModelRoute(this.client);
-    const llmPlan = await createLlmExecutionPlan(this.client, userMessage, modelRoute.flashModel);
+    const plannerModelToUse = config.plannerModel || modelRoute.flashModel;
+    const llmPlan = await createLlmExecutionPlan(this.client, userMessage, plannerModelToUse);
     const analysis = analyzeProblem(userMessage);
     const preplan = createPreplan(userMessage, analysis);
     const decomposition = decomposeProblem(userMessage, analysis);
@@ -226,6 +227,18 @@ export class MathAgent {
     if (name === "load_tool") {
       const toolNames = Array.isArray(args.tool_names) ? args.tool_names : [];
       const loaded: string[] = [];
+      for (const t of toolNames) {
+        if (typeof t === "string") {
+          this.activeToolNames.add(t);
+          loaded.push(t);
+        }
+      }
+      return { id: null, ok: true, title: "load_tool", result: "Loaded tools: " + loaded.join(", ") };
+    }
+    if ((name as string) === "load_tool") {
+      const raw = typeof args.tool_names === "string" ? args.tool_names : "";
+      const toolNames = raw.split(",").map(s => s.trim()).filter(Boolean);
+      const loaded = [];
       for (const t of toolNames) {
         if (typeof t === "string") {
           this.activeToolNames.add(t);
