@@ -30,6 +30,9 @@ type WmaConfigFile = {
     debugStdio?: boolean;
     workerArgs?: string;
     bootstrapStdin?: boolean | null;
+    daemonHost?: string;
+    daemonPort?: number;
+    daemonPidPath?: string;
   };
   theorems?: {
     source?: string;
@@ -136,11 +139,14 @@ export const config = {
   wolframWorkerPath: path.resolve(rootDir, "wolfram", "worker.wls"),
   wolframProtocolPath: path.resolve(rootDir, "wolfram", "protocol.wl"),
   wolframCommand: process.env.WOLFRAM_COMMAND?.trim() || stringValue(fileConfig.wolfram?.command),
-  wolframBackendMode: process.env.WOLFRAM_BACKEND_MODE?.trim() || stringValue(fileConfig.wolfram?.backendMode, "oneshot"),
+  wolframBackendMode: process.env.WOLFRAM_BACKEND_MODE?.trim() || stringValue(fileConfig.wolfram?.backendMode, "worker"),
   wolframWorkerTimeoutMs: intEnv("WOLFRAM_WORKER_TIMEOUT_MS", numberValue(fileConfig.wolfram?.workerTimeoutMs, 120_000)),
   wolframDebugStdio: boolEnv("WOLFRAM_DEBUG_STDIO", booleanValue(fileConfig.wolfram?.debugStdio, false)),
   wolframWorkerArgs: process.env.WOLFRAM_WORKER_ARGS?.trim() || stringValue(fileConfig.wolfram?.workerArgs),
   wolframBootstrapStdin: optionalBoolEnv("WOLFRAM_BOOTSTRAP_STDIN", fileConfig.wolfram?.bootstrapStdin ?? null),
+  wolframDaemonHost: process.env.WOLFRAM_DAEMON_HOST?.trim() || stringValue(fileConfig.wolfram?.daemonHost, "127.0.0.1"),
+  wolframDaemonPort: intEnv("WOLFRAM_DAEMON_PORT", numberValue(fileConfig.wolfram?.daemonPort, 37623)),
+  wolframDaemonPidPath: process.env.WOLFRAM_DAEMON_PID_PATH?.trim() || stringValue(fileConfig.wolfram?.daemonPidPath, path.join(rootDir, ".wma-wolfram-daemon.pid")),
   openaiApiKey: process.env.OPENAI_API_KEY?.trim() || stringValue(fileConfig.openai?.apiKey),
   openaiBaseUrl: process.env.OPENAI_BASE_URL?.trim() || stringValue(fileConfig.openai?.baseUrl) || undefined,
   model,
@@ -213,7 +219,10 @@ export function validateConfigPayload(payload: unknown): ConfigDiagnostic[] {
       workerTimeoutMs: "number",
       debugStdio: "boolean",
       workerArgs: "string",
-      bootstrapStdin: "nullableBoolean"
+      bootstrapStdin: "nullableBoolean",
+      daemonHost: "string",
+      daemonPort: "number",
+      daemonPidPath: "string"
     },
     theorems: {
       source: "string",
@@ -258,6 +267,9 @@ export function validateConfigPayload(payload: unknown): ConfigDiagnostic[] {
       }
       if (key === "hooks" && field === "beforeFinal" && !["off", "warning"].includes(String(sectionRecord[field]))) {
         diagnostics.push({ level: "error", message: "Config key hooks.beforeFinal must be one of off, warning." });
+      }
+      if (key === "wolfram" && field === "backendMode" && !["oneshot", "worker", "daemon"].includes(String(sectionRecord[field]))) {
+        diagnostics.push({ level: "error", message: "Config key wolfram.backendMode must be one of oneshot, worker, daemon." });
       }
     }
   }

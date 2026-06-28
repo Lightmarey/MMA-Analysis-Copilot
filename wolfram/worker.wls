@@ -1,7 +1,7 @@
 If[!TrueQ[ValueQ[$ScriptCommandLine]], $ScriptCommandLine = {}];
 $HistoryLength = 0;
 
-ClearAll[WMAJsonWrite, WMAResolveProtocolPath, WMAReadLoop];
+ClearAll[WMAJsonWrite, WMAResolveProtocolPath, WMAReadLine, WMAReadLoop];
 
 WMAJsonWrite[assoc_Association] := Module[{line},
   line = ExportString[assoc, "RawJSON", "Compact" -> True];
@@ -20,10 +20,16 @@ WMAResolveProtocolPath[] := Module[{candidate},
 
 Get[WMAResolveProtocolPath[]];
 
+WMAReadLine[inputStream_] := If[
+  TrueQ[ValueQ[Global`$WMAUseInputString]] && TrueQ[Global`$WMAUseInputString],
+  Quiet@Check[InputString[""], EndOfFile],
+  Quiet@Check[ReadLine[inputStream], EndOfFile]
+];
+
 WMAReadLoop[inputStream_] := Module[{line, req},
   WMAJsonWrite[<|"id" -> "__worker_ready__", "ok" -> True, "title" -> "Wolfram worker ready"|>];
   While[True,
-    line = Quiet@Check[ReadLine[inputStream], EndOfFile];
+    line = WMAReadLine[inputStream];
     If[line === EndOfFile, Break[]];
     If[!StringQ[line] || StringLength[StringTrim[line]] == 0, Continue[]];
     req = Quiet@Check[ImportString[line, "RawJSON"], $Failed];
