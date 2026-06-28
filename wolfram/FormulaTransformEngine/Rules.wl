@@ -10,7 +10,7 @@ FTApplyRule[compiled_Association, selected_, direction_, parameters_, assumption
       FTPlanStructuralTransform[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
       runtime === "GenericTemplate" || runtime === "GenericTargetPlanner",
         If[targetText =!= "" && runtime === "GenericTemplate",
-          planner = FTFindTargetPlanner[compiled];
+          planner = FTFindTargetPlanner[compiled, "GenericTargetPlanner"];
           If[AssociationQ[planner] && Lookup[planner, "Runtime", ""] === "GenericTargetPlanner",
             FTApplyGenericTemplateRule[planner, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace]
           ,
@@ -36,7 +36,7 @@ FTPlanRule[compiled_Association, selected_, direction_, parameters_, assumptions
       FTPlanStructuralTransform[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
     runtime === "GenericTemplate" || runtime === "GenericTargetPlanner",
       If[targetText =!= "" && runtime === "GenericTemplate",
-        planner = FTFindTargetPlanner[compiled];
+        planner = FTFindTargetPlanner[compiled, "GenericTargetPlanner"];
         If[AssociationQ[planner] && Lookup[planner, "Runtime", ""] === "GenericTargetPlanner",
           FTPlanGenericTemplateRule[planner, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace]
         ,
@@ -131,9 +131,9 @@ FTPrimitiveEvaluate[expr_] := FixedPoint[
       h_[normalizeExpr_, normalizeFactor_] /; FTPrimitiveHeadQ[h, "NormalizeQuotient"] :> Quiet@Check[Simplify[normalizeExpr/normalizeFactor], normalizeExpr/normalizeFactor],
       h_[f_, domain_] /; FTPrimitiveHeadQ[h, "Measurable"] :> Inactive[Measurable][f, domain],
       h_[exprs_, domain_] /; FTPrimitiveHeadQ[h, "MeasurableIntegrable"] :> Inactive[MeasurableIntegrable][exprs, domain],
-      h_[expr_] /; FTPrimitiveHeadQ[h, "Regularity"] :> Inactive[Regularity][expr],
-      h_[expr_, domain_] /; FTPrimitiveHeadQ[h, "BoundaryTrace"] :> Inactive[BoundaryTrace][expr, domain],
-      h_[expr_, domain_] /; FTPrimitiveHeadQ[h, "ZeroMean"] :> Inactive[ZeroMean][expr, domain],
+      h_[regularityExpr_] /; FTPrimitiveHeadQ[h, "Regularity"] :> Inactive[Regularity][regularityExpr],
+      h_[traceExpr_, domain_] /; FTPrimitiveHeadQ[h, "BoundaryTrace"] :> Inactive[BoundaryTrace][traceExpr, domain],
+      h_[zeroMeanExpr_, domain_] /; FTPrimitiveHeadQ[h, "ZeroMean"] :> Inactive[ZeroMean][zeroMeanExpr, domain],
       h_[domain_] /; FTPrimitiveHeadQ[h, "BoundedLipschitzDomain"] :> Inactive[BoundedLipschitzDomain][domain],
       h_[p_, domain_] /; FTPrimitiveHeadQ[h, "Lp"] :> Inactive[Lp][p, domain],
       h_[domain_] /; FTPrimitiveHeadQ[h, "L2"] :> Inactive[Lp][2, domain],
@@ -558,10 +558,4 @@ FTApplyGenericTemplateRule[compiled_Association, selected_, direction_, paramete
 
 FTPlanGenericTemplateRule[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] :=
   FTApplyGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace];
-
-
-
-
-];
-
 

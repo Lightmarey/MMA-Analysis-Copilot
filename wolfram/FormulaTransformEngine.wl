@@ -1,4 +1,4 @@
-﻿BeginPackage["FormulaTransformEngine`"];
+BeginPackage["FormulaTransformEngine`"];
 
 ApplyFormulaTransform::usage = "ApplyFormulaTransform[rule, opts][expr] deterministically transforms a held formula and returns a relation, trace, conditions, obligations, and state.";
 PlanFormulaTransform::usage = "PlanFormulaTransform[rule, opts][expr] builds a target-guided one-shot transform plan without mutating the JSON rule registry.";

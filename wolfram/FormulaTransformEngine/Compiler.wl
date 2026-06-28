@@ -41,12 +41,18 @@ FTTemplateSlotRefs[assoc_Association] := DeleteDuplicates@StringDrop[
 ];
 
 FTDeclaredTemplateSlots[assoc_Association] := Module[
-  {slots = {"selected"}, parameters, defaults, expressions, matchers, derived},
+  {slots = {"selected"}, parameters, defaults, expressions, matchers, derived, plannerTemplates, unknownParameters},
   parameters = Lookup[assoc, "parameters", {}];
   defaults = Lookup[assoc, "parameterDefaults", <||>];
   expressions = Lookup[assoc, "parameterExpressions", {}];
   matchers = Cases[Lookup[assoc, "matchers", {}], _Association, Infinity];
   derived = Lookup[assoc, "derivedBindings", <||>];
+  plannerTemplates = <|
+    "selectedTemplate" -> Lookup[assoc, "selectedTemplate", ""],
+    "targetTemplate" -> Lookup[assoc, "targetTemplate", ""]
+  |>;
+  unknownParameters = Lookup[assoc, "unknownParameters", {}];
+  If[StringQ[unknownParameters], unknownParameters = {unknownParameters}];
   slots = Join[
     slots,
     If[ListQ[parameters], Cases[parameters, p_Association :> Lookup[p, "name", Nothing]], {}],
@@ -56,6 +62,8 @@ FTDeclaredTemplateSlots[assoc_Association] := Module[
     Cases[matchers, a_Association /; KeyExistsQ[a, "domainSlot"] :> Lookup[a, "domainSlot"], Infinity],
     Cases[matchers, a_Association /; KeyExistsQ[a, "bodySlot"] :> Lookup[a, "bodySlot"], Infinity],
     Cases[matchers, a_Association /; KeyExistsQ[a, "varSlot"] :> Lookup[a, "varSlot"], Infinity],
+    If[Lookup[assoc, "kind", ""] === "TargetPlanner", FTTemplateSlotRefs[plannerTemplates], {}],
+    If[ListQ[unknownParameters], StringTrim[StringReplace[Select[unknownParameters, StringQ], StartOfString ~~ "$" -> ""]], {}],
     If[AssociationQ[derived], Keys[derived], {}]
   ];
   DeleteDuplicates@Select[slots, StringQ[#] && StringTrim[#] =!= "" &]
@@ -117,7 +125,7 @@ FTValidateTemplates[assoc_Association] := Module[
     "RealValued", "Nonnegative", "YoungConstant", "BoundaryTerm", "IBPIntegral", "Lp", "Lq",
     "L2", "W", "ZeroMean", "BoundaryTrace", "BoundedLipschitzDomain",
     "Measurable", "MeasurableIntegrable", "Regularity", "RegularEnoughForIBP", "NormalizeQuotient", "NormalizationFactorNonzero",
-    "Norm", "Grad"
+    "Norm", "Grad", "Inactive"
   };
   unknownPrimitive = DeleteDuplicates@Cases[
     StringCases[asText, RegularExpression["\\b[A-Z][A-Za-z0-9]+\\["]],
@@ -280,7 +288,8 @@ CompileFormulaStructuralTransform[_] := FTFailure["InvalidRuleJSON", "Structural
 
 FTCompileTargetPlanner[planner_Association] := Module[
   {issues = {}, name, rules, family, runtime, objective, primitives, allowedPrimitives,
-   targetTemplate, unknowns, equations, obligationsTemplate},
+   selectedTemplate, targetTemplate, unknowns, equations, obligationsTemplate,
+   orientations, conditions, derivedBindings, parameterDefaults},
   If[! FTValidateName[planner], AppendTo[issues, "name must be a non-empty string."]];
   name = StringTrim[Lookup[planner, "name", ""]];
   rules = Lookup[planner, "rules", {}];
@@ -290,10 +299,15 @@ FTCompileTargetPlanner[planner_Association] := Module[
   runtime = FTReadString[Lookup[planner, "runtime", ""]];
   objective = FTReadString[Lookup[planner, "objective", ""]];
   
+  selectedTemplate = Lookup[planner, "selectedTemplate", ""];
   targetTemplate = Lookup[planner, "targetTemplate", ""];
   unknowns = Lookup[planner, "unknownParameters", {}];
   equations = Lookup[planner, "equations", {}];
   obligationsTemplate = Lookup[planner, "obligationsTemplate", {}];
+  orientations = Lookup[planner, "orientations", {}];
+  conditions = Lookup[planner, "conditions", {}];
+  derivedBindings = Lookup[planner, "derivedBindings", <||>];
+  parameterDefaults = Lookup[planner, "parameterDefaults", <||>];
 
   primitives = Lookup[planner, "primitives", {}];
   If[StringQ[primitives], primitives = {primitives}];
@@ -330,9 +344,18 @@ FTCompileTargetPlanner[planner_Association] := Module[
     "Runtime" -> runtime,
     "Objective" -> objective,
     "Primitives" -> primitives,
+    "selectedTemplate" -> selectedTemplate,
+    "SelectedTemplate" -> selectedTemplate,
+    "targetTemplate" -> targetTemplate,
     "TargetTemplate" -> targetTemplate,
+    "unknownParameters" -> unknowns,
     "UnknownParameters" -> unknowns,
+    "equations" -> equations,
     "Equations" -> equations,
+    "Orientations" -> orientations,
+    "Conditions" -> conditions,
+    "DerivedBindings" -> derivedBindings,
+    "ParameterDefaults" -> parameterDefaults,
     "ObligationsTemplate" -> obligationsTemplate,
     "Raw" -> planner
   |>;
