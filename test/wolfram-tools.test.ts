@@ -1705,7 +1705,6 @@ try {
   });
   assert.equal(registry.ok, true);
   assert.match(registry.output ?? "", /RuleCount/);
-  assert.match(registry.output ?? "", /ProofPatternEngine/);
   assert.match(registry.output ?? "", /CompatibilityAliases/);
   assert.match(registry.output ?? "", /HeuristicCount/);
   assert.match(registry.output ?? "", /Holder/);

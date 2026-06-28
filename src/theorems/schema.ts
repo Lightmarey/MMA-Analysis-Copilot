@@ -25,9 +25,7 @@ export type LintIssue = {
 };
 
 export const knownWolframTools = [
-  "formula_transform",
-  "proof_pattern_engine",
-  "inequality_engine",
+  "formula_transform",
   "wolfram_eval",
   "wolfram_simplify",
   "wolfram_equivalence_check",

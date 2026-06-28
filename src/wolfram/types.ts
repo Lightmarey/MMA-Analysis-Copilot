@@ -1,7 +1,5 @@
 export type WolframToolName =
-  | "formula_transform"
-  | "proof_pattern_engine"
-  | "inequality_engine"
+  | "formula_transform"
   | "wolfram_eval"
   | "wolfram_simplify"
   | "wolfram_equivalence_check"

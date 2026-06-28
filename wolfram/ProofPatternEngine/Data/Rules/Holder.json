@@ -1,8 +1,0 @@
-{
-  "Name": "Holder",
-  "Family": "integral-product",
-  "CanonicalForm": "Integral[Abs[f g], mu] <= LpNorm[f,p,mu] LpNorm[g,q,mu]",
-  "Conditions": ["p > 1", "q > 1", "1/p + 1/q == 1", "f in Lp", "g in Lq"],
-  "Transforms": ["abs-dominate", "explicit-product"],
-  "DefaultVariant": "CauchySchwarzDefault"
-}
