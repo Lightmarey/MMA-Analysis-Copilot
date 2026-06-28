@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "name": "Young",
+  "family": "pointwise-product-inequality",
+  "runtime": "GenericTemplate",
+  "description": "Young inequality for pointwise products.",
+  "parameters": [
+    { "name": "p" },
+    { "name": "q" },
+    { "name": "epsilon", "optional": true }
+  ],
+  "matchers": [
+    {
+      "name": "PointwiseProduct",
+      "body": { "kind": "Product", "slots": ["a", "b"] }
+    }
+  ],
+  "derivedBindings": {
+    "standardBound": "Abs[$a]^$p/$p + Abs[$b]^$q/$q",
+    "epsilonBound": "$epsilon Abs[$a]^$p + YoungConstant[$epsilon,$p,$q] Abs[$b]^$q"
+  },
+  "orientations": [
+    {
+      "name": "AbsUpper",
+      "direction": "Auto",
+      "relation": "LessEqual",
+      "lhs": "Abs[$selected]",
+      "rhs": "$standardBound"
+    },
+    {
+      "name": "SignedUpper",
+      "direction": "Upper",
+      "relation": "LessEqual",
+      "lhs": "$selected",
+      "rhs": "$standardBound",
+      "conditions": ["RealValued[$selected]"]
+    },
+    {
+      "name": "SignedLower",
+      "direction": "Lower",
+      "relation": "LessEqual",
+      "lhs": "-$standardBound",
+      "rhs": "$selected",
+      "conditions": ["RealValued[$selected]"]
+    },
+    {
+      "name": "SignedTwoSided",
+      "direction": "TwoSided",
+      "relation": "LessEqualChain",
+      "terms": ["-$standardBound", "$selected", "$standardBound"],
+      "conditions": ["RealValued[$selected]"]
+    }
+  ],
+  "conditions": [
+    "p > 1",
+    "q > 1",
+    "1/p + 1/q == 1"
+  ],
+  "compatibleHeuristics": ["ExplicitProduct", "SplitSqrt", "MultiplyByOne"]
+}

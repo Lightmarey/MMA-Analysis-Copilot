@@ -75,11 +75,11 @@ const hooks: AgentHook[] = [
         phase: "after_plan",
         severity: "hint",
         traceTag: "proof-transform-ledger",
-        message: "A supplied formula transformation or side-condition ledger may benefit from proof_pattern_engine compile before concrete Wolfram checks.",
+        message: "A supplied formula transformation or side-condition ledger may benefit from formula_transform before concrete Wolfram checks.",
         evidence: buildTransformLedgerEvidence(context.userMessage),
         promptHint: [
-          "Hook hint: if the task includes a supplied formula transformation, first identify the proof-move intent, transform intent, and generic side-condition kinds before concrete Wolfram checks.",
-          "Then consider proof_pattern_engine with operation=compile to record only that intent ledger; its payload must be a Wolfram InputForm Association like <|\"RuleIntent\" -> \"...\", \"TransformIntents\" -> {...}, \"ConditionIntents\" -> {...}|>, not pseudo XML, JSON, concrete formulas, or problem-specific details.",
+          "Hook hint: if the task includes a supplied formula transformation, prefer formula_transform so Wolfram builds the relation and discharged/deferred condition ledger directly.",
+          "Use action=apply for concrete formulas, or action=compile_rule/compile_heuristic/compile_structural only when explicitly extending the JSON transform registry.",
           "This is optional guidance; verify explicit formulas with structured Wolfram tools when available."
         ].join(" ")
       }];
@@ -163,10 +163,10 @@ const hooks: AgentHook[] = [
     run(context) {
       const proposed = context.proposedTool;
       if (!proposed) return [];
-      if (proposed.name === "proof_pattern_engine" && readString(proposed.args.operation) === "compile") {
+      if (proposed.name === "formula_transform" && readString(proposed.args.action) === "compile_rule") {
         const previousCompile = context.toolHistory.some(entry => (
-          entry.name === "proof_pattern_engine" &&
-          readString(entry.args.operation) === "compile" &&
+          entry.name === "formula_transform" &&
+          readString(entry.args.action) === "compile_rule" &&
           /"Status"\s*->\s*"Compiled"/.test(entry.result?.output ?? "")
         ));
         if (previousCompile) {
@@ -175,8 +175,8 @@ const hooks: AgentHook[] = [
             phase: "before_tool_call",
             severity: "warning",
             traceTag: "repeated-proof-ledger",
-            message: "A proof_pattern_engine compile call already produced a compiled local ledger.",
-            promptHint: "Hook warning: proof_pattern_engine has already compiled a local ledger. Do not recompile merely to restate Wolfram-verified checks; summarize unless there is a genuinely new proof move or changed side-condition ledger."
+            message: "A formula_transform compile_rule call already produced a compiled transform rule.",
+            promptHint: "Hook warning: formula_transform has already compiled a transform rule. Do not recompile merely to restate checks; summarize unless there is a genuinely new rule JSON or changed condition ledger."
           }];
         }
       }

@@ -20,6 +20,7 @@ assert.equal(toolDefinitionNames.includes("inequality_engine"), false);
 assert.ok(compatWolframToolNames.includes("inequality_engine"));
 
 assert.deepEqual(toolDefinitions.map(tool => tool.name), [
+  "formula_transform",
   "proof_pattern_engine",
   "theorem_advisor",
   "verification_template",
@@ -59,8 +60,42 @@ for (const toolName of publicWolframToolNames) {
 }
 assert.match(protocol, /tool === "inequality_engine"/);
 assert.match(protocol, /ProofPatternEngine`PPHandleRequest/);
+assert.match(protocol, /FormulaTransformEngine`FormulaTransformHandleRequest/);
 
 const proofPatternRoot = path.join(process.cwd(), "wolfram", "ProofPatternEngine");
+const formulaTransformRoot = path.join(process.cwd(), "wolfram", "FormulaTransformEngine");
+const formulaTransformFiles = [
+  "Kernel/init.wl",
+  "Registry/Rules/Holder.transform.json",
+  "Registry/Rules/CauchySchwarz.transform.json",
+  "Registry/Rules/Young.transform.json",
+  "Registry/Rules/IntegrationByParts.transform.json",
+  "Registry/Heuristics/SplitSqrt.heuristic.json",
+  "Registry/Heuristics/MultiplyByOne.heuristic.json",
+  "Registry/EstimateSeeds/Poincare.seed.json",
+  "Registry/EstimateSeeds/Sobolev.seed.json",
+  "Registry/StructuralTransforms/DerivativeProduct.structural.json",
+  "Registry/StructuralTransforms/CommutatorDerivative.structural.json",
+  "Registry/StructuralTransforms/NormalizeByFactor.structural.json",
+  "Registry/StructuralTransforms/DropBoundaryTerm.structural.json",
+  "Registry/TargetPlanners/YoungAbsorption.planner.json",
+  "Registry/TargetPlanners/WeightedHolder.planner.json",
+  "Registry/ObligationDischargers/BoundaryVanishes.discharger.json",
+  "Registry/ObligationDischargers/FunctionSpaceRegularityDeclaration.discharger.json",
+  "Registry/ObligationDischargers/NormalizationDeclaration.discharger.json",
+  "Registry/ObligationDischargers/RealValuedDeclaration.discharger.json",
+  "Registry/EstimateSeeds/.gitkeep"
+];
+for (const relativePath of formulaTransformFiles) {
+  assert.ok(fs.existsSync(path.join(formulaTransformRoot, ...relativePath.split("/"))), `${relativePath} is missing`);
+}
+
+const formulaTransformCompiler = fs.readFileSync(path.join(process.cwd(), "wolfram", "FormulaTransformEngine.wl"), "utf8");
+assert.match(formulaTransformCompiler, /CompileFormulaTransformRule/);
+assert.match(formulaTransformCompiler, /CompileFormulaHeuristicRule/);
+assert.match(formulaTransformCompiler, /CompileFormulaStructuralTransform/);
+assert.doesNotMatch(formulaTransformCompiler, /ToExpression\[[^\n]+payload/i);
+
 const proofPatternFiles = [
   "Kernel/init.wl",
   "Kernel/Core.wl",

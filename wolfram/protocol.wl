@@ -1,10 +1,11 @@
 $HistoryLength = 0;
 
 Get[FileNameJoin[{DirectoryName[$InputFileName], "ProofPatternEngine.wl"}]];
+Get[FileNameJoin[{DirectoryName[$InputFileName], "FormulaTransformEngine.wl"}]];
 
 ClearAll[
   WMASafeString, WMASafeTeX, WMAParseInput, WMAParseAssumptions,
-  WMAParseInteger, WMAElapsedMs, WMAWithTime, WMAFormatResult,
+  WMAParseInteger, WMAElapsedMs, WMAWithTime, WMAJsonValue, WMAFormatResult, WMAFormatFormulaTransformResult,
   WMAHandleRequest
 ];
 
@@ -38,6 +39,15 @@ WMAWithTime[expr_, timeoutMs_Integer] := Module[{seconds},
   TimeConstrained[Quiet@Check[expr, $Failed], seconds, $TimedOut]
 ];
 
+WMAJsonValue[assoc_Association] := Association@KeyValueMap[#1 -> WMAJsonValue[#2] &, assoc];
+WMAJsonValue[list_List] := WMAJsonValue /@ list;
+WMAJsonValue[value_String] := value;
+WMAJsonValue[value_?BooleanQ] := value;
+WMAJsonValue[value_Integer] := value;
+WMAJsonValue[value_Real] := value;
+WMAJsonValue[Null] := Null;
+WMAJsonValue[value_] := WMASafeString[value];
+
 WMAFormatResult[id_, title_, start_, result_] := Module[{value, condition},
   Which[
     result === $TimedOut,
@@ -64,6 +74,14 @@ WMAFormatResult[id_, title_, start_, result_] := Module[{value, condition},
   ]
 ];
 
+WMAFormatFormulaTransformResult[id_, title_, start_, result_] := Module[{formatted},
+  formatted = WMAFormatResult[id, title, start, result];
+  If[TrueQ[Lookup[formatted, "ok", False]] && AssociationQ[result],
+    Join[formatted, <|"json" -> WMAJsonValue[result]|>],
+    formatted
+  ]
+];
+
 WMAHandleRequest[req_Association] := Module[
   {
     id, tool, args, timeoutMs, start, expr, var, lower, upper, assumptions,
@@ -85,6 +103,11 @@ WMAHandleRequest[req_Association] := Module[
   If[tool === "proof_pattern_engine" || tool === "inequality_engine",
     result = WMAWithTime[ProofPatternEngine`PPHandleRequest[args], timeoutMs];
     Return[WMAFormatResult[id, "Proof pattern engine", start, result]];
+  ];
+
+  If[tool === "formula_transform",
+    result = WMAWithTime[FormulaTransformEngine`FormulaTransformHandleRequest[args], timeoutMs];
+    Return[WMAFormatFormulaTransformResult[id, "Formula transform", start, result]];
   ];
 
   If[tool === "wolfram_simplify",

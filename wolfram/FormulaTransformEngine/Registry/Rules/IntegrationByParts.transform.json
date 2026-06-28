@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "name": "IntegrationByParts",
+  "family": "integration-by-parts",
+  "runtime": "GenericTemplate",
+  "description": "One-dimensional integration by parts with explicit boundary terms.",
+  "matchers": [
+    {
+      "name": "OneDimensionalProductDerivative",
+      "operator": "Integral",
+      "body": { "kind": "DerivativeProduct", "slots": ["u", "v"] },
+      "domainSlot": "domain"
+    }
+  ],
+  "orientations": [
+    {
+      "name": "Equality",
+      "direction": "Equal",
+      "relation": "Equal",
+      "lhs": "$selected",
+      "rhs": "BoundaryTerm[$u,$v,$domain] - IBPIntegral[$u,$v,$domain]"
+    }
+  ],
+  "conditions": [
+    "BoundaryTerm[$u,$v,$domain]",
+    "FunctionSpace[$u,RegularEnoughForIBP[$domain]]",
+    "FunctionSpace[$v,RegularEnoughForIBP[$domain]]",
+    "MeasurableIntegrable[{BoundaryTerm[$u,$v,$domain],IBPIntegral[$u,$v,$domain]},$domain]"
+  ],
+  "compatibleHeuristics": []
+}

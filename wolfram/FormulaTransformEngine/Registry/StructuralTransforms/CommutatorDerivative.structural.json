@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "kind": "StructuralTransform",
+  "name": "CommutatorDerivative",
+  "runtime": "GenericStructural",
+  "description": "Structural equality transform for a first-order derivative commutator D[a u] - a D[u].",
+  "appliesTo": ["InactiveD", "Derivative", "Commutator"],
+  "matchers": [
+    {
+      "name": "PointwiseDerivativeCommutator",
+      "operator": "PointwiseDerivativeCommutator",
+      "body": { "kind": "DerivativeCommutator", "slots": ["a", "u"] },
+      "varSlot": "var"
+    }
+  ],
+  "orientations": [
+    {
+      "name": "ReduceFirstOrderCommutator",
+      "direction": "Equal",
+      "relation": "Equal",
+      "lhs": "$selected",
+      "rhs": "D[$a,$var] * $u"
+    }
+  ]
+}

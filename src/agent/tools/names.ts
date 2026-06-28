@@ -17,6 +17,7 @@ export type ToolProperty = {
 };
 
 export const publicWolframToolNames = [
+  "formula_transform",
   "proof_pattern_engine",
   "wolfram_eval",
   "wolfram_simplify",

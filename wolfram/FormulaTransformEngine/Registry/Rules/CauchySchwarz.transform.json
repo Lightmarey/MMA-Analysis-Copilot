@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "name": "CauchySchwarz",
+  "extends": "Holder",
+  "description": "L2 specialization of Holder.",
+  "parameterDefaults": {
+    "p": 2,
+    "q": 2
+  },
+  "overrideConditions": [
+    "FunctionSpace[$f,L2[$domain]]",
+    "FunctionSpace[$g,L2[$domain]]",
+    "Measurable[$f,$domain]",
+    "Measurable[$g,$domain]"
+  ],
+  "compatibleHeuristics": ["ExplicitProduct", "SplitSqrt", "MultiplyByOne"]
+}

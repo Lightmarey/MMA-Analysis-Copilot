@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "name": "Holder",
+  "family": "holder-product-inequality",
+  "runtime": "GenericTemplate",
+  "description": "Holder inequality for integral or sum products.",
+  "parameters": [
+    { "name": "p", "default": 2 },
+    { "name": "q", "default": 2 }
+  ],
+  "matchers": [
+    {
+      "name": "IntegralProduct",
+      "operator": "Integral",
+      "body": { "kind": "Product", "slots": ["f", "g"] },
+      "domainSlot": "domain"
+    },
+    {
+      "name": "SumProduct",
+      "operator": "Sum",
+      "body": { "kind": "Product", "slots": ["f", "g"] },
+      "domainSlot": "domain"
+    }
+  ],
+  "derivedBindings": {
+    "bound": "NormIntegral[$f,$p,$domain] * NormIntegral[$g,$q,$domain]"
+  },
+  "orientations": [
+    {
+      "name": "AbsUpper",
+      "direction": "Auto",
+      "relation": "LessEqual",
+      "lhs": "Abs[$selected]",
+      "rhs": "$bound"
+    },
+    {
+      "name": "SignedUpper",
+      "direction": "Upper",
+      "relation": "LessEqual",
+      "lhs": "$selected",
+      "rhs": "$bound",
+      "conditions": ["RealValued[$selected]"]
+    },
+    {
+      "name": "SignedLower",
+      "direction": "Lower",
+      "relation": "LessEqual",
+      "lhs": "-$bound",
+      "rhs": "$selected",
+      "conditions": ["RealValued[$selected]"]
+    },
+    {
+      "name": "SignedTwoSided",
+      "direction": "TwoSided",
+      "relation": "LessEqualChain",
+      "terms": ["-$bound", "$selected", "$bound"],
+      "conditions": ["RealValued[$selected]"]
+    }
+  ],
+  "conditions": [
+    "p > 1",
+    "q > 1",
+    "1/p + 1/q == 1",
+    "FunctionSpace[$f,Lp[$p,$domain]]",
+    "FunctionSpace[$g,Lp[$q,$domain]]",
+    "Measurable[$f,$domain]",
+    "Measurable[$g,$domain]"
+  ],
+  "compatibleHeuristics": ["ExplicitProduct", "SplitSqrt", "MultiplyByOne"]
+}

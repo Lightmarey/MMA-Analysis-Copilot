@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "kind": "ObligationDischarger",
+  "name": "RealValuedDeclaration",
+  "description": "Discharges real-valuedness obligations from explicit analytic context declarations.",
+  "matchesObligation": ["RealValued"],
+  "evidence": [
+    {
+      "label": "RealValuedContextDeclaration",
+      "source": "context",
+      "obligationKinds": ["RealValued"],
+      "containsAny": [
+        "selected expression is real-valued",
+        "real valued",
+        "real-valued",
+        "real functions",
+        "real scalar"
+      ]
+    },
+    {
+      "label": "RealValuedAssumptionDeclaration",
+      "source": "assumptions",
+      "obligationKinds": ["RealValued"],
+      "containsAny": [
+        "selected expression is real-valued",
+        "real valued",
+        "real-valued",
+        "real functions",
+        "real scalar"
+      ]
+    }
+  ],
+  "evidenceText": [
+    "selected expression is real-valued",
+    "real valued",
+    "real-valued",
+    "real functions",
+    "real scalar"
+  ]
+}

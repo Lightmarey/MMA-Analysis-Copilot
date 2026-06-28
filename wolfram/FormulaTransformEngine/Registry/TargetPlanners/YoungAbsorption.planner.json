@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "kind": "TargetPlanner",
+  "name": "YoungAbsorption",
+  "description": "Request-time planner for matching a Young inequality product estimate to an absorption target relation. This descriptor selects the restricted Wolfram runtime and is not a persistent transform rule.",
+  "rules": ["Young"],
+  "families": ["pointwise-product-inequality"],
+  "objective": "absorption-target",
+  "runtime": "YoungAbsorption",
+  "primitives": [
+    "ParseTargetRelation",
+    "MatchTargetLHS",
+    "ExtractProductFactors",
+    "InferAbsorbedQuadraticFactor",
+    "InferResidualFactor",
+    "ComputeProductCoefficient",
+    "BuildResidualCoefficientCondition"
+  ],
+  "registryMutation": false
+}
