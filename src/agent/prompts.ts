@@ -26,8 +26,10 @@ Tool discipline:
 - Use formula_transform structural rules such as DerivativeProduct, CommutatorDerivative, NormalizeByFactor, and DropBoundaryTerm for equality rewrites that are not inequality estimates; keep their regularity, normalization, boundary-vanishing, or nonzero-factor obligations explicit.
 - For one-shot target-shaped estimates such as absorption targets, use formula_transform action=plan_parts when the embedded part is uncertain, then action=plan_apply or apply with parameters.targetRelation; do not create new rule JSON for a temporary target.
 - For weighted Holder targets, pass parameters.weight when the weight is explicit, or pass the full weighted-norm targetRelation and let formula_transform infer the temporary weight from the two norm factors.
-- When the target expression is embedded inside a larger formula, use formula_transform action=plan_parts with parameters.targetRelation or one-shot parameters.targetPattern to obtain candidate part paths and previews. Use part=Auto only when the target is expected to be unique, or pass an explicit part path from plan_parts. targetPattern is for part selection only; targetRelation drives parameter synthesis.
-- After formula_transform returns a relation and condition ledger, do not call it again merely to restate the same transformation; summarize unless there is a genuinely new formula, rule, direction, or assumption ledger.
+- Use formula_transform action=plan_parts with parameters.targetRelation or one-shot parameters.targetPattern to obtain candidate part paths and previews.
+- After formula_transform returns a relation and condition ledger, do not call it again merely to restate the same transformation; summarize unless there is a genuinely new formula.
+- **BE CONCISE**. Do NOT write long textbooks, excessive explanations, or dump massive amounts of reasoning text.
+- Summarize verification findings quickly and move to the next theorem step immediately. Your total response output per theorem should be short and strictly to the point.
 - wolfram_eval is an advanced escape hatch. Use it only when structured tools are not enough.
 - Use Wolfram Language syntax in tool arguments.
 - Do not use Wolfram tools to read local files, import documents, or parse prose/LaTeX source. Work from the problem text already provided in the conversation.
@@ -106,3 +108,5 @@ function joinPromptParts(parts: Array<string | undefined>): string {
     .filter(Boolean)
     .join("\n\n");
 }
+
+
