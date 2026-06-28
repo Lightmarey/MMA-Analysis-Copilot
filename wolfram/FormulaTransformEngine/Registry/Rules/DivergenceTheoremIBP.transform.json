@@ -1,0 +1,28 @@
+﻿{
+  "schemaVersion": 1,
+  "name": "DivergenceTheoremIBP",
+  "family": "integration-by-parts",
+  "runtime": "GenericTemplate",
+  "description": "Multidimensional integration by parts using the Divergence Theorem.",
+  "matchers": [
+    {
+      "name": "DivergenceProduct",
+      "operator": "Integral",
+      "selectedTemplate": "Inactive[Integrate][Inactive[Div][, ] * , Element[, ]]"
+    }
+  ],
+  "orientations": [
+    {
+      "name": "Equality",
+      "direction": "Equal",
+      "relation": "Equal",
+      "lhs": "",
+      "rhs": "Inactive[Integrate][Inactive[Dot][, Inactive[NormalVector][, RegionBoundary[]]] * , Element[, RegionBoundary[]]] - Inactive[Integrate][Inactive[Dot][, Inactive[Grad][, ]], Element[, ]]"
+    }
+  ],
+  "conditions": [
+    "FunctionSpace[, VectorRegularEnoughForIBP[]]",
+    "FunctionSpace[, RegularEnoughForIBP[]]"
+  ],
+  "compatibleHeuristics": []
+}

@@ -32,7 +32,7 @@ ClearAll[
   CompileFormulaObligationDischarger,
   FTResolveRule, FTResolveTransform, FTMergeRule, InspectFormulaTransformRegistry, ReloadFormulaTransformRegistry,
   ApplyFormulaTransform, PlanFormulaTransform, PlanFormulaTransformParts, FormulaTransformHandleRequest,
-  FTApplyRule, FTApplyHolderLike, FTApplyYoung, FTApplyIntegrationByParts,
+  FTApplyRule, FTApplyHolderLike, FTApplyYoung,
   FTIntegralQ, FTSumQ, FTIntegralParts, FTSumParts, FTProductFactors,
   FTLpBound, FTBuildOrientedRelation, FTBuildConditions,
   FTParseMaybeExpression, FTPlanRule, FTPlanYoungTarget, FTPlanYoungGeneric,
@@ -251,6 +251,11 @@ FTValidateName[assoc_Association] := StringQ[Lookup[assoc, "name", ""]] && Strin
 
 FTValidateStringList[value_] := ListQ[value] && AllTrue[value, StringQ[#] && StringTrim[#] =!= "" &];
 
+FTValidateConditionList[value_] := ListQ[value] && AllTrue[value, 
+  (StringQ[#] && StringTrim[#] =!= "") || 
+  (AssociationQ[#] && KeyExistsQ[#, "predicate"] && KeyExistsQ[#, "arguments"] && ListQ[Lookup[#, "arguments"]]) &
+];
+
 FTTemplateSlotRefs[assoc_Association] := DeleteDuplicates@StringDrop[
   StringCases[ToString[assoc, InputForm, PageWidth -> Infinity], RegularExpression["\\$[A-Za-z][A-Za-z0-9]*"]],
   1
@@ -366,7 +371,7 @@ FTCompileRule[rule_Association] := Module[
   ];
   If[extends === "" && ! ListQ[matchers], AppendTo[issues, "matchers must be a list."]];
   If[extends === "" && ! ListQ[orientations], AppendTo[issues, "orientations must be a list."]];
-  If[! FTValidateStringList[conditions] && conditions =!= {}, AppendTo[issues, "conditions must be a string list."]];
+  If[! FTValidateConditionList[conditions] && conditions =!= {}, AppendTo[issues, "conditions must be a valid condition list."]];
   If[! FTValidateStringList[compatibleHeuristics] && compatibleHeuristics =!= {}, AppendTo[issues, "compatibleHeuristics must be a string list."]];
   issues = Join[issues, FTValidateTemplates[rule]];
   If[issues =!= {},
@@ -1056,19 +1061,17 @@ FTApplyRule[compiled_Association, selected_, direction_, parameters_, assumption
       FTPlanEstimateSeed[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
     Lookup[compiled, "RegistryKind", ""] === "StructuralTransform",
       FTPlanStructuralTransform[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
-    effectiveName === "integrationbyparts" || StringContainsQ[family, "integration"],
-      FTApplyIntegrationByParts[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
-    runtime === "GenericTemplate" || runtime === "GenericTargetPlanner",
-      If[targetText =!= "" && runtime === "GenericTemplate",
-        planner = FTFindTargetPlanner[compiled];
-        If[AssociationQ[planner] && Lookup[planner, "Runtime", ""] === "GenericTargetPlanner",
-          FTApplyGenericTemplateRule[planner, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace]
+      runtime === "GenericTemplate" || runtime === "GenericTargetPlanner",
+        If[targetText =!= "" && runtime === "GenericTemplate",
+          planner = FTFindTargetPlanner[compiled];
+          If[AssociationQ[planner] && Lookup[planner, "Runtime", ""] === "GenericTargetPlanner",
+            FTApplyGenericTemplateRule[planner, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace]
+          ,
+            Return[FTFailure["CompilerPrimitiveMissing", "No generic target planner is available for rule " <> name <> ".", <|"Trace" -> trace, "State" -> state|>]]
+          ]
         ,
-          Return[FTFailure["CompilerPrimitiveMissing", "No generic target planner is available for rule " <> name <> ".", <|"Trace" -> trace, "State" -> state|>]]
-        ]
-      ,
-        FTApplyGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace]
-      ],
+          FTApplyGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace]
+        ],
     True,
       FTFailure["CompilerPrimitiveMissing", "No runtime primitive exists for compiled rule family: " <> family, <|"Trace" -> trace, "State" -> state|>]
   ]
@@ -1434,6 +1437,38 @@ FTEvaluateTemplate[template_String, bindings_Association] := Module[
   FTPrimitiveEvaluate[expr /. tempRules /. directRules]
 ];
 
+FTEvaluateTemplate[template_Association, bindings_Association] := Module[
+  {predicate, kind, args, evalArgs},
+  predicate = Lookup[template, "predicate"];
+  kind = Lookup[template, "kind"];
+  If[MissingQ[predicate] && MissingQ[kind], Return[template]];
+  args = Lookup[template, "arguments", Lookup[template, "args", {}]];
+  evalArgs = FTEvaluateTemplate[#, bindings] & /@ args;
+  
+  If[!MissingQ[predicate],
+    Which[
+      predicate === "BoundaryTerm", Inactive[BoundaryTerm] @@ evalArgs,
+      predicate === "IBPIntegral", Inactive[IBPIntegral] @@ evalArgs,
+      predicate === "FunctionSpace",
+        If[Length[evalArgs] >= 2,
+          Inactive[FunctionSpace][evalArgs[[1]], evalArgs[[2]]],
+          template
+        ],
+      True, template
+    ],
+    Which[
+      kind === "Lp", Inactive[Lp] @@ evalArgs,
+      kind === "L2", Inactive[Lp][2, evalArgs[[1]]],
+      kind === "RegularEnoughForIBP", Inactive[RegularEnoughForIBP] @@ evalArgs,
+      kind === "BoundaryTerm", Inactive[BoundaryTerm] @@ evalArgs,
+      kind === "IBPIntegral", Inactive[IBPIntegral] @@ evalArgs,
+      True, template
+    ]
+  ]
+];
+
+FTEvaluateTemplate[list_List, bindings_Association] := FTEvaluateTemplate[#, bindings] & /@ list;
+
 FTEvaluateTemplate[value_, bindings_Association] := value;
 
 FTApplyGenericStructuralTransform[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, contextText_, state_, trace_] := Module[
@@ -1772,6 +1807,57 @@ FTHeuristicSearch[compiled_Association, selected_, parameters_Association] := Mo
   |>
 ];
 
+FTCompiledCondition[template_Association, bindings_Association, source_String] := Module[
+  {predicate, args, evalArgs, expr, kind, machine, space, spaceExpr},
+  predicate = Lookup[template, "predicate"];
+  args = Lookup[template, "arguments", {}];
+  evalArgs = FTEvaluateTemplate[#, bindings] & /@ args;
+  
+  expr = Which[
+    predicate === "FunctionSpace",
+      space = If[Length[evalArgs] >= 2, ToString[evalArgs[[2]]], ""];
+      spaceExpr = Which[
+        space === "Lp", Inactive[Lp][evalArgs[[3]], evalArgs[[4]]],
+        space === "L2", Inactive[Lp][2, evalArgs[[3]]],
+        space === "RegularEnoughForIBP", Inactive[RegularEnoughForIBP][evalArgs[[3]]],
+        True, If[Length[evalArgs] >= 2, evalArgs[[2]], ""]
+      ];
+      Inactive[FunctionSpace][evalArgs[[1]], spaceExpr],
+    predicate === "Measurable",
+      Inactive[Measurable][evalArgs[[1]], evalArgs[[2]]],
+    predicate === "RealValued",
+      Inactive[RealValued][evalArgs[[1]]],
+    predicate === "Regularity",
+      Inactive[Regularity][evalArgs[[1]]],
+    predicate === "BoundaryCondition" || predicate === "BoundaryTerm",
+      Inactive[BoundaryTerm] @@ evalArgs,
+    predicate === "ExponentConjugacy",
+      1/evalArgs[[1]] + 1/evalArgs[[2]] == 1,
+    predicate === "MeasurableIntegrable",
+      Inactive[MeasurableIntegrable][evalArgs[[1]], evalArgs[[2]]],
+    predicate === "Greater" || predicate === "GreaterThan",
+      evalArgs[[1]] > evalArgs[[2]],
+    True,
+      $Failed
+  ];
+  
+  If[expr === $Failed, Return[FTCondition["TemplateCondition", ToString[template], source, False]]];
+  
+  kind = Which[
+    predicate === "RealValued", "RealValued",
+    predicate === "FunctionSpace", "FunctionSpaceMembership",
+    predicate === "Measurable", "Measurability",
+    predicate === "MeasurableIntegrable", "MeasurabilityIntegrability",
+    predicate === "Regularity", "Regularity",
+    predicate === "BoundaryCondition" || predicate === "BoundaryTerm", "BoundaryCondition",
+    predicate === "ExponentConjugacy", "ExponentConjugacy",
+    True, "TemplateCondition"
+  ];
+  
+  machine = kind =!= "BoundaryCondition" && FreeQ[expr, Inactive[RealValued] | Inactive[FunctionSpace] | Inactive[Measurable] | Inactive[BoundaryTerm] | Inactive[RegularEnoughForIBP]];
+  FTCondition[kind, expr, source, machine]
+];
+
 FTCompiledCondition[template_String, bindings_Association, source_String] := Module[{expr, kind, machine},
   If[StringStartsQ[StringTrim[template], "NormalizationFactorNonzero["],
     expr = FTEvaluateTemplate[StringReplace[StringTrim[template], "NormalizationFactorNonzero[" ~~ rest__ ~~ "]" :> rest], bindings];
@@ -1889,46 +1975,8 @@ FTPlanGenericTemplateRule[compiled_Association, selected_, direction_, parameter
   FTApplyGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace];
 
 
+
 FTApplyIntegrationByParts[compiled_, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", "IntegrationByParts"], x, a, b, u, v, integrand, boundary, interior, relation, conditions, discharged, state2, trace2},
-  If[direction =!= "Auto" && direction =!= "Equal",
-    Return[FTFailure["DirectionUnavailable", "IntegrationByParts is an equality transform; use direction=Equal or Auto.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  Which[
-    MatchQ[selected, Inactive[Integrate][Derivative[1][_][_] * _, {_, _, _}]],
-      {integrand, {x, a, b}} = List @@ selected,
-    MatchQ[selected, Integrate[Derivative[1][_][_] * _, {_, _, _}]],
-      {integrand, {x, a, b}} = List @@ selected,
-    True,
-      Return[FTFailure["Inapplicable", "IntegrationByParts currently matches one-dimensional integrals of u'[x] v.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  integrand /. Derivative[1][uu_][xx_] * vv_ :> (u = uu; v = vv);
-  boundary = u[b] * (v /. x -> b) - u[a] * (v /. x -> a);
-  interior = -Inactive[Integrate][u[x] * D[v, x], {x, a, b}];
-  relation = Equal[selected, boundary + interior];
-  trace2 = FTAppendTrace[trace, "MatchRule", <|"Rule" -> name, "Operator" -> "OneDimensionalIntegral"|>];
-  conditions = {
-    FTBoundaryCondition[boundary, name],
-    FTFunctionSpaceCondition[u, Inactive[RegularEnoughForIBP][{x, a, b}], name],
-    FTFunctionSpaceCondition[v, Inactive[RegularEnoughForIBP][{x, a, b}], name],
-    FTMeasurableIntegrableCondition[{boundary, interior}, {x, a, b}, name]
-  };
-  discharged = FTDischargeConditions[conditions, assumptions, assumptionsText, context, contextText];
-  state2 = FTAddObligations[state, Lookup[discharged, "Deferred", {}], trace2];
-  FTSuccess[<|
-    "Rule" -> name,
-    "Direction" -> "Equal",
-    "Part" -> "Whole",
-    "Original" -> selected,
-    "Selected" -> selected,
-    "Relation" -> relation,
-    "RelationInputForm" -> ToString[relation, InputForm, PageWidth -> Infinity],
-    "RelationLatex" -> Quiet@Check[ToString[TeXForm[relation], PageWidth -> Infinity], ""],
-    "Trace" -> FTAppendTrace[trace2, "BuildRelation", <|"Direction" -> "Equal"|>],
-    "Conditions" -> discharged,
-    "Obligations" -> Lookup[discharged, "Deferred", {}],
-    "State" -> state2
-  |>]
 ];
 
 FTConditionDischargedByTextQ[condition_Association, assumptionsText_String, contextText_String] := Module[

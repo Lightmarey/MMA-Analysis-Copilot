@@ -1,4 +1,4 @@
-{
+﻿{
   "schemaVersion": 1,
   "name": "IntegrationByParts",
   "family": "integration-by-parts",
@@ -8,8 +8,7 @@
     {
       "name": "OneDimensionalProductDerivative",
       "operator": "Integral",
-      "body": { "kind": "DerivativeProduct", "slots": ["u", "v"] },
-      "domainSlot": "domain"
+      "selectedTemplate": "Inactive[Integrate][Derivative[1][][] * [], {, , }]"
     }
   ],
   "orientations": [
@@ -17,15 +16,14 @@
       "name": "Equality",
       "direction": "Equal",
       "relation": "Equal",
-      "lhs": "$selected",
-      "rhs": "BoundaryTerm[$u,$v,$domain] - IBPIntegral[$u,$v,$domain]"
+      "lhs": "",
+      "rhs": "[] * [] - [] * [] - Inactive[Integrate][[] * Derivative[1][][], {, , }]"
     }
   ],
   "conditions": [
-    "BoundaryTerm[$u,$v,$domain]",
-    "FunctionSpace[$u,RegularEnoughForIBP[$domain]]",
-    "FunctionSpace[$v,RegularEnoughForIBP[$domain]]",
-    "MeasurableIntegrable[{BoundaryTerm[$u,$v,$domain],IBPIntegral[$u,$v,$domain]},$domain]"
+    "FunctionSpace[, RegularEnoughForIBP[{, , }]]",
+    "FunctionSpace[, RegularEnoughForIBP[{, , }]]",
+    "MeasurableIntegrable[{[] * [] - [] * [], -Inactive[Integrate][[] * Derivative[1][][], {, , }]}, {, , }]"
   ],
   "compatibleHeuristics": []
 }

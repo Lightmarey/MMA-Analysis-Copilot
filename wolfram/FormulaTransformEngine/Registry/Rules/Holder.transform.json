@@ -5,20 +5,38 @@
   "runtime": "GenericTemplate",
   "description": "Holder inequality for integral or sum products.",
   "parameters": [
-    { "name": "p", "default": 2 },
-    { "name": "q", "default": 2 }
+    {
+      "name": "p",
+      "default": 2
+    },
+    {
+      "name": "q",
+      "default": 2
+    }
   ],
   "matchers": [
     {
       "name": "IntegralProduct",
       "operator": "Integral",
-      "body": { "kind": "Product", "slots": ["f", "g"] },
+      "body": {
+        "kind": "Product",
+        "slots": [
+          "f",
+          "g"
+        ]
+      },
       "domainSlot": "domain"
     },
     {
       "name": "SumProduct",
       "operator": "Sum",
-      "body": { "kind": "Product", "slots": ["f", "g"] },
+      "body": {
+        "kind": "Product",
+        "slots": [
+          "f",
+          "g"
+        ]
+      },
       "domainSlot": "domain"
     }
   ],
@@ -39,7 +57,14 @@
       "relation": "LessEqual",
       "lhs": "$selected",
       "rhs": "$bound",
-      "conditions": ["RealValued[$selected]"]
+      "conditions": [
+        {
+          "predicate": "RealValued",
+          "arguments": [
+            "$selected"
+          ]
+        }
+      ]
     },
     {
       "name": "SignedLower",
@@ -47,24 +72,100 @@
       "relation": "LessEqual",
       "lhs": "-$bound",
       "rhs": "$selected",
-      "conditions": ["RealValued[$selected]"]
+      "conditions": [
+        {
+          "predicate": "RealValued",
+          "arguments": [
+            "$selected"
+          ]
+        }
+      ]
     },
     {
       "name": "SignedTwoSided",
       "direction": "TwoSided",
       "relation": "LessEqualChain",
-      "terms": ["-$bound", "$selected", "$bound"],
-      "conditions": ["RealValued[$selected]"]
+      "terms": [
+        "-$bound",
+        "$selected",
+        "$bound"
+      ],
+      "conditions": [
+        {
+          "predicate": "RealValued",
+          "arguments": [
+            "$selected"
+          ]
+        }
+      ]
     }
   ],
   "conditions": [
-    "p > 1",
-    "q > 1",
-    "1/p + 1/q == 1",
-    "FunctionSpace[$f,Lp[$p,$domain]]",
-    "FunctionSpace[$g,Lp[$q,$domain]]",
-    "Measurable[$f,$domain]",
-    "Measurable[$g,$domain]"
+    {
+      "predicate": "Greater",
+      "arguments": [
+        "$p",
+        1
+      ]
+    },
+    {
+      "predicate": "Greater",
+      "arguments": [
+        "$q",
+        1
+      ]
+    },
+    {
+      "predicate": "ExponentConjugacy",
+      "arguments": [
+        "$p",
+        "$q"
+      ]
+    },
+    {
+      "predicate": "FunctionSpace",
+      "arguments": [
+        "$f",
+        {
+          "kind": "Lp",
+          "args": [
+            "$p",
+            "$domain"
+          ]
+        }
+      ]
+    },
+    {
+      "predicate": "FunctionSpace",
+      "arguments": [
+        "$g",
+        {
+          "kind": "Lp",
+          "args": [
+            "$q",
+            "$domain"
+          ]
+        }
+      ]
+    },
+    {
+      "predicate": "Measurable",
+      "arguments": [
+        "$f",
+        "$domain"
+      ]
+    },
+    {
+      "predicate": "Measurable",
+      "arguments": [
+        "$g",
+        "$domain"
+      ]
+    }
   ],
-  "compatibleHeuristics": ["ExplicitProduct", "SplitSqrt", "MultiplyByOne"]
+  "compatibleHeuristics": [
+    "ExplicitProduct",
+    "SplitSqrt",
+    "MultiplyByOne"
+  ]
 }

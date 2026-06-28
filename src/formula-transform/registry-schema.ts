@@ -145,7 +145,8 @@ function lintByKind(file: string, kind: string, raw: Record<string, unknown>, is
         requireObjectArray(file, name, "matchers", raw.matchers, issues);
         requireObjectArray(file, name, "orientations", raw.orientations, issues);
       }
-      optionalStringArray(file, name, "conditions", raw.conditions, issues);
+      optionalConditionArray(file, name, "conditions", raw.conditions, issues);
+      optionalConditionArray(file, name, "overrideConditions", raw.overrideConditions, issues);
       optionalStringArray(file, name, "compatibleHeuristics", raw.compatibleHeuristics, issues);
       break;
     case "heuristic":
@@ -153,7 +154,7 @@ function lintByKind(file: string, kind: string, raw: Record<string, unknown>, is
       if (!isRecord(raw.rewrite) || !stringValue(raw.rewrite.template)) {
         issues.push({ file, name, message: "rewrite.template must be a non-empty string." });
       }
-      optionalStringArray(file, name, "conditions", raw.conditions, issues);
+      optionalConditionArray(file, name, "conditions", raw.conditions, issues);
       optionalStringArray(file, name, "appliesTo", raw.appliesTo, issues);
       optionalNumber(file, name, "cost", raw.cost, issues);
       optionalNumber(file, name, "maxApplications", raw.maxApplications, issues);
@@ -162,7 +163,7 @@ function lintByKind(file: string, kind: string, raw: Record<string, unknown>, is
       if (!isRecord(raw.template) || !stringValue(raw.template.relation)) {
         issues.push({ file, name, message: "template.relation must be a non-empty string." });
       }
-      requireArray(file, name, "conditions", raw.conditions, issues);
+      requireConditionArray(file, name, "conditions", raw.conditions, issues);
       optionalStringArray(file, name, "parameterExpressions", raw.parameterExpressions, issues);
       optionalStringArray(file, name, "appliesTo", raw.appliesTo, issues);
       break;
@@ -332,6 +333,29 @@ function optionalStringArray(file: string, name: string | undefined, key: string
   if (value === undefined) return;
   if (!Array.isArray(value) || value.some(item => typeof item !== "string" || !item.trim())) {
     issues.push({ file, name, message: `${key} must be a string array when present.` });
+  }
+}
+
+function optionalConditionArray(file: string, name: string | undefined, key: string, value: unknown, issues: FormulaRegistryIssue[]): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value) || value.some(item => {
+    if (typeof item === "string" && item.trim()) return false;
+    if (isRecord(item) && typeof item.predicate === "string" && Array.isArray(item.arguments)) return false;
+    if (isRecord(item) && typeof item.kind === "string" && typeof item.expr === "string") return false;
+    return true;
+  })) {
+    issues.push({ file, name, message: `${key} must be a condition array (string, predicate object, or kind/expr object) when present.` });
+  }
+}
+
+function requireConditionArray(file: string, name: string | undefined, key: string, value: unknown, issues: FormulaRegistryIssue[]): void {
+  if (!Array.isArray(value) || !value.length || value.some(item => {
+    if (typeof item === "string" && item.trim()) return false;
+    if (isRecord(item) && typeof item.predicate === "string" && Array.isArray(item.arguments)) return false;
+    if (isRecord(item) && typeof item.kind === "string" && typeof item.expr === "string") return false;
+    return true;
+  })) {
+    issues.push({ file, name, message: `${key} must be a non-empty condition array (string, predicate object, or kind/expr object).` });
   }
 }
 
