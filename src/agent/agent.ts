@@ -30,7 +30,7 @@ export class MathAgent {
     { role: "system", content: this.systemPrompt }
   ];
   private forcedModel: string | null = null;
-    private activeToolNames = new Set<string>(["theorem_advisor", "verification_template", "wolfram_eval", "wolfram_simplify", "load_tool", "wolfram_equivalence_check"]);
+    private activeToolNames = new Set<string>(["theorem_advisor", "verification_template", "wolfram_eval", "wolfram_simplify", "load_tool", "wolfram_equivalence_check", "formula_transform", "wolfram_solve"]);
 
   constructor(private readonly wolfram = new WolframBackend()) {
     if (!config.openaiApiKey) {
