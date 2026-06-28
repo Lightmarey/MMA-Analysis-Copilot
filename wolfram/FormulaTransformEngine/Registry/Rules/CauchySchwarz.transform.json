@@ -10,20 +10,46 @@
   "overrideConditions": [
     {
       "predicate": "FunctionSpace",
-      "arguments": ["$f", "L2", "$domain"]
+      "arguments": [
+        "$f",
+        {
+          "kind": "L2",
+          "args": [
+            "$domain"
+          ]
+        }
+      ]
     },
     {
       "predicate": "FunctionSpace",
-      "arguments": ["$g", "L2", "$domain"]
+      "arguments": [
+        "$g",
+        {
+          "kind": "L2",
+          "args": [
+            "$domain"
+          ]
+        }
+      ]
     },
     {
       "predicate": "Measurable",
-      "arguments": ["$f", "$domain"]
+      "arguments": [
+        "$f",
+        "$domain"
+      ]
     },
     {
       "predicate": "Measurable",
-      "arguments": ["$g", "$domain"]
+      "arguments": [
+        "$g",
+        "$domain"
+      ]
     }
   ],
-  "compatibleHeuristics": ["ExplicitProduct", "SplitSqrt", "MultiplyByOne"]
+  "compatibleHeuristics": [
+    "ExplicitProduct",
+    "SplitSqrt",
+    "MultiplyByOne"
+  ]
 }

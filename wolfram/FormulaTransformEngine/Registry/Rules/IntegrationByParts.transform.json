@@ -8,7 +8,13 @@
     {
       "name": "OneDimensionalProductDerivative",
       "operator": "Integral",
-      "body": { "kind": "DerivativeProduct", "slots": ["u", "v"] },
+      "body": {
+        "kind": "DerivativeProduct",
+        "slots": [
+          "u",
+          "v"
+        ]
+      },
       "domainSlot": "domain"
     }
   ],
@@ -24,22 +30,56 @@
   "conditions": [
     {
       "predicate": "BoundaryTerm",
-      "arguments": ["$u", "$v", "$domain"]
+      "arguments": [
+        "$u",
+        "$v",
+        "$domain"
+      ]
     },
     {
       "predicate": "FunctionSpace",
-      "arguments": ["$u", "RegularEnoughForIBP", "$domain"]
+      "arguments": [
+        "$u",
+        {
+          "kind": "RegularEnoughForIBP",
+          "args": [
+            "$domain"
+          ]
+        }
+      ]
     },
     {
       "predicate": "FunctionSpace",
-      "arguments": ["$v", "RegularEnoughForIBP", "$domain"]
+      "arguments": [
+        "$v",
+        {
+          "kind": "RegularEnoughForIBP",
+          "args": [
+            "$domain"
+          ]
+        }
+      ]
     },
     {
       "predicate": "MeasurableIntegrable",
       "arguments": [
         [
-          {"predicate": "BoundaryTerm", "arguments": ["$u", "$v", "$domain"]},
-          {"predicate": "IBPIntegral", "arguments": ["$u", "$v", "$domain"]}
+          {
+            "kind": "BoundaryTerm",
+            "args": [
+              "$u",
+              "$v",
+              "$domain"
+            ]
+          },
+          {
+            "kind": "IBPIntegral",
+            "args": [
+              "$u",
+              "$v",
+              "$domain"
+            ]
+          }
         ],
         "$domain"
       ]

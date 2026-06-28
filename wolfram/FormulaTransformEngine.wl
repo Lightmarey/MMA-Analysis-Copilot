@@ -1372,25 +1372,32 @@ FTEvaluateTemplate[template_String, bindings_Association] := Module[
 ];
 
 FTEvaluateTemplate[template_Association, bindings_Association] := Module[
-  {predicate, args, evalArgs, space, spaceExpr},
+  {predicate, kind, args, evalArgs},
   predicate = Lookup[template, "predicate"];
-  If[MissingQ[predicate], Return[template]];
-  args = Lookup[template, "arguments", {}];
+  kind = Lookup[template, "kind"];
+  If[MissingQ[predicate] && MissingQ[kind], Return[template]];
+  args = Lookup[template, "arguments", Lookup[template, "args", {}]];
   evalArgs = FTEvaluateTemplate[#, bindings] & /@ args;
   
-  Which[
-    predicate === "BoundaryTerm", Inactive[BoundaryTerm] @@ evalArgs,
-    predicate === "IBPIntegral", Inactive[IBPIntegral] @@ evalArgs,
-    predicate === "FunctionSpace",
-      space = If[Length[evalArgs] >= 2, ToString[evalArgs[[2]]], ""];
-      spaceExpr = Which[
-        space === "Lp", Inactive[Lp][evalArgs[[3]], evalArgs[[4]]],
-        space === "L2", Inactive[Lp][2, evalArgs[[3]]],
-        space === "RegularEnoughForIBP", Inactive[RegularEnoughForIBP][evalArgs[[3]]],
-        True, If[Length[evalArgs] >= 2, evalArgs[[2]], ""]
-      ];
-      Inactive[FunctionSpace][evalArgs[[1]], spaceExpr],
-    True, template
+  If[!MissingQ[predicate],
+    Which[
+      predicate === "BoundaryTerm", Inactive[BoundaryTerm] @@ evalArgs,
+      predicate === "IBPIntegral", Inactive[IBPIntegral] @@ evalArgs,
+      predicate === "FunctionSpace",
+        If[Length[evalArgs] >= 2,
+          Inactive[FunctionSpace][evalArgs[[1]], evalArgs[[2]]],
+          template
+        ],
+      True, template
+    ],
+    Which[
+      kind === "Lp", Inactive[Lp] @@ evalArgs,
+      kind === "L2", Inactive[Lp][2, evalArgs[[1]]],
+      kind === "RegularEnoughForIBP", Inactive[RegularEnoughForIBP] @@ evalArgs,
+      kind === "BoundaryTerm", Inactive[BoundaryTerm] @@ evalArgs,
+      kind === "IBPIntegral", Inactive[IBPIntegral] @@ evalArgs,
+      True, template
+    ]
   ]
 ];
 
