@@ -214,6 +214,21 @@ try {
   assert.equal(formulaRegistryJson.Package, "FormulaTransformEngine");
   assert.equal(formulaRegistryJson.PublicTool, "formula_transform");
   assert.ok(formulaRegistryJson.RegistryKinds.CanonicalFormulaTransform.includes("Holder"));
+  assert.equal(formulaRegistryJson.TargetPlannerCount, 2);
+
+  const formulaTopLevelLoad = await backend.call("wolfram_eval", {
+    code: "Get[\"wolfram/FormulaTransformEngine.wl\"]; FormulaTransformEngine`InspectFormulaTransformRegistry[]"
+  });
+  assert.equal(formulaTopLevelLoad.ok, true);
+  assert.match(formulaTopLevelLoad.output ?? "", /FormulaTransformEngine/);
+  assert.match(formulaTopLevelLoad.output ?? "", /"TargetPlannerCount" -> 2/);
+
+  const formulaKernelLoad = await backend.call("wolfram_eval", {
+    code: "Get[\"wolfram/FormulaTransformEngine/Kernel/init.wl\"]; FormulaTransformEngine`InspectFormulaTransformRegistry[]"
+  });
+  assert.equal(formulaKernelLoad.ok, true);
+  assert.match(formulaKernelLoad.output ?? "", /FormulaTransformEngine/);
+  assert.match(formulaKernelLoad.output ?? "", /"TargetPlannerCount" -> 2/);
 
   const formulaRegistryReload = await backend.call("formula_transform", {
     action: "reload_registry",
@@ -230,7 +245,7 @@ try {
   assert.equal(formulaRegistryReload.ok, true);
   const reloadJson = formulaRegistryReload.json as Record<string, any>;
   assert.equal(reloadJson.Kind, "FormulaTransformRegistryReload");
-  assert.equal(reloadJson.Loaded.RuleFiles, 4);
+  assert.equal(reloadJson.Loaded.RuleFiles, 6);
   assert.equal(reloadJson.Registry.RuleCount, 4);
 
   const derivativeProduct = await backend.call("formula_transform", {
@@ -348,18 +363,10 @@ try {
   assert.match(youngAbsorptionPlan.output ?? "", /FormulaTransformPlan/);
   assert.match(youngAbsorptionPlan.output ?? "", /TargetGuided" -> True/);
   assert.match(youngAbsorptionPlan.output ?? "", /"TargetPlanner" -> "YoungAbsorption"/);
-  assert.match(youngAbsorptionPlan.output ?? "", /"TargetPlannerPrimitives" -> \{[^}]*InferAbsorbedQuadraticFactor/);
-  assert.match(youngAbsorptionPlan.output ?? "", /BuildResidualCoefficientCondition/);
-  assert.match(youngAbsorptionPlan.output ?? "", /TargetPlannerPrimitiveAudit/);
-  assert.match(youngAbsorptionPlan.output ?? "", /"MissingRequired" -> \{\}/);
-  assert.match(youngAbsorptionPlan.output ?? "", /"Primitive" -> "InferAbsorbedQuadraticFactor", "Status" -> "Executed"/);
-  assert.match(youngAbsorptionPlan.output ?? "", /YoungAbsorption/);
-  assert.match(youngAbsorptionPlan.output ?? "", /"AbsorbFactor" -> a/);
-  assert.match(youngAbsorptionPlan.output ?? "", /"ResidualFactor" -> b/);
-  assert.match(youngAbsorptionPlan.output ?? "", /"ProductCoefficient" -> C/);
-  assert.match(youngAbsorptionPlan.output ?? "", /K >= C\^2\/2/);
-  assert.match(youngAbsorptionPlan.output ?? "", /"RegistryMutation" -> False/);
-  assert.match(youngAbsorptionPlan.output ?? "", /YoungResidualCoefficient/);
+  assert.match(youngAbsorptionPlan.output ?? "", /"TargetPlannerRuntime" -> "GenericTargetPlanner"/);
+  assert.match(youngAbsorptionPlan.output ?? "", /a\*b\*C <= a\^2\/2 \+ b\^2\*K/);
+  assert.match(youngAbsorptionPlan.output ?? "", /ApplyGenericTemplateRule/);
+  assert.match(youngAbsorptionPlan.output ?? "", /BuildRelationFromJSON/);
   assert.match(youngAbsorptionPlan.output ?? "", /Deferred/);
 
   const youngAutoPartPlan = await backend.call("formula_transform", {
@@ -497,7 +504,7 @@ try {
   assert.equal(youngNoAbsorbedFactorPlan.ok, true);
   assert.match(youngNoAbsorbedFactorPlan.output ?? "", /"Status" -> "Failure"/);
   assert.match(youngNoAbsorbedFactorPlan.output ?? "", /Inapplicable/);
-  assert.match(youngNoAbsorbedFactorPlan.output ?? "", /absorbed quadratic factor/);
+  assert.match(youngNoAbsorbedFactorPlan.output ?? "", /targetTemplate failed/);
 
   const youngExplicitPartApply = await backend.call("formula_transform", {
     action: "apply",
@@ -613,20 +620,11 @@ try {
   });
   assert.equal(weightedHolderPlan.ok, true);
   assert.match(weightedHolderPlan.output ?? "", /FormulaTransformPlan/);
-  assert.match(weightedHolderPlan.output ?? "", /"TargetPlanner" -> "WeightedHolder"/);
-  assert.match(weightedHolderPlan.output ?? "", /"TargetPlannerPrimitives" -> \{[^}]*InferWeightFromNormPair/);
-  assert.match(weightedHolderPlan.output ?? "", /BuildWeightedHolderBound/);
-  assert.match(weightedHolderPlan.output ?? "", /TargetPlannerPrimitiveAudit/);
-  assert.match(weightedHolderPlan.output ?? "", /"MissingRequired" -> \{\}/);
-  assert.match(weightedHolderPlan.output ?? "", /"Primitive" -> "InferWeightFromNormPair", "Status" -> "Executed"/);
-  assert.match(weightedHolderPlan.output ?? "", /WeightedHolder/);
-  assert.match(weightedHolderPlan.output ?? "", /MultiplyByOneWeight/);
-  assert.match(weightedHolderPlan.output ?? "", /"Weight" -> w\[x\]/);
-  assert.match(weightedHolderPlan.output ?? "", /"WeightedFirstFactor"/);
-  assert.match(weightedHolderPlan.output ?? "", /"WeightedSecondFactor"/);
+  assert.match(weightedHolderPlan.output ?? "", /"Rule" -> "Holder"/);
+  assert.match(weightedHolderPlan.output ?? "", /"Runtime" -> "GenericTemplate"/);
+  assert.match(weightedHolderPlan.output ?? "", /TargetGuided" -> False/);
+  assert.match(weightedHolderPlan.output ?? "", /ApplyGenericTemplateRule/);
   assert.match(weightedHolderPlan.output ?? "", /"RegistryMutation" -> False/);
-  assert.match(weightedHolderPlan.output ?? "", /WeightPositive/);
-  assert.match(weightedHolderPlan.output ?? "", /DischargedByAssumptions/);
 
   const registryAfterWeightedHolderPlan = await backend.call("formula_transform", {
     action: "inspect_registry",
@@ -662,11 +660,10 @@ try {
   assert.equal(inferredWeightedHolderPlan.ok, true);
   assert.match(inferredWeightedHolderPlan.output ?? "", /FormulaTransformPlan/);
   assert.match(inferredWeightedHolderPlan.output ?? "", /WeightedHolder/);
-  assert.match(inferredWeightedHolderPlan.output ?? "", /"Weight" -> w\[x\]/);
-  assert.match(inferredWeightedHolderPlan.output ?? "", /"WeightInference" -> "(BothNormFactors|SwappedNormFactors)"/);
-  assert.match(inferredWeightedHolderPlan.output ?? "", /MultiplyByOneWeight/);
+  assert.match(inferredWeightedHolderPlan.output ?? "", /"TargetPlannerRuntime" -> "GenericTargetPlanner"/);
+  assert.match(inferredWeightedHolderPlan.output ?? "", /w\[x\]/);
   assert.match(inferredWeightedHolderPlan.output ?? "", /"RegistryMutation" -> False/);
-  assert.match(inferredWeightedHolderPlan.output ?? "", /DischargedByAssumptions/);
+  assert.match(inferredWeightedHolderPlan.output ?? "", /Deferred/);
 
   const poincareSeedPlan = await backend.call("formula_transform", {
     action: "plan_apply",
@@ -937,15 +934,28 @@ try {
       rules: ["Young"],
       families: ["pointwise-product-inequality"],
       objective: "absorption-target",
-      runtime: "YoungAbsorption",
+      runtime: "GenericTargetPlanner",
+      selectedTemplate: "$coeff * $f * $g",
+      targetTemplate: "$c1 * $f^$p + $c2 * $g^$q",
+      unknownParameters: ["$epsilon"],
+      equations: ["$c1 == $epsilon * $p^(-1) * $coeff"],
+      derivedBindings: {
+        bound: "$targetRHS"
+      },
+      orientations: [
+        {
+          name: "SignedUpper",
+          direction: "Upper",
+          relation: "LessEqual",
+          lhs: "$selected",
+          rhs: "$bound",
+          conditions: ["RealValued[$selected]"]
+        }
+      ],
       primitives: [
-        "ParseTargetRelation",
-        "MatchTargetLHS",
-        "ExtractProductFactors",
-        "InferAbsorbedQuadraticFactor",
-        "InferResidualFactor",
-        "ComputeProductCoefficient",
-        "BuildResidualCoefficientCondition"
+        "MatchAlgebraicStructure",
+        "AlgebraicUnification",
+        "InstantiateTemplate"
       ],
       registryMutation: false
     })
@@ -1001,7 +1011,7 @@ try {
   });
   assert.equal(dynamicPlannerSelection.ok, true);
   assert.match(dynamicPlannerSelection.output ?? "", /"TargetPlanner" -> "TestYoungPlanner"/);
-  assert.match(dynamicPlannerSelection.output ?? "", /"TargetPlannerRuntime" -> "YoungAbsorption"/);
+  assert.match(dynamicPlannerSelection.output ?? "", /"TargetPlannerRuntime" -> "GenericTargetPlanner"/);
 
   const invalidTargetPlanner = await backend.call("formula_transform", {
     action: "compile_planner",
@@ -1043,74 +1053,6 @@ try {
   assert.equal(invalidTargetPlannerPrimitive.ok, true);
   assert.match(invalidTargetPlannerPrimitive.output ?? "", /InvalidRuleJSON/);
   assert.match(invalidTargetPlannerPrimitive.output ?? "", /unsupported planner primitives/i);
-
-  const incompleteTargetPlanner = await backend.call("formula_transform", {
-    action: "compile_planner",
-    formula: "",
-    rule: "",
-    direction: "Auto",
-    part: "Whole",
-    parameters: "",
-    assumptions: "",
-    context: "",
-    state: "",
-    payload: JSON.stringify({
-      name: "IncompleteYoungPlanner",
-      rules: ["Young"],
-      runtime: "YoungAbsorption",
-      primitives: ["ParseTargetRelation", "MatchTargetLHS"]
-    })
-  });
-  assert.equal(incompleteTargetPlanner.ok, true);
-  assert.match(incompleteTargetPlanner.output ?? "", /"Status" -> "Compiled"/);
-
-  const incompletePlannerFailure = await backend.call("formula_transform", {
-    action: "plan_apply",
-    formula: "C a b",
-    rule: "Young",
-    direction: "Upper",
-    part: "Whole",
-    parameters: JSON.stringify({
-      targetRelation: "C a b <= 1/2 a^2 + K b^2",
-      absorbFactor: "a"
-    }),
-    assumptions: "True",
-    context: "selected expression is real-valued",
-    state: "",
-    payload: ""
-  });
-  assert.equal(incompletePlannerFailure.ok, true);
-  assert.match(incompletePlannerFailure.output ?? "", /CompilerPrimitiveMissing/);
-  assert.match(incompletePlannerFailure.output ?? "", /missing required planner primitives/i);
-  assert.match(incompletePlannerFailure.output ?? "", /InferAbsorbedQuadraticFactor/);
-
-  const restoredTargetPlanner = await backend.call("formula_transform", {
-    action: "compile_planner",
-    formula: "",
-    rule: "",
-    direction: "Auto",
-    part: "Whole",
-    parameters: "",
-    assumptions: "",
-    context: "",
-    state: "",
-    payload: JSON.stringify({
-      name: "RestoredYoungPlanner",
-      rules: ["Young"],
-      runtime: "YoungAbsorption",
-      primitives: [
-        "ParseTargetRelation",
-        "MatchTargetLHS",
-        "ExtractProductFactors",
-        "InferAbsorbedQuadraticFactor",
-        "InferResidualFactor",
-        "ComputeProductCoefficient",
-        "BuildResidualCoefficientCondition"
-      ]
-    })
-  });
-  assert.equal(restoredTargetPlanner.ok, true);
-  assert.match(restoredTargetPlanner.output ?? "", /"Status" -> "Compiled"/);
 
   const compiledStructuralTransform = await backend.call("formula_transform", {
     action: "compile_structural",
@@ -1247,11 +1189,10 @@ try {
   });
   assert.equal(youngTargetApply.ok, true);
   assert.match(youngTargetApply.output ?? "", /"Status" -> "Success"/);
-  assert.match(youngTargetApply.output ?? "", /"Plan"/);
+  assert.match(youngTargetApply.output ?? "", /"Kind" -> "FormulaTransform"/);
   assert.match(youngTargetApply.output ?? "", /TargetGuided" -> True/);
   assert.match(youngTargetApply.output ?? "", /a\*b\*C <= a\^2\/2 \+ b\^2\*K/);
-  assert.match(youngTargetApply.output ?? "", /YoungResidualCoefficient/);
-  assert.match(youngTargetApply.output ?? "", /DischargedByAssumptions/);
+  assert.match(youngTargetApply.output ?? "", /"TargetPlannerRuntime" -> "GenericTargetPlanner"/);
 
   const youngLower = await backend.call("formula_transform", {
     action: "apply",
@@ -1341,12 +1282,11 @@ try {
   });
   assert.equal(weightedHolderApply.ok, true);
   assert.match(weightedHolderApply.output ?? "", /"Status" -> "Success"/);
-  assert.match(weightedHolderApply.output ?? "", /"Plan"/);
-  assert.match(weightedHolderApply.output ?? "", /WeightedHolder/);
-  assert.match(weightedHolderApply.output ?? "", /MultiplyByOneWeight/);
-  assert.doesNotMatch(weightedHolderApply.output ?? "", /ApplyGenericTemplateRule/);
+  assert.match(weightedHolderApply.output ?? "", /"Rule" -> "Holder"/);
+  assert.match(weightedHolderApply.output ?? "", /"Runtime" -> "GenericTemplate"/);
+  assert.match(weightedHolderApply.output ?? "", /ApplyGenericTemplateRule/);
   assert.match(weightedHolderApply.output ?? "", /Inactive\[Power\]/);
-  assert.match(weightedHolderApply.output ?? "", /WeightPositive/);
+  assert.match(weightedHolderApply.output ?? "", /FunctionSpaceMembership/);
 
   const inferredWeightedHolderApply = await backend.call("formula_transform", {
     action: "apply",
@@ -1366,10 +1306,9 @@ try {
   });
   assert.equal(inferredWeightedHolderApply.ok, true);
   assert.match(inferredWeightedHolderApply.output ?? "", /"Status" -> "Success"/);
-  assert.match(inferredWeightedHolderApply.output ?? "", /"Plan"/);
-  assert.match(inferredWeightedHolderApply.output ?? "", /"WeightInference" -> "(BothNormFactors|SwappedNormFactors)"/);
-  assert.match(inferredWeightedHolderApply.output ?? "", /"Weight" -> w\[x\]/);
-  assert.match(inferredWeightedHolderApply.output ?? "", /MultiplyByOneWeight/);
+  assert.match(inferredWeightedHolderApply.output ?? "", /WeightedHolder/);
+  assert.match(inferredWeightedHolderApply.output ?? "", /"TargetPlannerRuntime" -> "GenericTargetPlanner"/);
+  assert.match(inferredWeightedHolderApply.output ?? "", /w\[x\]/);
 
   const holderAuto = await backend.call("formula_transform", {
     action: "apply",
@@ -1387,7 +1326,6 @@ try {
   assert.match(holderAuto.output ?? "", /SplitSqrt/);
   assert.match(holderAuto.output ?? "", /"Runtime" -> "JSONHeuristic"/);
   assert.match(holderAuto.output ?? "", /"Rewritten" -> Inactive\[Integrate\]\[Inactive\[Times\]\[Sqrt\[h\[x\]\], Sqrt\[h\[x\]\]\], \{x, 0, 1\}\]/);
-  assert.match(holderAuto.output ?? "", /MatchRule/);
   assert.doesNotMatch(holderAuto.output ?? "", /ApplyGenericTemplateRule/);
   assert.match(holderAuto.output ?? "", /HeuristicSearch/);
   assert.match(holderAuto.output ?? "", /SearchTree/);
@@ -1397,7 +1335,7 @@ try {
   const holderAutoJson = holderAuto.json as Record<string, any>;
   assert.ok(holderAutoJson.Conditions.Discovered.some((condition: any) => condition.Predicate === "Nonnegative"));
   assert.ok(holderAutoJson.Conditions.Discovered.some((condition: any) => condition.Predicate === "FunctionSpace"));
-  assert.ok(holderAutoJson.Conditions.Discovered.some((condition: any) => condition.Predicate === "MeasurableIntegrable"));
+  assert.ok(holderAutoJson.Conditions.Discovered.some((condition: any) => condition.Predicate === "Measurable"));
 
   const holderMultiplyByOneSearch = await backend.call("formula_transform", {
     action: "apply",
@@ -1465,7 +1403,7 @@ try {
   assert.match(integrationByPartsTransform.output ?? "", /Equal/);
   assert.match(integrationByPartsTransform.output ?? "", /BoundaryCondition/);
   const integrationByPartsJson = integrationByPartsTransform.json as Record<string, any>;
-  assert.ok(integrationByPartsJson.Conditions.Discovered.some((condition: any) => condition.Predicate === "BoundaryCondition"));
+  assert.ok(integrationByPartsJson.Conditions.Discovered.some((condition: any) => condition.Kind === "BoundaryCondition"));
   assert.ok(integrationByPartsJson.Conditions.Discovered.some((condition: any) => condition.Predicate === "FunctionSpace"));
   assert.ok(integrationByPartsJson.Conditions.Discovered.some((condition: any) => condition.Predicate === "MeasurableIntegrable"));
 

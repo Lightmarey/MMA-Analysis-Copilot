@@ -30,7 +30,8 @@ const allowedRuntimes = new Set([
   "Young",
   "IntegrationByParts",
   "WeightedHolder",
-  "YoungAbsorption"
+  "YoungAbsorption",
+  "GenericTargetPlanner"
 ]);
 
 const allowedTargetPlannerPrimitives = new Set([
@@ -46,7 +47,11 @@ const allowedTargetPlannerPrimitives = new Set([
   "InferWeightFromNormPair",
   "BuildWeightedHolderBound",
   "BuildWeightPositiveCondition",
-  "BuildFunctionSpaceObligations"
+  "BuildFunctionSpaceObligations",
+  "MatchAlgebraicStructure",
+  "AlgebraicUnification",
+  "InstantiateTemplate",
+  "InstantiateObligations"
 ]);
 
 const forbiddenJsonText = [

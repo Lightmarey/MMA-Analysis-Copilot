@@ -1,4 +1,4 @@
-﻿{
+{
   "schemaVersion": 1,
   "name": "IntegrationByParts",
   "family": "integration-by-parts",
@@ -6,24 +6,44 @@
   "description": "One-dimensional integration by parts with explicit boundary terms.",
   "matchers": [
     {
-      "name": "OneDimensionalProductDerivative",
+      "name": "OneDimensionalDerivativeProductIntegral",
       "operator": "Integral",
-      "selectedTemplate": "Inactive[Integrate][Derivative[1][][] * [], {, , }]"
+      "body": {
+        "kind": "DerivativeProduct",
+        "slots": ["u", "v"]
+      },
+      "domainSlot": "domain"
     }
   ],
+  "derivedBindings": {
+    "boundary": "BoundaryTerm[$u,$v,$domain]",
+    "interior": "IBPIntegral[$u,$v,$domain]"
+  },
   "orientations": [
     {
       "name": "Equality",
       "direction": "Equal",
       "relation": "Equal",
-      "lhs": "",
-      "rhs": "[] * [] - [] * [] - Inactive[Integrate][[] * Derivative[1][][], {, , }]"
+      "lhs": "$selected",
+      "rhs": "$boundary - $interior",
+      "conditions": [
+        {
+          "predicate": "FunctionSpace",
+          "arguments": ["$u", "RegularEnoughForIBP", "$domain"]
+        },
+        {
+          "predicate": "FunctionSpace",
+          "arguments": ["$v", "RegularEnoughForIBP", "$domain"]
+        },
+        {
+          "predicate": "BoundaryCondition",
+          "arguments": ["$boundary", "$domain"]
+        },
+        "Regularity[$selected]",
+        "MeasurableIntegrable[{$boundary,$interior},$domain]"
+      ]
     }
   ],
-  "conditions": [
-    "FunctionSpace[, RegularEnoughForIBP[{, , }]]",
-    "FunctionSpace[, RegularEnoughForIBP[{, , }]]",
-    "MeasurableIntegrable[{[] * [] - [] * [], -Inactive[Integrate][[] * Derivative[1][][], {, , }]}, {, , }]"
-  ],
+  "conditions": [],
   "compatibleHeuristics": []
 }

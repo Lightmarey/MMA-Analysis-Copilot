@@ -41,7 +41,7 @@ FTTemplateSlotRefs[assoc_Association] := DeleteDuplicates@StringDrop[
 ];
 
 FTDeclaredTemplateSlots[assoc_Association] := Module[
-  {slots = {"selected"}, parameters, defaults, expressions, matchers, derived, plannerTemplates, unknownParameters},
+  {slots = {"selected", "targetRHS"}, parameters, defaults, expressions, matchers, derived, plannerTemplates, unknownParameters},
   parameters = Lookup[assoc, "parameters", {}];
   defaults = Lookup[assoc, "parameterDefaults", <||>];
   expressions = Lookup[assoc, "parameterExpressions", {}];

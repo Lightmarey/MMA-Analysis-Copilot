@@ -17,7 +17,21 @@ FTTerms[expr_Plus] := List @@ expr;
 FTTerms[expr_] := {expr};
 
 FTExpressionFactors[expr_Times] := List @@ expr;
+FTExpressionFactors[Inactive[Times][factors__]] := {factors};
 FTExpressionFactors[expr_] := {expr};
+
+FTProductFactors[expr_] := FTExpressionFactors[expr];
+
+FTIntegralQ[expr_] := MatchQ[expr, Integrate[_, _] | Inactive[Integrate][_, _]];
+FTSumQ[expr_] := MatchQ[expr, Sum[_, _] | Inactive[Sum][_, _]];
+
+FTIntegralParts[Integrate[body_, domain_]] := {body, domain};
+FTIntegralParts[Inactive[Integrate][body_, domain_]] := {body, domain};
+FTIntegralParts[_] := $Failed;
+
+FTSumParts[Sum[body_, domain_]] := {body, domain};
+FTSumParts[Inactive[Sum][body_, domain_]] := {body, domain};
+FTSumParts[_] := $Failed;
 
 FTParsePartPath[part_String] := Module[{text, parsed},
   text = StringTrim[part];

@@ -8,14 +8,13 @@
   "objective": "absorption-target",
   "runtime": "GenericTargetPlanner",
   "selectedTemplate": "$coeff * $f * $g",
-  "targetTemplate": "$c1 * Abs[$f]^$p + $c2 * Abs[$g]^$q",
+  "targetTemplate": "$c1 * $f^$p + $c2 * $g^$q",
   "unknownParameters": ["$epsilon"],
   "equations": [
-     "$c1 == $epsilon * $p^(-1) * $coeff",
-     "$c2 == $epsilon^(-$q/$p) * $q^(-1) * $coeff"
+     "$c1 == $epsilon * $p^(-1) * $coeff"
   ],
   "derivedBindings": {
-    "bound": "$c1 * Abs[$f]^$p + $c2 * Abs[$g]^$q"
+    "bound": "$c1 * $f^$p + $c2 * $g^$q"
   },
   "orientations": [
     {

@@ -144,14 +144,16 @@ FTPrimitiveEvaluate[expr_] := FixedPoint[
 ];
 
 FTEvaluateTemplate[template_String, bindings_Association] := Module[
-  {keys, text = template, tempRules = {}, directRules = {}, symbol, expr, primitiveNames},
+  {keys, text = template, tempRules = {}, directRules = {}, symbol, expr, primitiveNames, rawKey, slotName},
   keys = Reverse@SortBy[Keys[bindings], StringLength[ToString[#]] &];
   Do[
-    symbol = Unique["ftTemplate$" <> ToString[key] <> "$"];
-    text = StringReplace[text, "$" <> ToString[key] -> SymbolName[symbol]];
+    rawKey = ToString[key];
+    slotName = StringReplace[rawKey, StartOfString ~~ "$" -> ""];
+    symbol = Unique["ftTemplate" <> slotName <> "Slot"];
+    text = StringReplace[text, "$" <> slotName -> SymbolName[symbol]];
     AppendTo[tempRules, symbol -> Lookup[bindings, key]];
-    If[MemberQ[{"p", "q", "epsilon"}, ToString[key]],
-      AppendTo[directRules, Symbol[ToString[key]] -> Lookup[bindings, key]]
+    If[MemberQ[{"p", "q", "epsilon"}, slotName],
+      AppendTo[directRules, Symbol[slotName] -> Lookup[bindings, key]]
     ],
     {key, keys}
   ];
@@ -282,6 +284,54 @@ FTPlanStructuralTransform[compiled_Association, selected_, direction_, parameter
   FTFailure["CompilerPrimitiveMissing", "No structural transform runtime exists for: " <> runtime, <|"Trace" -> trace, "State" -> state|>]
 ];
 
+FTEstimateSeedCondition[template_Association, bindings_Association, source_String] := Module[
+  {kind = Lookup[template, "kind", "EstimateSeedCondition"], expr = Lookup[template, "expr", ""], machine = Lookup[template, "machineCheckable", False], text},
+  text = If[StringQ[expr],
+    Fold[StringReplace[#1, "$" <> ToString[#2] -> ToString[Lookup[bindings, #2], InputForm]] &, expr, Keys[bindings]],
+    ToString[expr, InputForm]
+  ];
+  FTCondition[kind, text, source, TrueQ[machine]]
+];
+
+FTPlanEstimateSeed[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
+  {name = Lookup[compiled, "Name", ""], defaults, bindings, relationTemplate, relation, conditions, discharged, state2, trace2},
+  defaults = Lookup[compiled, "ParameterDefaults", <||>];
+  bindings = Join[defaults, parameters, <|"selected" -> selected|>];
+  bindings = FTPrepareParameterExpressionBindings[<|"ParameterExpressions" -> Lookup[compiled, "ParameterExpressions", {}]|>, bindings];
+  If[bindings === $Failed,
+    Return[FTFailure["Inapplicable", name <> " estimate seed parameters could not be parsed.", <|"Trace" -> trace, "State" -> state|>]]
+  ];
+  relationTemplate = Lookup[Lookup[compiled, "Template", <||>], "relation", ""];
+  relation = FTEvaluateTemplate[relationTemplate, bindings];
+  If[relation === $Failed,
+    Return[FTFailure["Inapplicable", name <> " estimate seed relation template could not be instantiated.", <|"Trace" -> trace, "State" -> state|>]]
+  ];
+  trace2 = FTAppendTrace[trace, "PlanEstimateSeed", <|"Rule" -> name|>];
+  trace2 = FTAppendTrace[trace2, "BuildEstimateRelation", <|"Rule" -> name|>];
+  conditions = FTEstimateSeedCondition[#, bindings, name] & /@ Lookup[compiled, "Conditions", {}];
+  discharged = FTDischargeConditions[conditions, assumptions, assumptionsText, context, contextText];
+  If[Length[Lookup[discharged, "Contradicted", {}]] > 0,
+    Return[FTFailure["AssumptionContradiction", "Assumptions contradict a generated estimate-seed condition.", <|"Conditions" -> discharged, "Trace" -> trace2, "State" -> state|>]]
+  ];
+  state2 = FTAddObligations[state, Lookup[discharged, "Deferred", {}], trace2];
+  FTSuccess[<|
+    "Kind" -> "FormulaTransformPlan",
+    "RegistryKind" -> "EstimateSeed",
+    "Runtime" -> "EstimateSeedInstantiated",
+    "Rule" -> name,
+    "Direction" -> direction,
+    "Original" -> selected,
+    "Selected" -> selected,
+    "Relation" -> relation,
+    "RelationInputForm" -> ToString[relation, InputForm, PageWidth -> Infinity],
+    "RelationLatex" -> Quiet@Check[ToString[TeXForm[relation], PageWidth -> Infinity], ""],
+    "Trace" -> trace2,
+    "Conditions" -> discharged,
+    "Obligations" -> Lookup[discharged, "Deferred", {}],
+    "State" -> state2
+  |>]
+];
+
 FTPrepareParameterExpressionBindings[compiled_Association, base_Association] := Module[
   {keys = Lookup[compiled, "ParameterExpressions", {}], result = base, key, value, parsed},
   If[! ListQ[keys], Return[$Failed]];
@@ -318,14 +368,14 @@ FTGenericMatcherBindings[compiled_Association, selected_, parameters_Association
         result = Join[base, <|"Matcher" -> Lookup[matcher, "name", kind]|>],
       kind === "Product" && operator === "" && Length[slots] === 2,
         factors = FTProductFactors[selected];
-        If[factors =!= $Failed,
-          result = Join[base, AssociationThread[slots -> factors], <|"Matcher" -> Lookup[matcher, "name", "Product"]|>]
+        If[factors =!= $Failed && Length[factors] >= Length[slots],
+          result = Join[base, AssociationThread[slots -> Take[factors, Length[slots]]], <|"Matcher" -> Lookup[matcher, "name", "Product"]|>]
         ],
       kind === "Product" && (operator === "Integral" || operator === "Sum") && Length[slots] === 2,
         parts = If[operator === "Integral", FTIntegralParts[selected], FTSumParts[selected]];
         If[parts =!= $Failed,
           factors = FTProductFactors[First[parts]];
-          If[factors =!= $Failed,
+          If[factors =!= $Failed && Length[factors] === Length[slots],
             result = Join[base, AssociationThread[slots -> factors], <|domainSlot -> parts[[2]], "Operator" -> operator, "Matcher" -> Lookup[matcher, "name", operator <> "Product"]|>]
           ]
         ],
@@ -346,7 +396,7 @@ FTGenericMatcherBindings[compiled_Association, selected_, parameters_Association
         If[MatchQ[selected, Inactive[D][_, _]],
           {integrand, var} = List @@ selected;
           factors = FTProductFactors[integrand];
-          If[factors =!= $Failed,
+          If[factors =!= $Failed && Length[factors] === Length[slots],
             result = Join[
               base,
               AssociationThread[slots -> factors],
@@ -470,7 +520,7 @@ FTCompiledCondition[template_String, bindings_Association, source_String] := Mod
 ];
 
 FTApplyGenericTemplateRule[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", ""], runtime = Lookup[compiled, "Runtime", ""], targetText, targetExpr, selectedBindings, targetBindings, unknowns, equations, bindings, derived, orientations, orientation, relationHead, lhs, rhs, terms, relation, conditionTemplates, conditions, discharged, state2, trace2},
+  {name = Lookup[compiled, "Name", ""], runtime = Lookup[compiled, "Runtime", ""], targetText, targetExpr, selectedBindings, targetBindings, unknowns, equations, bindings, derived, orientations, orientation, relationHead, lhs, rhs, terms, relation, conditionTemplates, conditions, discharged, state2, trace2, heuristic, heuristicBindings, heuristicDerived, heuristicOrientations, heuristicConditionTemplates, heuristicConditions},
   
   If[runtime === "GenericTargetPlanner",
     targetText = FTTargetRelationText[parameters];
@@ -487,7 +537,14 @@ FTApplyGenericTemplateRule[compiled_Association, selected_, direction_, paramete
     targetBindings = FTMatchAlgebraicStructure[targetExpr, Lookup[compiled, "targetTemplate", ""]];
     If[targetBindings === $Failed, Return[FTFailure["Inapplicable", name <> " targetTemplate failed.", <|"Trace" -> trace, "State" -> state|>]]];
     
-    bindings = Join[selectedBindings, targetBindings, parameters];
+    bindings = Join[<|"selected" -> selected, "targetRHS" -> targetExpr|>, selectedBindings, targetBindings, parameters];
+    If[KeyExistsQ[bindings, "$coeff"] && KeyExistsQ[bindings, "$f"] && KeyExistsQ[bindings, "$g"],
+      With[{productCoefficient = FTProductCoefficient[selected, Lookup[bindings, "$f"], Lookup[bindings, "$g"]]},
+        If[! MatchQ[productCoefficient, Missing[_]],
+          bindings = Join[bindings, <|"$coeff" -> productCoefficient|>]
+        ]
+      ]
+    ];
     unknowns = Lookup[compiled, "unknownParameters", {}];
     equations = Lookup[compiled, "equations", {}];
     If[Length[equations] > 0 || Length[unknowns] > 0,
@@ -497,7 +554,44 @@ FTApplyGenericTemplateRule[compiled_Association, selected_, direction_, paramete
   ,
     bindings = FTGenericMatcherBindings[compiled, selected, parameters];
     If[bindings === $Failed,
-      Return[FTFailure["Inapplicable", name <> " generic template matcher did not match the selected formula.", <|"Trace" -> trace, "State" -> state|>]]
+      heuristic = FTHeuristicSearch[compiled, selected, parameters];
+      If[AssociationQ[heuristic] && Lookup[heuristic, "Status", ""] === "Success",
+        heuristicBindings = FTGenericMatcherBindings[compiled, Lookup[heuristic, "Rewritten"], parameters];
+        heuristicConditions = {};
+        If[AssociationQ[heuristicBindings],
+          heuristicDerived = Lookup[compiled, "DerivedBindings", <||>];
+          If[AssociationQ[heuristicDerived],
+            Do[
+              heuristicBindings = Join[heuristicBindings, <|key -> FTEvaluateTemplate[Lookup[heuristicDerived, key], heuristicBindings]|>],
+              {key, Keys[heuristicDerived]}
+            ]
+          ];
+          heuristicOrientations = Select[
+            Lookup[compiled, "Orientations", {}],
+            Lookup[#, "direction", "Auto"] === direction ||
+              direction === "Auto" && MemberQ[{"Auto", "Equal"}, Lookup[#, "direction", "Auto"]] &
+          ];
+          heuristicConditionTemplates = Join[
+            Lookup[compiled, "Conditions", {}],
+            Flatten[Lookup[#, "conditions", {}] & /@ heuristicOrientations]
+          ];
+          heuristicConditions = FTCompiledCondition[#, heuristicBindings, name] & /@ heuristicConditionTemplates;
+        ];
+        conditions = Join[
+          Flatten[Lookup[#, "Conditions", {}] & /@ Lookup[heuristic, "HeuristicPipeline", {}]],
+          heuristicConditions
+        ];
+        discharged = FTDischargeConditions[conditions, assumptions, assumptionsText, context, contextText];
+        state2 = FTAddObligations[state, Lookup[discharged, "Deferred", {}], trace];
+        Return[FTSuccess[Join[
+          heuristic,
+          <|"Rule" -> name, "Runtime" -> "JSONHeuristic", "HeuristicSearch" -> True, "HeuristicDepth" -> Lookup[heuristic, "Depth", Missing["NotAvailable"]], "Trace" -> FTAppendTrace[trace, "HeuristicSearch", <|"Rule" -> name|>], "Conditions" -> discharged, "Obligations" -> Lookup[discharged, "Deferred", {}], "State" -> state2|>
+        ]]]
+      ];
+      Return[FTFailure["Inapplicable", name <> " generic template matcher did not match the selected formula.", Join[
+        If[AssociationQ[heuristic], KeyDrop[heuristic, {"Status", "Runtime"}], <||>],
+        <|"Runtime" -> "JSONHeuristic", "HeuristicSearch" -> True, "Trace" -> trace, "State" -> state|>
+      ]]]
     ]
   ];
   derived = Lookup[compiled, "DerivedBindings", <||>];
@@ -542,7 +636,11 @@ FTApplyGenericTemplateRule[compiled_Association, selected_, direction_, paramete
   state2 = FTAddObligations[state, Lookup[discharged, "Deferred", {}], trace2];
   FTSuccess[<|
     "Rule" -> name,
-    "Runtime" -> "GenericTemplate",
+    "Runtime" -> runtime,
+    "TargetGuided" -> (runtime === "GenericTargetPlanner"),
+    "TargetPlanner" -> If[runtime === "GenericTargetPlanner", name, Missing["NotApplicable"]],
+    "TargetPlannerRuntime" -> runtime,
+    "RegistryMutation" -> False,
     "Direction" -> If[direction === "Auto", Lookup[orientation, "direction", "Auto"], direction],
     "Original" -> selected,
     "Selected" -> selected,
@@ -556,6 +654,11 @@ FTApplyGenericTemplateRule[compiled_Association, selected_, direction_, paramete
   |>]
 ];
 
-FTPlanGenericTemplateRule[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] :=
-  FTApplyGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace];
+FTPlanGenericTemplateRule[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[{result},
+  result = FTApplyGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace];
+  If[AssociationQ[result] && Lookup[result, "Status", ""] === "Success",
+    Join[result, <|"Kind" -> "FormulaTransformPlan"|>],
+    result
+  ]
+];
 
