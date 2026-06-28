@@ -11,3 +11,4 @@ auxiliary-scripts/
 
 *.md
 !README.md
+.ai_refs/
