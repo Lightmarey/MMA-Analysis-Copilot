@@ -1,4 +1,4 @@
-BeginPackage["FormulaTransformEngine`"];
+﻿BeginPackage["FormulaTransformEngine`"];
 
 ApplyFormulaTransform::usage = "ApplyFormulaTransform[rule, opts][expr] deterministically transforms a held formula and returns a relation, trace, conditions, obligations, and state.";
 PlanFormulaTransform::usage = "PlanFormulaTransform[rule, opts][expr] builds a target-guided one-shot transform plan without mutating the JSON rule registry.";
@@ -12,6 +12,8 @@ InspectFormulaTransformRegistry::usage = "InspectFormulaTransformRegistry[] summ
 ReloadFormulaTransformRegistry::usage = "ReloadFormulaTransformRegistry[] reloads FormulaTransformEngine JSON registry files into the current Wolfram kernel.";
 GetFormulaTransformObligations::usage = "GetFormulaTransformObligations[state] returns deferred formula-transform proof obligations.";
 FormulaTransformHandleRequest::usage = "FormulaTransformHandleRequest[args] handles formula_transform tool requests.";
+FTMatchAlgebraicStructure::usage = "FTMatchAlgebraicStructure[expr, template] matches an expression against a template string.";
+FTSolveParameters::usage = "FTSolveParameters[bindings, unknowns, eqns] solves for unknown parameters using the given equations.";
 
 Begin["`Private`"];
 
@@ -493,7 +495,8 @@ CompileFormulaStructuralTransform[transform_Association] := FTCompileStructuralT
 CompileFormulaStructuralTransform[_] := FTFailure["InvalidRuleJSON", "Structural transform payload must be an Association."];
 
 FTCompileTargetPlanner[planner_Association] := Module[
-  {issues = {}, name, rules, family, runtime, objective, primitives, allowedPrimitives},
+  {issues = {}, name, rules, family, runtime, objective, primitives, allowedPrimitives,
+   targetTemplate, unknowns, equations, obligationsTemplate},
   If[! FTValidateName[planner], AppendTo[issues, "name must be a non-empty string."]];
   name = StringTrim[Lookup[planner, "name", ""]];
   rules = Lookup[planner, "rules", {}];
@@ -502,6 +505,12 @@ FTCompileTargetPlanner[planner_Association] := Module[
   If[StringQ[family], family = {family}];
   runtime = FTReadString[Lookup[planner, "runtime", ""]];
   objective = FTReadString[Lookup[planner, "objective", ""]];
+  
+  targetTemplate = Lookup[planner, "targetTemplate", ""];
+  unknowns = Lookup[planner, "unknownParameters", {}];
+  equations = Lookup[planner, "equations", {}];
+  obligationsTemplate = Lookup[planner, "obligationsTemplate", {}];
+
   primitives = Lookup[planner, "primitives", {}];
   If[StringQ[primitives], primitives = {primitives}];
   allowedPrimitives = {
@@ -510,7 +519,9 @@ FTCompileTargetPlanner[planner_Association] := Module[
     "ComputeProductCoefficient", "BuildResidualCoefficientCondition",
     "ParseIntegralOrSumProduct", "ParseWeightParameter",
     "InferWeightFromNormPair", "BuildWeightedHolderBound",
-    "BuildWeightPositiveCondition", "BuildFunctionSpaceObligations"
+    "BuildWeightPositiveCondition", "BuildFunctionSpaceObligations",
+    "MatchAlgebraicStructure", "AlgebraicUnification",
+    "InstantiateTemplate", "InstantiateObligations"
   };
   If[! FTValidateStringList[rules] && rules =!= {}, AppendTo[issues, "rules must be a string or string list."]];
   If[! FTValidateStringList[family] && family =!= {}, AppendTo[issues, "families must be a string or string list."]];
@@ -519,8 +530,8 @@ FTCompileTargetPlanner[planner_Association] := Module[
     AppendTo[issues, "primitives contains unsupported planner primitives: " <> StringRiffle[Complement[primitives, allowedPrimitives], ", "]]
   ];
   If[runtime === "", AppendTo[issues, "runtime must be a non-empty string."]];
-  If[! MemberQ[{"YoungAbsorption", "WeightedHolder"}, runtime],
-    AppendTo[issues, "runtime must be one of: YoungAbsorption, WeightedHolder."]
+  If[! MemberQ[{"YoungAbsorption", "WeightedHolder", "GenericTargetPlanner"}, runtime],
+    AppendTo[issues, "runtime must be one of: YoungAbsorption, WeightedHolder, GenericTargetPlanner."]
   ];
   issues = Join[issues, FTValidateTemplates[planner]];
   If[issues =!= {},
@@ -535,6 +546,10 @@ FTCompileTargetPlanner[planner_Association] := Module[
     "Runtime" -> runtime,
     "Objective" -> objective,
     "Primitives" -> primitives,
+    "TargetTemplate" -> targetTemplate,
+    "UnknownParameters" -> unknowns,
+    "Equations" -> equations,
+    "ObligationsTemplate" -> obligationsTemplate,
     "Raw" -> planner
   |>;
   Join[<|"Status" -> "Compiled", "Kind" -> "FormulaTargetPlanner"|>, $FTTargetPlannerRegistry[name]]
@@ -1032,42 +1047,54 @@ PlanFormulaTransformParts[rule_String, opts : OptionsPattern[]][held_HoldComplet
 PlanFormulaTransformParts[rule_String, opts : OptionsPattern[]][expr_] := PlanFormulaTransformParts[rule, opts][HoldComplete[expr]];
 
 FTApplyRule[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", ""], family = ToLowerCase[Lookup[compiled, "Family", ""]], effectiveName, runtime},
+  {name = Lookup[compiled, "Name", ""], family = ToLowerCase[Lookup[compiled, "Family", ""]], effectiveName, runtime, targetText, planner},
   effectiveName = ToLowerCase[name];
   runtime = Lookup[compiled, "Runtime", ""];
+  targetText = FTTargetRelationText[parameters];
   Which[
     Lookup[compiled, "RegistryKind", ""] === "EstimateSeed",
       FTPlanEstimateSeed[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
     Lookup[compiled, "RegistryKind", ""] === "StructuralTransform",
       FTPlanStructuralTransform[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
-    runtime === "GenericTemplate" && FTTargetRelationText[parameters] === "" && !(effectiveName === "cauchyschwarz" || effectiveName === "cauchy-schwarz" || StringContainsQ[family, "holder"]),
-      FTApplyGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
-    effectiveName === "cauchyschwarz" || effectiveName === "cauchy-schwarz" || StringContainsQ[family, "holder"],
-      FTApplyHolderLike[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
-    effectiveName === "young" || StringContainsQ[family, "young"] || StringContainsQ[family, "pointwise-product"],
-      FTApplyYoung[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
     effectiveName === "integrationbyparts" || StringContainsQ[family, "integration"],
       FTApplyIntegrationByParts[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
+    runtime === "GenericTemplate" || runtime === "GenericTargetPlanner",
+      If[targetText =!= "" && runtime === "GenericTemplate",
+        planner = FTFindTargetPlanner[compiled];
+        If[AssociationQ[planner] && Lookup[planner, "Runtime", ""] === "GenericTargetPlanner",
+          FTApplyGenericTemplateRule[planner, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace]
+        ,
+          Return[FTFailure["CompilerPrimitiveMissing", "No generic target planner is available for rule " <> name <> ".", <|"Trace" -> trace, "State" -> state|>]]
+        ]
+      ,
+        FTApplyGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace]
+      ],
     True,
       FTFailure["CompilerPrimitiveMissing", "No runtime primitive exists for compiled rule family: " <> family, <|"Trace" -> trace, "State" -> state|>]
   ]
 ];
 
 FTPlanRule[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", ""], family = ToLowerCase[Lookup[compiled, "Family", ""]], effectiveName, runtime},
+  {name = Lookup[compiled, "Name", ""], family = ToLowerCase[Lookup[compiled, "Family", ""]], effectiveName, runtime, targetText, planner},
   effectiveName = ToLowerCase[name];
   runtime = Lookup[compiled, "Runtime", ""];
+  targetText = FTTargetRelationText[parameters];
   Which[
     Lookup[compiled, "RegistryKind", ""] === "EstimateSeed",
       FTPlanEstimateSeed[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
     Lookup[compiled, "RegistryKind", ""] === "StructuralTransform",
       FTPlanStructuralTransform[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
-    runtime === "GenericTemplate" && FTTargetRelationText[parameters] === "" && !(effectiveName === "cauchyschwarz" || effectiveName === "cauchy-schwarz" || StringContainsQ[family, "holder"]),
-      FTPlanGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
-    effectiveName === "cauchyschwarz" || effectiveName === "cauchy-schwarz" || StringContainsQ[family, "holder"],
-      FTPlanHolderTarget[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
-    effectiveName === "young" || StringContainsQ[family, "young"] || StringContainsQ[family, "pointwise-product"],
-      FTPlanYoungTarget[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
+    runtime === "GenericTemplate" || runtime === "GenericTargetPlanner",
+      If[targetText =!= "" && runtime === "GenericTemplate",
+        planner = FTFindTargetPlanner[compiled];
+        If[AssociationQ[planner] && Lookup[planner, "Runtime", ""] === "GenericTargetPlanner",
+          FTPlanGenericTemplateRule[planner, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace]
+        ,
+          Return[FTFailure["CompilerPrimitiveMissing", "No generic target planner is available for rule " <> name <> ".", <|"Trace" -> trace, "State" -> state|>]]
+        ]
+      ,
+        FTPlanGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace]
+      ],
     True,
       FTSuccess[<|
         "Kind" -> "FormulaTransformPlan",
@@ -1281,27 +1308,68 @@ FTYoungInferResidualFactor[selected_, flatFactors_List, allCandidates_List, abso
 FTYoungComputeProductCoefficient[selected_, absorb_, residual_] :=
   FTProductCoefficient[selected, absorb, residual];
 
-FTYoungBuildResidualCoefficientCondition[terms_List, residual_, coeff_, theta_] := Module[
-  {residualTarget, residualRequired},
-  residualTarget = DeleteMissing[FTQuadraticCoefficient[#, residual] & /@ terms];
-  residualRequired = coeff^2/(4 theta);
-  <|
-    "ResidualTarget" -> residualTarget,
-    "ResidualRequired" -> residualRequired,
-    "Condition" -> If[residualTarget === {}, True, First[residualTarget] >= residualRequired]
-  |>
-];
 
 FTPrimitiveHeadQ[head_, name_String] := Module[{symbolName},
   symbolName = Quiet@Check[SymbolName[Unevaluated[head]], ""];
   symbolName === name || symbolName === "FTTemplate" <> name
 ];
 
+(* --- Generic Mathematical Primitives for Data-Driven Target Planners --- *)
+
+FTMatchAlgebraicStructure[expr_, templateString_String] := Module[
+  {templateExpr, syms, patternVars, rule, matches},
+  templateExpr = FTParseMaybeExpression[templateString];
+  If[templateExpr === $Failed, Return[$Failed]];
+  syms = Cases[templateExpr, s_Symbol /; StringStartsQ[SymbolName[s], "$"], Infinity, Heads -> True];
+  syms = DeleteDuplicates[syms];
+  patternVars = (# -> Pattern[Evaluate[Symbol[StringDrop[SymbolName[#], 1]]], Blank[]]) & /@ syms;
+  rule = Rule @@ {templateExpr /. patternVars, Map[Symbol[StringDrop[SymbolName[#], 1]] &, syms]};
+  matches = Quiet@Check[ReplaceList[expr, rule], {}];
+  If[matches === {}, Return[$Failed]];
+  AssociationThread[Map[SymbolName, syms] -> First[matches]]
+];
+
+FTSolveParameters[bindings_Association, unknowns_List, eqns_List] := Module[
+  {parsedEqns, unkSyms, bindingRules, eqnsSubs, sol, finalBindings},
+  parsedEqns = Map[FTParseMaybeExpression, eqns];
+  If[MemberQ[parsedEqns, $Failed], Return[$Failed]];
+  unkSyms = Map[FTParseMaybeExpression, unknowns];
+  bindingRules = Normal[KeyMap[FTParseMaybeExpression, bindings]];
+  eqnsSubs = parsedEqns /. bindingRules;
+  sol = Quiet@Check[Solve[eqnsSubs, unkSyms], {}];
+  If[sol === {}, Return[$Failed]];
+  finalBindings = Association[Map[SymbolName[#[[1]]] -> #[[2]] &, sol[[1]]]];
+  Join[bindings, finalBindings]
+];
+
+FTInstantiateTemplate[templateString_String, bindings_Association] := Module[
+  {expr, bindingRules},
+  expr = FTParseMaybeExpression[templateString];
+  If[expr === $Failed, Return[$Failed]];
+  bindingRules = Normal[KeyMap[FTParseMaybeExpression, bindings]];
+  expr /. bindingRules
+];
+
+FTInstantiateObligations[obligationsTemplate_List, bindings_Association, source_String] := Module[
+  {bindingRules, conds = {}},
+  bindingRules = Normal[KeyMap[FTParseMaybeExpression, bindings]];
+  Do[
+    With[{pred = Lookup[t, "predicate"], args = Lookup[t, "arguments", {}]},
+      AppendTo[conds, FTConditionStructure[pred, Inactive[Evaluate[Symbol[pred]]] @@ Map[ReplaceAll[FTParseMaybeExpression[#], bindingRules]&, args]]]
+    ],
+    {t, obligationsTemplate}
+  ];
+  conds
+];
+
+(* ----------------------------------------------------------------------- *)
+
 FTIBPBoundaryTerm[u_, v_, {x_, a_, b_}] := u[b] * (v /. x -> b) - u[a] * (v /. x -> a);
 FTIBPBoundaryTerm[u_, v_, domain_] := Inactive[BoundaryTerm][u, v, domain];
 
 FTIBPInteriorIntegral[u_, v_, {x_, a_, b_}] := Inactive[Integrate][u[x] * D[v, x], {x, a, b}];
 FTIBPInteriorIntegral[u_, v_, domain_] := Inactive[IBPIntegral][u, v, domain];
+
 
 FTPrimitiveEvaluate[expr_] := FixedPoint[
   ReplaceAll[
@@ -1731,10 +1799,35 @@ FTCompiledCondition[template_String, bindings_Association, source_String] := Mod
 ];
 
 FTApplyGenericTemplateRule[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", ""], bindings, derived, orientations, orientation, relationHead, lhs, rhs, terms, relation, conditionTemplates, conditions, discharged, state2, trace2},
-  bindings = FTGenericMatcherBindings[compiled, selected, parameters];
-  If[bindings === $Failed,
-    Return[FTFailure["Inapplicable", name <> " generic template matcher did not match the selected formula.", <|"Trace" -> trace, "State" -> state|>]]
+  {name = Lookup[compiled, "Name", ""], runtime = Lookup[compiled, "Runtime", ""], targetText, targetExpr, selectedBindings, targetBindings, unknowns, equations, bindings, derived, orientations, orientation, relationHead, lhs, rhs, terms, relation, conditionTemplates, conditions, discharged, state2, trace2},
+  
+  If[runtime === "GenericTargetPlanner",
+    targetText = FTTargetRelationText[parameters];
+    If[targetText === "", 
+      Return[FTFailure["Inapplicable", name <> " GenericTargetPlanner requires a target text.", <|"Trace" -> trace, "State" -> state|>]]
+    ];
+    targetExpr = FTParseMaybeExpression[targetText];
+    If[targetExpr === $Failed, Return[FTFailure["Inapplicable", "Could not parse target text.", <|"Trace" -> trace, "State" -> state|>]]];
+    If[MatchQ[targetExpr, LessEqual[_, _] | Equal[_, _] | Less[_, _] | Greater[_, _] | GreaterEqual[_, _]], targetExpr = targetExpr[[2]]];
+    
+    selectedBindings = FTMatchAlgebraicStructure[selected, Lookup[compiled, "selectedTemplate", ""]];
+    If[selectedBindings === $Failed, Return[FTFailure["Inapplicable", name <> " selectedTemplate failed.", <|"Trace" -> trace, "State" -> state|>]]];
+    
+    targetBindings = FTMatchAlgebraicStructure[targetExpr, Lookup[compiled, "targetTemplate", ""]];
+    If[targetBindings === $Failed, Return[FTFailure["Inapplicable", name <> " targetTemplate failed.", <|"Trace" -> trace, "State" -> state|>]]];
+    
+    bindings = Join[selectedBindings, targetBindings, parameters];
+    unknowns = Lookup[compiled, "unknownParameters", {}];
+    equations = Lookup[compiled, "equations", {}];
+    If[Length[equations] > 0 || Length[unknowns] > 0,
+      bindings = FTSolveParameters[bindings, unknowns, equations];
+      If[bindings === $Failed, Return[FTFailure["Inapplicable", name <> " AlgebraicUnification failed.", <|"Trace" -> trace, "State" -> state|>]]]
+    ]
+  ,
+    bindings = FTGenericMatcherBindings[compiled, selected, parameters];
+    If[bindings === $Failed,
+      Return[FTFailure["Inapplicable", name <> " generic template matcher did not match the selected formula.", <|"Trace" -> trace, "State" -> state|>]]
+    ]
   ];
   derived = Lookup[compiled, "DerivedBindings", <||>];
   If[AssociationQ[derived],
@@ -1795,640 +1888,6 @@ FTApplyGenericTemplateRule[compiled_Association, selected_, direction_, paramete
 FTPlanGenericTemplateRule[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] :=
   FTApplyGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace];
 
-FTPlanYoungGeneric[compiled_, selected_, direction_, parameters_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", "Young"], factors, a, b, p, q, bound, relation},
-  factors = FTProductFactors[selected];
-  If[factors === $Failed,
-    Return[FTFailure["Inapplicable", "Young target planning applies to pointwise product formulas.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  {a, b} = factors;
-  p = Lookup[parameters, "p", 2];
-  q = Lookup[parameters, "q", 2];
-  bound = Abs[a]^p/p + Abs[b]^q/q;
-  relation = FTBuildOrientedRelation[selected, bound, direction];
-  If[AssociationQ[relation] && Lookup[relation, "Status", ""] === "Failure", Return[Join[relation, <|"Trace" -> trace, "State" -> state|>]]];
-  FTSuccess[<|
-    "Kind" -> "FormulaTransformPlan",
-    "Rule" -> name,
-    "Direction" -> direction,
-    "Original" -> selected,
-    "Selected" -> selected,
-    "TargetGuided" -> False,
-    "RegistryMutation" -> False,
-    "PlanStatus" -> "GenericCanonical",
-    "PlannedRelation" -> relation,
-    "PlannedRelationInputForm" -> ToString[relation, InputForm, PageWidth -> Infinity],
-    "ParameterSynthesis" -> <|"Method" -> "CanonicalYoung", "p" -> p, "q" -> q|>,
-    "ProposedApplyParameters" -> parameters,
-    "Trace" -> FTAppendTrace[trace, "PlanGenericYoung", <|"Rule" -> name|>],
-    "Conditions" -> <|"Discovered" -> {}, "Discharged" -> {}, "Deferred" -> {}, "Contradicted" -> {}|>,
-    "Obligations" -> {},
-    "State" -> state
-  |>]
-];
-
-FTPlanYoungTarget[compiled_, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {
-    name = Lookup[compiled, "Name", "Young"], targetText, targetData, target, lhs, rhs, productData,
-    allCandidates, terms, absorbData, absorb, other, coeff, theta, residualData, residualTarget, residualRequired,
-    bound, relation, conditions, discharged, state2, trace2, absorbParam, planner, requiredPrimitives, primitiveAudit, primitiveCheck
-  },
-  targetText = FTTargetRelationText[parameters];
-  If[targetText === "", Return[FTPlanYoungGeneric[compiled, selected, direction, parameters, state, trace]]];
-  planner = FTFindTargetPlanner[compiled, "YoungAbsorption"];
-  If[! AssociationQ[planner],
-    Return[FTFailure["CompilerPrimitiveMissing", "No registered TargetPlanner descriptor is available for YoungAbsorption.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  requiredPrimitives = {
-    "ParseTargetRelation", "MatchTargetLHS", "ExtractProductFactors",
-    "InferAbsorbedQuadraticFactor", "InferResidualFactor",
-    "ComputeProductCoefficient", "BuildResidualCoefficientCondition"
-  };
-  primitiveCheck = FTRequirePlannerPrimitives[planner, requiredPrimitives, trace, state];
-  If[AssociationQ[primitiveCheck], Return[primitiveCheck]];
-  If[direction =!= "Upper" && direction =!= "Auto",
-    Return[FTFailure["DirectionUnavailable", "Target-guided Young planning currently supports direction=Upper or Auto.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  targetData = FTYoungParseTargetRelation[targetText];
-  If[! AssociationQ[targetData],
-    Return[FTFailure["InvalidRequest", "targetRelation/targetPattern for Young must parse as lhs <= rhs.", <|"Trace" -> trace, "State" -> state, "Target" -> targetText|>]]
-  ];
-  target = Lookup[targetData, "Target"];
-  lhs = Lookup[targetData, "LHS"];
-  rhs = Lookup[targetData, "RHS"];
-  If[! FTYoungMatchTargetLHS[targetData, selected],
-    Return[FTFailure["Inapplicable", "Target lhs does not match the selected formula.", <|"Trace" -> trace, "State" -> state, "TargetLHS" -> lhs, "Selected" -> selected|>]]
-  ];
-  productData = FTYoungExtractProductFactors[selected];
-  If[! AssociationQ[productData],
-    Return[FTFailure["Inapplicable", "Young target planning applies to pointwise product formulas.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  absorbParam = FTParseMaybeExpression[Lookup[parameters, "absorbFactor", ""]];
-  absorbData = FTYoungInferAbsorbedQuadraticFactor[rhs, Lookup[productData, "FlatFactors"], absorbParam];
-  If[! AssociationQ[absorbData],
-    Return[FTFailure["Inapplicable", "Could not infer an absorbed quadratic factor from the target relation.", <|"Trace" -> trace, "State" -> state, "Target" -> targetText|>]]
-  ];
-  absorb = Lookup[absorbData, "Factor"];
-  theta = Lookup[absorbData, "Coefficient"];
-  allCandidates = Lookup[absorbData, "AllCandidates"];
-  terms = Lookup[absorbData, "Terms"];
-  other = FTYoungInferResidualFactor[selected, Lookup[productData, "FlatFactors"], allCandidates, absorb];
-  coeff = FTYoungComputeProductCoefficient[selected, absorb, other];
-  If[MatchQ[coeff, Missing[_]],
-    Return[FTFailure["Inapplicable", "Could not factor the selected product into absorbed and residual factors.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  residualData = FTYoungBuildResidualCoefficientCondition[terms, other, coeff, theta];
-  residualTarget = Lookup[residualData, "ResidualTarget"];
-  residualRequired = Lookup[residualData, "ResidualRequired"];
-  primitiveAudit = FTPlannerPrimitiveAudit[planner, requiredPrimitives];
-  bound = rhs;
-  relation = LessEqual[selected, bound];
-  trace2 = FTAppendTrace[trace, "PlanTargetYoung", <|"TargetRelation" -> targetText, "TargetPlanner" -> Lookup[planner, "Name"], "PlannerPrimitives" -> Lookup[planner, "Primitives", {}], "PrimitiveAudit" -> primitiveAudit, "AbsorbFactor" -> absorb, "ResidualFactor" -> other|>];
-  conditions = {
-    FTCondition["TargetCoefficientPositive", theta > 0, name],
-    FTCondition["YoungResidualCoefficient", Lookup[residualData, "Condition"], name],
-    FTRealValuedCondition[selected, name]
-  };
-  discharged = FTDischargeConditions[conditions, assumptions, assumptionsText, context, contextText];
-  If[Length[Lookup[discharged, "Contradicted", {}]] > 0,
-    Return[FTFailure["AssumptionContradiction", "Assumptions contradict a generated target-guided Young condition.", <|"Conditions" -> discharged, "Trace" -> trace2, "State" -> state|>]]
-  ];
-  state2 = FTAddObligations[state, Lookup[discharged, "Deferred", {}], trace2];
-  FTSuccess[<|
-    "Kind" -> "FormulaTransformPlan",
-    "Rule" -> name,
-    "Direction" -> If[direction === "Auto", "Upper", direction],
-    "Original" -> selected,
-    "Selected" -> selected,
-    "TargetGuided" -> True,
-    "TargetPlanner" -> Lookup[planner, "Name"],
-    "TargetPlannerRuntime" -> Lookup[planner, "Runtime"],
-    "TargetPlannerPrimitives" -> Lookup[planner, "Primitives", {}],
-    "TargetPlannerPrimitiveAudit" -> primitiveAudit,
-    "RegistryMutation" -> False,
-    "PlanStatus" -> "TargetMatched",
-    "TargetRelation" -> target,
-    "TargetRelationInputForm" -> ToString[target, InputForm, PageWidth -> Infinity],
-    "PlannedRelation" -> relation,
-    "PlannedRelationInputForm" -> ToString[relation, InputForm, PageWidth -> Infinity],
-    "PlannedBound" -> bound,
-    "ParameterSynthesis" -> <|
-      "Method" -> "YoungAbsorption",
-      "AbsorbFactor" -> absorb,
-      "ResidualFactor" -> other,
-      "ProductCoefficient" -> coeff,
-      "AbsorbCoefficient" -> theta,
-      "ResidualCoefficientRequired" -> residualRequired,
-      "ResidualCoefficientTarget" -> If[residualTarget === {}, Missing["NotSpecified"], First[residualTarget]]
-    |>,
-    "ProposedApplyParameters" -> Join[parameters, <|"SynthesizedBy" -> "TargetGuidedYoung", "AbsorbFactor" -> ToString[absorb, InputForm, PageWidth -> Infinity]|>],
-    "Trace" -> FTAppendTrace[trace2, "PlanBuildRelation", <|"Direction" -> "Upper"|>],
-    "Conditions" -> discharged,
-    "Obligations" -> Lookup[discharged, "Deferred", {}],
-    "State" -> state2
-  |>]
-];
-
-FTPlanHolderGeneric[compiled_, selected_, direction_, parameters_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", "Holder"], defaults, p, q, parts, operator, body, domain, factors, f, g, bound, relation},
-  defaults = Lookup[compiled, "ParameterDefaults", <||>];
-  p = Lookup[parameters, "p", Lookup[defaults, "p", 2]];
-  q = Lookup[parameters, "q", Lookup[defaults, "q", 2]];
-  parts = FTIntegralParts[selected];
-  If[parts === $Failed, parts = FTSumParts[selected]];
-  If[parts === $Failed,
-    Return[FTFailure["Inapplicable", name <> " target planning applies to integral or sum product formulas.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  {body, domain, operator} = parts;
-  factors = FTProductFactors[body];
-  If[factors === $Failed,
-    Return[FTFailure["Inapplicable", name <> " target planning currently requires an explicit product body.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  {f, g} = factors;
-  bound = FTLpBound[f, g, p, q, domain, operator];
-  relation = FTBuildOrientedRelation[selected, bound, direction];
-  If[AssociationQ[relation] && Lookup[relation, "Status", ""] === "Failure", Return[Join[relation, <|"Trace" -> trace, "State" -> state|>]]];
-  FTSuccess[<|
-    "Kind" -> "FormulaTransformPlan",
-    "Rule" -> name,
-    "Direction" -> direction,
-    "Original" -> selected,
-    "Selected" -> selected,
-    "TargetGuided" -> False,
-    "RegistryMutation" -> False,
-    "PlanStatus" -> "GenericCanonical",
-    "PlannedRelation" -> relation,
-    "PlannedRelationInputForm" -> ToString[relation, InputForm, PageWidth -> Infinity],
-    "ParameterSynthesis" -> <|"Method" -> "CanonicalHolder", "p" -> p, "q" -> q|>,
-    "HeuristicPipeline" -> {},
-    "ProposedApplyParameters" -> parameters,
-    "Trace" -> FTAppendTrace[trace, "PlanGenericHolder", <|"Rule" -> name|>],
-    "Conditions" -> <|"Discovered" -> {}, "Discharged" -> {}, "Deferred" -> {}, "Contradicted" -> {}|>,
-    "Obligations" -> {},
-    "State" -> state
-  |>]
-];
-
-FTWeightedHolderBound[f_, g_, p_, q_, weight_, domain_, operator_] := Module[{op, left, right},
-  op = If[operator === "Sum", Inactive[Sum], Inactive[Integrate]];
-  left = f * Inactive[Power][weight, 1/p];
-  right = g * Inactive[Power][weight, -1/p];
-  {
-    Inactive[Power][op[Abs[left]^p, domain], 1/p] *
-      Inactive[Power][op[Abs[right]^q, domain], 1/q],
-    left,
-    right
-  }
-];
-
-FTNormPowerParts[expr_, operator_] := Module[{result},
-  result = Which[
-    operator === "Integral" && MatchQ[expr, Inactive[Power][Inactive[Integrate][Power[Abs[_], _], _], _]],
-      expr /. Inactive[Power][Inactive[Integrate][Power[Abs[h_], exp_], dom_], inv_] :> <|"Argument" -> h, "Exponent" -> exp, "Domain" -> dom, "OuterExponent" -> inv, "Operator" -> "Integral"|>,
-    operator === "Sum" && MatchQ[expr, Inactive[Power][Inactive[Sum][Power[Abs[_], _], _], _]],
-      expr /. Inactive[Power][Inactive[Sum][Power[Abs[h_], exp_], dom_], inv_] :> <|"Argument" -> h, "Exponent" -> exp, "Domain" -> dom, "OuterExponent" -> inv, "Operator" -> "Sum"|>,
-    True,
-      $Failed
-  ];
-  result
-];
-
-FTInferHolderWeightFromNormPair[firstNorm_, secondNorm_, f_, g_, p_, q_, domain_, operator_] := Module[
-  {first, second, firstWeight, secondWeight, firstOk, secondOk},
-  first = FTNormPowerParts[firstNorm, operator];
-  second = FTNormPowerParts[secondNorm, operator];
-  If[first === $Failed || second === $Failed, Return[Missing["NoNormPair"]]];
-  firstOk = TrueQ[Quiet@Check[
-    Simplify[Lookup[first, "Domain"] == domain && Lookup[first, "Exponent"] == p && Lookup[first, "OuterExponent"] == 1/p],
-    False
-  ]];
-  secondOk = TrueQ[Quiet@Check[
-    Simplify[Lookup[second, "Domain"] == domain && Lookup[second, "Exponent"] == q && Lookup[second, "OuterExponent"] == 1/q],
-    False
-  ]];
-  If[! firstOk || ! secondOk, Return[Missing["NormShapeMismatch"]]];
-  firstWeight = Quiet@Check[Simplify[(Lookup[first, "Argument"]/f)^p], $Failed];
-  secondWeight = Quiet@Check[Simplify[(Lookup[second, "Argument"]/g)^(-p)], $Failed];
-  If[firstWeight === $Failed || secondWeight === $Failed, Return[Missing["WeightInferenceFailed"]]];
-  If[! FreeQ[firstWeight, f] || ! FreeQ[firstWeight, g] || ! FreeQ[secondWeight, f] || ! FreeQ[secondWeight, g],
-    Return[Missing["WeightDependsOnProductFactor"]]
-  ];
-  If[TrueQ[Quiet@Check[Simplify[firstWeight == secondWeight], False]],
-    <|"Weight" -> firstWeight, "FirstNorm" -> first, "SecondNorm" -> second, "Inference" -> "BothNormFactors"|>,
-    Missing["InconsistentWeights"]
-  ]
-];
-
-FTInferHolderWeightFromTarget[target_, selected_, f_, g_, p_, q_, domain_, operator_] := Module[
-  {lhs, rhs, rhsFactors, direct, swapped},
-  If[! MatchQ[target, LessEqual[_, _]], Return[Missing["NoTargetRelation"]]];
-  {lhs, rhs} = List @@ target;
-  If[! TrueQ[Quiet@Check[Simplify[lhs == selected], False]], Return[Missing["TargetLHSMismatch"]]];
-  rhsFactors = FTProductFactors[rhs];
-  If[rhsFactors === $Failed, Return[Missing["TargetBoundNotProduct"]]];
-  direct = FTInferHolderWeightFromNormPair[rhsFactors[[1]], rhsFactors[[2]], f, g, p, q, domain, operator];
-  If[AssociationQ[direct], Return[direct]];
-  swapped = FTInferHolderWeightFromNormPair[rhsFactors[[2]], rhsFactors[[1]], f, g, p, q, domain, operator];
-  If[AssociationQ[swapped],
-    Join[swapped, <|"Inference" -> "SwappedNormFactors"|>],
-    Missing["NoConsistentWeight"]
-  ]
-];
-
-FTWeightedHolderParseIntegralOrSumProduct[selected_] := Module[{parts, body, domain, operator, factors},
-  parts = FTIntegralParts[selected];
-  If[parts === $Failed, parts = FTSumParts[selected]];
-  If[parts === $Failed, Return[Missing["NoIntegralOrSumProduct"]]];
-  {body, domain, operator} = parts;
-  factors = FTProductFactors[body];
-  If[factors === $Failed, Return[Missing["NoProductBody"]]];
-  <|"Body" -> body, "Domain" -> domain, "Operator" -> operator, "Factors" -> factors, "FirstFactor" -> factors[[1]], "SecondFactor" -> factors[[2]]|>
-];
-
-FTWeightedHolderParseWeightParameter[weightText_String] := Module[{weight},
-  If[StringTrim[weightText] === "", Return[Missing["NoExplicitWeight"]]];
-  weight = FTParseMaybeExpression[weightText];
-  If[weight === $Failed, Missing["InvalidWeightParameter"], weight]
-];
-
-FTWeightedHolderInferWeight[targetText_String, selected_, f_, g_, p_, q_, domain_, operator_] := Module[
-  {target, inferredWeight},
-  target = If[targetText === "", $Failed, FTParseMaybeExpression[targetText]];
-  If[target === $Failed, Return[Missing["NoParseableTargetRelation"]]];
-  inferredWeight = FTInferHolderWeightFromTarget[target, selected, f, g, p, q, domain, operator];
-  If[AssociationQ[inferredWeight],
-    Join[inferredWeight, <|"Target" -> target|>],
-    inferredWeight
-  ]
-];
-
-FTWeightedHolderBuildBound[f_, g_, p_, q_, weight_, domain_, operator_] := Module[
-  {weighted},
-  weighted = FTWeightedHolderBound[f, g, p, q, weight, domain, operator];
-  <|"Bound" -> weighted[[1]], "WeightedFirstFactor" -> weighted[[2]], "WeightedSecondFactor" -> weighted[[3]]|>
-];
-
-FTWeightedHolderBuildConditions[name_, p_, q_, weight_, domain_, direction_, left_, right_, selected_] := Module[{conditions},
-  conditions = {
-    FTCondition["ExponentConstraint", p > 1, name],
-    FTCondition["ExponentConstraint", q > 1, name],
-    FTCondition["ExponentConjugacy", 1/p + 1/q == 1, name],
-    FTCondition["WeightPositive", weight > 0, name],
-    FTFunctionSpaceCondition[left, Inactive[Lp][p, domain], name],
-    FTFunctionSpaceCondition[right, Inactive[Lp][q, domain], name],
-    FTMeasurableIntegrableCondition[{left, right}, domain, name]
-  };
-  If[MemberQ[{"Upper", "Lower", "TwoSided"}, direction],
-    conditions = Append[conditions, FTRealValuedCondition[selected, name]]
-  ];
-  conditions
-];
-
-FTPlanHolderTarget[compiled_, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {
-    name = Lookup[compiled, "Name", "Holder"], defaults, p, q, parts, operator, body, domain,
-    factors, f, g, weightText, weight, weighted, bound, left, right, relation, targetText,
-    target, inferredWeight, weightInferenceMethod, conditions, discharged, state2, trace2, planner, requiredPrimitives, primitiveAudit, primitiveCheck,
-    productData, weightParse, boundData
-  },
-  weightText = FTReadString[Lookup[parameters, "weight", ""]];
-  targetText = FTTargetRelationText[parameters];
-  If[weightText === "" && targetText === "", Return[FTPlanHolderGeneric[compiled, selected, direction, parameters, state, trace]]];
-  planner = FTFindTargetPlanner[compiled, "WeightedHolder"];
-  If[! AssociationQ[planner],
-    Return[FTFailure["CompilerPrimitiveMissing", "No registered TargetPlanner descriptor is available for WeightedHolder.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  requiredPrimitives = {
-    "ParseIntegralOrSumProduct", "ExtractProductFactors", "ParseWeightParameter",
-    "InferWeightFromNormPair", "BuildWeightedHolderBound",
-    "BuildWeightPositiveCondition", "BuildFunctionSpaceObligations"
-  };
-  primitiveCheck = FTRequirePlannerPrimitives[planner, requiredPrimitives, trace, state];
-  If[AssociationQ[primitiveCheck], Return[primitiveCheck]];
-  defaults = Lookup[compiled, "ParameterDefaults", <||>];
-  p = Lookup[parameters, "p", Lookup[defaults, "p", 2]];
-  q = Lookup[parameters, "q", Lookup[defaults, "q", 2]];
-  productData = FTWeightedHolderParseIntegralOrSumProduct[selected];
-  If[! AssociationQ[productData],
-    Return[FTFailure["Inapplicable", name <> " weighted target planning applies to integral or sum product formulas.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  body = Lookup[productData, "Body"];
-  domain = Lookup[productData, "Domain"];
-  operator = Lookup[productData, "Operator"];
-  factors = Lookup[productData, "Factors"];
-  f = Lookup[productData, "FirstFactor"];
-  g = Lookup[productData, "SecondFactor"];
-  If[weightText === "",
-    inferredWeight = FTWeightedHolderInferWeight[targetText, selected, f, g, p, q, domain, operator];
-    If[! AssociationQ[inferredWeight],
-      If[MatchQ[inferredWeight, Missing["NoParseableTargetRelation"]],
-        Return[FTFailure["InvalidRequest", "Weighted Holder target planning requires parameters.weight or a parseable parameters.targetRelation.", <|"Trace" -> trace, "State" -> state|>]],
-        Return[FTFailure["Inapplicable", "Could not infer a request-time Holder weight from the target relation. Pass parameters.weight explicitly.", <|"Trace" -> trace, "State" -> state, "TargetRelation" -> targetText, "InferenceFailure" -> inferredWeight|>]]
-      ]
-    ];
-    weight = Lookup[inferredWeight, "Weight"];
-    target = Lookup[inferredWeight, "Target", $Failed];
-    weightInferenceMethod = Lookup[inferredWeight, "Inference", "TargetRelation"],
-    weightParse = FTWeightedHolderParseWeightParameter[weightText];
-    If[MatchQ[weightParse, Missing["InvalidWeightParameter"]], Return[FTFailure["InvalidRequest", "parameters.weight must parse as a Wolfram expression.", <|"Trace" -> trace, "State" -> state|>]]];
-    weight = weightParse;
-    target = If[targetText === "", $Failed, FTParseMaybeExpression[targetText]];
-    weightInferenceMethod = "ExplicitParameter"
-  ];
-  boundData = FTWeightedHolderBuildBound[f, g, p, q, weight, domain, operator];
-  bound = Lookup[boundData, "Bound"];
-  left = Lookup[boundData, "WeightedFirstFactor"];
-  right = Lookup[boundData, "WeightedSecondFactor"];
-  relation = If[MatchQ[target, LessEqual[_, _]] && TrueQ[Quiet@Check[Simplify[First[List @@ target] == selected], False]],
-    target,
-    FTBuildOrientedRelation[selected, bound, direction]
-  ];
-  If[AssociationQ[relation] && Lookup[relation, "Status", ""] === "Failure", Return[Join[relation, <|"Trace" -> trace, "State" -> state|>]]];
-  primitiveAudit = FTPlannerPrimitiveAudit[planner, requiredPrimitives];
-  trace2 = FTAppendTrace[trace, "PlanTargetHolder", <|"TargetRelation" -> targetText, "TargetPlanner" -> Lookup[planner, "Name"], "PlannerPrimitives" -> Lookup[planner, "Primitives", {}], "PrimitiveAudit" -> primitiveAudit, "Heuristic" -> "MultiplyByOneWeight", "Weight" -> weight, "WeightInference" -> weightInferenceMethod|>];
-  conditions = FTWeightedHolderBuildConditions[name, p, q, weight, domain, direction, left, right, selected];
-  discharged = FTDischargeConditions[conditions, assumptions, assumptionsText, context, contextText];
-  If[Length[Lookup[discharged, "Contradicted", {}]] > 0,
-    Return[FTFailure["AssumptionContradiction", "Assumptions contradict a generated target-guided Holder condition.", <|"Conditions" -> discharged, "Trace" -> trace2, "State" -> state|>]]
-  ];
-  state2 = FTAddObligations[state, Lookup[discharged, "Deferred", {}], trace2];
-  FTSuccess[<|
-    "Kind" -> "FormulaTransformPlan",
-    "Rule" -> name,
-    "Direction" -> direction,
-    "Original" -> selected,
-    "Selected" -> selected,
-    "TargetGuided" -> True,
-    "TargetPlanner" -> Lookup[planner, "Name"],
-    "TargetPlannerRuntime" -> Lookup[planner, "Runtime"],
-    "TargetPlannerPrimitives" -> Lookup[planner, "Primitives", {}],
-    "TargetPlannerPrimitiveAudit" -> primitiveAudit,
-    "RegistryMutation" -> False,
-    "PlanStatus" -> "TargetMatched",
-    "PlannedRelation" -> relation,
-    "PlannedRelationInputForm" -> ToString[relation, InputForm, PageWidth -> Infinity],
-    "PlannedBound" -> bound,
-    "ParameterSynthesis" -> <|
-      "Method" -> "WeightedHolder",
-      "p" -> p,
-      "q" -> q,
-      "Weight" -> weight,
-      "WeightInference" -> weightInferenceMethod,
-      "FirstFactor" -> f,
-      "SecondFactor" -> g,
-      "WeightedFirstFactor" -> left,
-      "WeightedSecondFactor" -> right
-    |>,
-    "HeuristicPipeline" -> {
-      <|"Heuristic" -> "MultiplyByOneWeight", "Status" -> "Planned", "Identity" -> weight^(1/p) * weight^(-1/p), "GeneratedCondition" -> weight > 0|>
-    },
-    "ProposedApplyParameters" -> Join[parameters, <|"SynthesizedBy" -> "TargetGuidedHolder"|>],
-    "Trace" -> FTAppendTrace[trace2, "PlanBuildRelation", <|"Direction" -> direction|>],
-    "Conditions" -> discharged,
-    "Obligations" -> Lookup[discharged, "Deferred", {}],
-    "State" -> state2
-  |>]
-];
-
-FTEstimateSeedTextTemplate[text_String, bindings_Association] := Module[{result = text, keys},
-  keys = Reverse@SortBy[Keys[bindings], StringLength[ToString[#]] &];
-  Do[
-    result = StringReplace[result, "$" <> ToString[key] -> ToString[Lookup[bindings, key], InputForm, PageWidth -> Infinity]],
-    {key, keys}
-  ];
-  result
-];
-
-FTEstimateSeedCondition[condition_Association, bindings_Association, source_String] := Module[
-  {kind, exprTemplate, machine, expr},
-  kind = FTReadString[Lookup[condition, "kind", "TemplateCondition"]];
-  exprTemplate = Lookup[condition, "expr", ""];
-  machine = TrueQ[Lookup[condition, "machineCheckable", False]];
-  expr = If[machine && StringQ[exprTemplate],
-    FTEvaluateTemplate[exprTemplate, bindings],
-    If[StringQ[exprTemplate], FTEstimateSeedTextTemplate[exprTemplate, bindings], exprTemplate]
-  ];
-  If[expr === $Failed, expr = exprTemplate; machine = False];
-  FTCondition[kind, expr, source, machine]
-];
-
-FTEstimateSeedCondition[condition_String, bindings_Association, source_String] :=
-  FTCompiledCondition[condition, bindings, source];
-
-FTEstimateSeedCondition[_, _, source_String] :=
-  FTCondition["TemplateCondition", "invalid estimate seed condition", source, False];
-
-FTPlanEstimateSeed[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", ""], relation, conditions, discharged, state2, trace2, bindings, template},
-  If[direction =!= "Auto" && direction =!= "Upper",
-    Return[FTFailure["DirectionUnavailable", "EstimateSeed currently supports direction=Auto or Upper.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  bindings = Join[Lookup[compiled, "ParameterDefaults", <||>], parameters, <|"selected" -> selected, "u" -> selected|>];
-  bindings = FTPrepareParameterExpressionBindings[compiled, bindings];
-  If[bindings === $Failed,
-    Return[FTFailure["InvalidRequest", "EstimateSeed parameters could not be parsed as declared expression parameters.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  template = Lookup[Lookup[compiled, "Template", <||>], "relation", ""];
-  If[! StringQ[template] || StringTrim[template] === "",
-    Return[FTFailure["InvalidRuleJSON", "EstimateSeed JSON must provide template.relation.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  relation = FTEvaluateTemplate[template, bindings];
-  If[relation === $Failed,
-    Return[FTFailure["InvalidRuleJSON", "EstimateSeed relation template could not be evaluated.", <|"Trace" -> trace, "State" -> state, "Template" -> template|>]]
-  ];
-  trace2 = FTAppendTrace[trace, "PlanEstimateSeed", <|"EstimateSeed" -> name, "RegistryKind" -> "EstimateSeed"|>];
-  conditions = FTEstimateSeedCondition[#, bindings, name] & /@ Lookup[compiled, "Conditions", {}];
-  discharged = FTDischargeConditions[conditions, assumptions, assumptionsText, context, contextText];
-  state2 = FTAddObligations[state, Lookup[discharged, "Deferred", {}], trace2];
-  FTSuccess[<|
-    "Kind" -> "FormulaTransformPlan",
-    "Rule" -> name,
-    "RegistryKind" -> "EstimateSeed",
-    "Direction" -> If[direction === "Auto", "Upper", direction],
-    "Original" -> selected,
-    "Selected" -> selected,
-    "TargetGuided" -> False,
-    "RegistryMutation" -> False,
-    "PlanStatus" -> "EstimateSeedInstantiated",
-    "Relation" -> relation,
-    "RelationInputForm" -> ToString[relation, InputForm, PageWidth -> Infinity],
-    "RelationLatex" -> Quiet@Check[ToString[TeXForm[relation], PageWidth -> Infinity], ""],
-    "Trace" -> FTAppendTrace[trace2, "BuildEstimateRelation", <|"Direction" -> "Upper"|>],
-    "Conditions" -> discharged,
-    "Obligations" -> Lookup[discharged, "Deferred", {}],
-    "State" -> state2
-  |>]
-];
-
-FTIntegralQ[expr_] := MatchQ[Unevaluated[expr], _Integrate | _Inactive];
-FTSumQ[expr_] := MatchQ[Unevaluated[expr], _Sum | _Inactive];
-
-FTIntegralParts[Inactive[Integrate][body_, domain_]] := {body, domain, "Integral"};
-FTIntegralParts[Integrate[body_, domain_]] := {body, domain, "Integral"};
-FTIntegralParts[_] := $Failed;
-
-FTSumParts[Inactive[Sum][body_, domain_]] := {body, domain, "Sum"};
-FTSumParts[Sum[body_, domain_]] := {body, domain, "Sum"};
-FTSumParts[_] := $Failed;
-
-FTProductFactors[body_Times] := Module[{factors = List @@ body},
-  {First[factors], Times @@ Rest[factors]}
-];
-FTProductFactors[Inactive[Times][a_, b_]] := {a, b};
-FTProductFactors[_] := $Failed;
-
-FTLpBound[f_, g_, p_, q_, domain_, operator_] := Module[{op},
-  op = If[operator === "Sum", Inactive[Sum], Inactive[Integrate]];
-  Inactive[Power][op[Abs[f]^p, domain], 1/p] *
-    Inactive[Power][op[Abs[g]^q, domain], 1/q]
-];
-
-FTBuildOrientedRelation[selected_, bound_, direction_String] := Switch[direction,
-  "Upper", LessEqual[selected, bound],
-  "Lower", LessEqual[-bound, selected],
-  "TwoSided", LessEqual[-bound, selected, bound],
-  "Equal", FTFailure["DirectionUnavailable", "Inequality rules cannot be used with direction=Equal."],
-  _, LessEqual[Abs[selected], bound]
-];
-
-FTApplyHolderLike[compiled_, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", "Holder"], defaults, p, q, parts, operator, body, domain, factors, f, g, bound, relation, conditions, discharged, state2, trace2, heuristicTrace = {}, heuristicResult, plan, targetText, weightText, genericResult},
-  defaults = Lookup[compiled, "ParameterDefaults", <||>];
-  p = Lookup[parameters, "p", Lookup[defaults, "p", 2]];
-  q = Lookup[parameters, "q", Lookup[defaults, "q", 2]];
-  targetText = FTTargetRelationText[parameters];
-  weightText = FTReadString[Lookup[parameters, "weight", ""]];
-  If[Lookup[compiled, "Runtime", ""] === "GenericTemplate" && targetText === "" && weightText === "",
-    genericResult = FTApplyGenericTemplateRule[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace];
-    If[AssociationQ[genericResult] && Lookup[genericResult, "Status", ""] === "Success", Return[genericResult]];
-    If[!(AssociationQ[genericResult] && Lookup[genericResult, "FailureType", ""] === "Inapplicable"), Return[genericResult]]
-  ];
-  plan = If[targetText =!= "" || weightText =!= "", FTPlanHolderTarget[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace], <||>];
-  If[AssociationQ[plan] && Lookup[plan, "Status", ""] === "Failure", Return[plan]];
-  parts = FTIntegralParts[selected];
-  If[parts === $Failed, parts = FTSumParts[selected]];
-  If[parts === $Failed, Return[FTFailure["Inapplicable", name <> " currently applies to integral or sum product formulas.", <|"Trace" -> trace, "State" -> state|>]]];
-  {body, domain, operator} = parts;
-  factors = FTProductFactors[body];
-  If[factors === $Failed,
-    heuristicResult = FTHeuristicSearch[compiled, selected, parameters];
-    If[AssociationQ[heuristicResult] && Lookup[heuristicResult, "Status", ""] === "Success",
-      heuristicTrace = Lookup[heuristicResult, "HeuristicPipeline", {}];
-      parts = FTIntegralParts[Lookup[heuristicResult, "Rewritten"]];
-      If[parts === $Failed, parts = FTSumParts[Lookup[heuristicResult, "Rewritten"]]];
-      If[parts =!= $Failed,
-        {body, domain, operator} = parts;
-        factors = FTProductFactors[body]
-      ]
-    ];
-    If[factors === $Failed,
-      Return[FTFailure["Inapplicable", name <> " could not rewrite the selected formula into a product form using compatible heuristics.", <|"Trace" -> trace, "State" -> state, "HeuristicSearch" -> heuristicResult|>]]
-    ]
-  ];
-  {f, g} = factors;
-  bound = If[AssociationQ[plan] && KeyExistsQ[plan, "PlannedBound"], Lookup[plan, "PlannedBound"], FTLpBound[f, g, p, q, domain, operator]];
-  relation = If[AssociationQ[plan] && KeyExistsQ[plan, "PlannedRelation"],
-    Lookup[plan, "PlannedRelation"],
-    FTBuildOrientedRelation[selected, bound, direction]
-  ];
-  If[AssociationQ[relation] && Lookup[relation, "Status", ""] === "Failure", Return[Join[relation, <|"Trace" -> trace, "State" -> state|>]]];
-  trace2 = FTAppendTrace[trace, "MatchRule", <|"Rule" -> name, "Operator" -> operator, "Heuristics" -> heuristicTrace, "HeuristicDepth" -> Length[heuristicTrace]|>];
-  conditions = FTBuildConditions[name, direction, {f, g}, {p, q}, domain, heuristicTrace, selected];
-  If[AssociationQ[plan] && KeyExistsQ[plan, "Conditions"],
-    conditions = Join[conditions, Lookup[Lookup[plan, "Conditions"], "Discovered", {}]]
-  ];
-  discharged = FTDischargeConditions[conditions, assumptions, assumptionsText, context, contextText];
-  If[Length[Lookup[discharged, "Contradicted", {}]] > 0,
-    Return[FTFailure["AssumptionContradiction", "Assumptions contradict a generated transform condition.", <|"Conditions" -> discharged, "Trace" -> trace2, "State" -> state|>]]
-  ];
-  state2 = FTAddObligations[state, Lookup[discharged, "Deferred", {}], trace2];
-  FTSuccess[<|
-    "Rule" -> name,
-    "Direction" -> direction,
-    "Part" -> "Whole",
-    "Original" -> selected,
-    "Selected" -> selected,
-    "Relation" -> relation,
-    "RelationInputForm" -> ToString[relation, InputForm, PageWidth -> Infinity],
-    "RelationLatex" -> Quiet@Check[ToString[TeXForm[relation], PageWidth -> Infinity], ""],
-    "Trace" -> FTAppendTrace[trace2, "BuildRelation", <|"Direction" -> direction|>],
-    "Plan" -> If[AssociationQ[plan] && KeyExistsQ[plan, "PlanStatus"], KeyDrop[plan, {"State"}], <||>],
-    "HeuristicSearch" -> If[AssociationQ[heuristicResult], KeyDrop[heuristicResult, {"Original", "Rewritten"}], <||>],
-    "Conditions" -> discharged,
-    "Obligations" -> Lookup[discharged, "Deferred", {}],
-    "State" -> state2
-  |>]
-];
-
-FTBuildConditions[name_, direction_, factors_, exponents_, domain_, heuristicTrace_, selected_] := Module[
-  {f = factors[[1]], g = factors[[2]], p = exponents[[1]], q = exponents[[2]], conditions},
-  conditions = {
-    FTCondition["ExponentConstraint", p > 1, name],
-    FTCondition["ExponentConstraint", q > 1, name],
-    FTCondition["ExponentConjugacy", 1/p + 1/q == 1, name],
-    FTFunctionSpaceCondition[f, Inactive[Lp][p, domain], name],
-    FTFunctionSpaceCondition[g, Inactive[Lp][q, domain], name],
-    FTMeasurableIntegrableCondition[{f, g}, domain, name]
-  };
-  If[MemberQ[{"Upper", "Lower", "TwoSided"}, direction],
-    conditions = Append[conditions, FTRealValuedCondition[selected, name]]
-  ];
-  If[Length[heuristicTrace] > 0,
-    conditions = Append[conditions, FTCondition["Nonnegativity", Lookup[First[heuristicTrace], "GeneratedCondition", "heuristic side condition"], name]]
-  ];
-  conditions
-];
-
-FTApplyYoung[compiled_, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", "Young"], body = selected, factors, a, b, p, q, bound, relation, conditions, discharged, state2, trace2, plan, targetText},
-  If[Head[Unevaluated[body]] === Abs, body = First[List @@ body]];
-  factors = FTProductFactors[body];
-  If[factors === $Failed, Return[FTFailure["Inapplicable", "Young applies to pointwise product formulas.", <|"Trace" -> trace, "State" -> state|>]]];
-  {a, b} = factors;
-  p = Lookup[parameters, "p", 2];
-  q = Lookup[parameters, "q", 2];
-  targetText = FTTargetRelationText[parameters];
-  plan = If[targetText =!= "", FTPlanYoungTarget[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace], <||>];
-  If[AssociationQ[plan] && Lookup[plan, "Status", ""] === "Failure", Return[plan]];
-  bound = If[AssociationQ[plan] && KeyExistsQ[plan, "PlannedBound"], Lookup[plan, "PlannedBound"], Abs[a]^p/p + Abs[b]^q/q];
-  relation = If[AssociationQ[plan] && KeyExistsQ[plan, "PlannedRelation"],
-    Lookup[plan, "PlannedRelation"],
-    FTBuildOrientedRelation[selected, bound, direction]
-  ];
-  If[AssociationQ[relation] && Lookup[relation, "Status", ""] === "Failure", Return[Join[relation, <|"Trace" -> trace, "State" -> state|>]]];
-  trace2 = FTAppendTrace[trace, "MatchRule", <|"Rule" -> name, "Operator" -> "PointwiseProduct"|>];
-  conditions = {
-    FTCondition["ExponentConstraint", p > 1, name],
-    FTCondition["ExponentConstraint", q > 1, name],
-    FTCondition["ExponentConjugacy", 1/p + 1/q == 1, name]
-  };
-  If[AssociationQ[plan] && KeyExistsQ[plan, "Conditions"],
-    conditions = Join[conditions, Lookup[Lookup[plan, "Conditions"], "Discovered", {}]]
-  ];
-  If[MemberQ[{"Upper", "Lower", "TwoSided"}, direction],
-    conditions = Append[conditions, FTRealValuedCondition[selected, name]]
-  ];
-  discharged = FTDischargeConditions[conditions, assumptions, assumptionsText, context, contextText];
-  If[Length[Lookup[discharged, "Contradicted", {}]] > 0,
-    Return[FTFailure["AssumptionContradiction", "Assumptions contradict a generated transform condition.", <|"Conditions" -> discharged, "Trace" -> trace2, "State" -> state|>]]
-  ];
-  state2 = FTAddObligations[state, Lookup[discharged, "Deferred", {}], trace2];
-  FTSuccess[<|
-    "Rule" -> name,
-    "Direction" -> direction,
-    "Part" -> "Whole",
-    "Original" -> selected,
-    "Selected" -> selected,
-    "Relation" -> relation,
-    "RelationInputForm" -> ToString[relation, InputForm, PageWidth -> Infinity],
-    "RelationLatex" -> Quiet@Check[ToString[TeXForm[relation], PageWidth -> Infinity], ""],
-    "Trace" -> FTAppendTrace[trace2, "BuildRelation", <|"Direction" -> direction|>],
-    "Plan" -> If[AssociationQ[plan] && KeyExistsQ[plan, "PlanStatus"], KeyDrop[plan, {"State"}], <||>],
-    "Conditions" -> discharged,
-    "Obligations" -> Lookup[discharged, "Deferred", {}],
-    "State" -> state2
-  |>]
-];
 
 FTApplyIntegrationByParts[compiled_, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
   {name = Lookup[compiled, "Name", "IntegrationByParts"], x, a, b, u, v, integrand, boundary, interior, relation, conditions, discharged, state2, trace2},

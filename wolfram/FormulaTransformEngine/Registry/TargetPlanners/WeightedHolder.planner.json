@@ -6,15 +6,51 @@
   "rules": ["Holder", "CauchySchwarz"],
   "families": ["holder-product-inequality"],
   "objective": "weighted-holder-target",
-  "runtime": "WeightedHolder",
-  "primitives": [
-    "ParseIntegralOrSumProduct",
-    "ExtractProductFactors",
-    "ParseWeightParameter",
-    "InferWeightFromNormPair",
-    "BuildWeightedHolderBound",
-    "BuildWeightPositiveCondition",
-    "BuildFunctionSpaceObligations"
+  "runtime": "GenericTargetPlanner",
+  "selectedTemplate": "$op[$f * $g, $domain]",
+  "targetTemplate": "Inactive[Power][$op[Abs[$arg1]^$p, $domain], $outer1] * Inactive[Power][$op[Abs[$arg2]^$q, $domain], $outer2]",
+  "unknownParameters": ["$weight"],
+  "equations": [
+    "$outer1 == 1/$p",
+    "$outer2 == 1/$q",
+    "$weight == ($arg1 / $f)^$p",
+    "$weight == ($arg2 / $g)^(-$p)"
+  ],
+  "derivedBindings": {
+    "left": "$f * $weight^(1/$p)",
+    "right": "$g * $weight^(-1/$p)",
+    "bound": "Inactive[Power][$op[Abs[$left]^$p, $domain], 1/$p] * Inactive[Power][$op[Abs[$right]^$q, $domain], 1/$q]"
+  },
+  "orientations": [
+    {
+      "name": "AbsUpper",
+      "direction": "Auto",
+      "relation": "LessEqual",
+      "lhs": "Abs[$selected]",
+      "rhs": "$bound"
+    },
+    {
+      "name": "SignedUpper",
+      "direction": "Upper",
+      "relation": "LessEqual",
+      "lhs": "$selected",
+      "rhs": "$bound",
+      "conditions": ["RealValued[$selected]"]
+    }
+  ],
+  "conditions": [
+    {
+      "predicate": "PositiveValued",
+      "arguments": ["$weight", "$domain"]
+    },
+    {
+      "predicate": "FunctionSpace",
+      "arguments": ["$f", "Lp[$p,$domain]"]
+    },
+    {
+      "predicate": "FunctionSpace",
+      "arguments": ["$g", "Lp[$q,$domain]"]
+    }
   ],
   "registryMutation": false
 }

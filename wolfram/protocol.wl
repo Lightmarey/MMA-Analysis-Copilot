@@ -110,6 +110,30 @@ WMAHandleRequest[req_Association] := Module[
     Return[WMAFormatFormulaTransformResult[id, "Formula transform", start, result]];
   ];
 
+  If[tool === "wolfram_debug_match",
+    expr = WMAParseInput[Lookup[args, "expr", ""]];
+    template = Lookup[args, "template", ""];
+    result = WMAWithTime[
+      FTMatchAlgebraicStructure[expr, template],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, "Debug match", start, result]];
+  ];
+
+  If[tool === "wolfram_debug_unification",
+    Module[{bindingsRaw, bindings, unknowns, equations},
+      bindingsRaw = Lookup[args, "bindings", <||>];
+      bindings = Association[Map[#[[1]] -> WMAParseInput[#[[2]]] &, Normal[bindingsRaw]]];
+      unknowns = Lookup[args, "unknowns", {}];
+      equations = Lookup[args, "equations", {}];
+      result = WMAWithTime[
+        FTSolveParameters[bindings, unknowns, equations],
+        timeoutMs
+      ];
+      Return[WMAFormatResult[id, "Debug unification", start, result]];
+    ]
+  ];
+
   If[tool === "wolfram_simplify",
     expr = WMAParseInput[Lookup[args, "expr", ""]];
     assumptions = WMAParseAssumptions[Lookup[args, "assumptions", "True"]];
@@ -454,6 +478,27 @@ WMAHandleRequest[req_Association] := Module[
       timeoutMs
     ];
     Return[WMAFormatResult[id, "Residue", start, result]];
+  ];
+
+  If[tool === "wolfram_debug_match",
+    expr = WMAParseInput[Lookup[args, "expr", ""]];
+    template = Lookup[args, "template", ""];
+    result = WMAWithTime[
+      FTMatchAlgebraicStructure[expr, template],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, "Debug Match", start, result]];
+  ];
+
+  If[tool === "wolfram_debug_unification",
+    bindings = Lookup[args, "bindings", <||>];
+    unknowns = Lookup[args, "unknowns", {}];
+    equations = Lookup[args, "equations", {}];
+    result = WMAWithTime[
+      FTSolveParameters[bindings, unknowns, equations],
+      timeoutMs
+    ];
+    Return[WMAFormatResult[id, "Debug Unification", start, result]];
   ];
 
   <|"id" -> id, "ok" -> False, "error" -> "Unknown tool: " <> ToString[tool], "elapsedMs" -> WMAElapsedMs[start]|>
