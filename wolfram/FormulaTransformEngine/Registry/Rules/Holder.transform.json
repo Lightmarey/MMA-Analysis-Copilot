@@ -39,7 +39,12 @@
       "relation": "LessEqual",
       "lhs": "$selected",
       "rhs": "$bound",
-      "conditions": ["RealValued[$selected]"]
+      "conditions": [
+        {
+          "predicate": "RealValued",
+          "arguments": ["$selected"]
+        }
+      ]
     },
     {
       "name": "SignedLower",
@@ -47,24 +52,55 @@
       "relation": "LessEqual",
       "lhs": "-$bound",
       "rhs": "$selected",
-      "conditions": ["RealValued[$selected]"]
+      "conditions": [
+        {
+          "predicate": "RealValued",
+          "arguments": ["$selected"]
+        }
+      ]
     },
     {
       "name": "SignedTwoSided",
       "direction": "TwoSided",
       "relation": "LessEqualChain",
       "terms": ["-$bound", "$selected", "$bound"],
-      "conditions": ["RealValued[$selected]"]
+      "conditions": [
+        {
+          "predicate": "RealValued",
+          "arguments": ["$selected"]
+        }
+      ]
     }
   ],
   "conditions": [
-    "p > 1",
-    "q > 1",
-    "1/p + 1/q == 1",
-    "FunctionSpace[$f,Lp[$p,$domain]]",
-    "FunctionSpace[$g,Lp[$q,$domain]]",
-    "Measurable[$f,$domain]",
-    "Measurable[$g,$domain]"
+    {
+      "predicate": "Greater",
+      "arguments": ["$p", 1]
+    },
+    {
+      "predicate": "Greater",
+      "arguments": ["$q", 1]
+    },
+    {
+      "predicate": "ExponentConjugacy",
+      "arguments": ["$p", "$q"]
+    },
+    {
+      "predicate": "FunctionSpace",
+      "arguments": ["$f", "Lp", "$p", "$domain"]
+    },
+    {
+      "predicate": "FunctionSpace",
+      "arguments": ["$g", "Lp", "$q", "$domain"]
+    },
+    {
+      "predicate": "Measurable",
+      "arguments": ["$f", "$domain"]
+    },
+    {
+      "predicate": "Measurable",
+      "arguments": ["$g", "$domain"]
+    }
   ],
   "compatibleHeuristics": ["ExplicitProduct", "SplitSqrt", "MultiplyByOne"]
 }

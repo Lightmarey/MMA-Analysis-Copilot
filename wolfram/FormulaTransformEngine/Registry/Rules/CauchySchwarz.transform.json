@@ -8,10 +8,22 @@
     "q": 2
   },
   "overrideConditions": [
-    "FunctionSpace[$f,L2[$domain]]",
-    "FunctionSpace[$g,L2[$domain]]",
-    "Measurable[$f,$domain]",
-    "Measurable[$g,$domain]"
+    {
+      "predicate": "FunctionSpace",
+      "arguments": ["$f", "L2", "$domain"]
+    },
+    {
+      "predicate": "FunctionSpace",
+      "arguments": ["$g", "L2", "$domain"]
+    },
+    {
+      "predicate": "Measurable",
+      "arguments": ["$f", "$domain"]
+    },
+    {
+      "predicate": "Measurable",
+      "arguments": ["$g", "$domain"]
+    }
   ],
   "compatibleHeuristics": ["ExplicitProduct", "SplitSqrt", "MultiplyByOne"]
 }

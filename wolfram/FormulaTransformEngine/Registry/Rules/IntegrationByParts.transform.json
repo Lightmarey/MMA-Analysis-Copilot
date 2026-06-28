@@ -22,10 +22,28 @@
     }
   ],
   "conditions": [
-    "BoundaryTerm[$u,$v,$domain]",
-    "FunctionSpace[$u,RegularEnoughForIBP[$domain]]",
-    "FunctionSpace[$v,RegularEnoughForIBP[$domain]]",
-    "MeasurableIntegrable[{BoundaryTerm[$u,$v,$domain],IBPIntegral[$u,$v,$domain]},$domain]"
+    {
+      "predicate": "BoundaryTerm",
+      "arguments": ["$u", "$v", "$domain"]
+    },
+    {
+      "predicate": "FunctionSpace",
+      "arguments": ["$u", "RegularEnoughForIBP", "$domain"]
+    },
+    {
+      "predicate": "FunctionSpace",
+      "arguments": ["$v", "RegularEnoughForIBP", "$domain"]
+    },
+    {
+      "predicate": "MeasurableIntegrable",
+      "arguments": [
+        [
+          {"predicate": "BoundaryTerm", "arguments": ["$u", "$v", "$domain"]},
+          {"predicate": "IBPIntegral", "arguments": ["$u", "$v", "$domain"]}
+        ],
+        "$domain"
+      ]
+    }
   ],
   "compatibleHeuristics": []
 }

@@ -249,6 +249,11 @@ FTValidateName[assoc_Association] := StringQ[Lookup[assoc, "name", ""]] && Strin
 
 FTValidateStringList[value_] := ListQ[value] && AllTrue[value, StringQ[#] && StringTrim[#] =!= "" &];
 
+FTValidateConditionList[value_] := ListQ[value] && AllTrue[value, 
+  (StringQ[#] && StringTrim[#] =!= "") || 
+  (AssociationQ[#] && KeyExistsQ[#, "predicate"] && KeyExistsQ[#, "arguments"] && ListQ[Lookup[#, "arguments"]]) &
+];
+
 FTTemplateSlotRefs[assoc_Association] := DeleteDuplicates@StringDrop[
   StringCases[ToString[assoc, InputForm, PageWidth -> Infinity], RegularExpression["\\$[A-Za-z][A-Za-z0-9]*"]],
   1
@@ -364,7 +369,7 @@ FTCompileRule[rule_Association] := Module[
   ];
   If[extends === "" && ! ListQ[matchers], AppendTo[issues, "matchers must be a list."]];
   If[extends === "" && ! ListQ[orientations], AppendTo[issues, "orientations must be a list."]];
-  If[! FTValidateStringList[conditions] && conditions =!= {}, AppendTo[issues, "conditions must be a string list."]];
+  If[! FTValidateConditionList[conditions] && conditions =!= {}, AppendTo[issues, "conditions must be a valid condition list."]];
   If[! FTValidateStringList[compatibleHeuristics] && compatibleHeuristics =!= {}, AppendTo[issues, "compatibleHeuristics must be a string list."]];
   issues = Join[issues, FTValidateTemplates[rule]];
   If[issues =!= {},
@@ -1366,6 +1371,31 @@ FTEvaluateTemplate[template_String, bindings_Association] := Module[
   FTPrimitiveEvaluate[expr /. tempRules /. directRules]
 ];
 
+FTEvaluateTemplate[template_Association, bindings_Association] := Module[
+  {predicate, args, evalArgs, space, spaceExpr},
+  predicate = Lookup[template, "predicate"];
+  If[MissingQ[predicate], Return[template]];
+  args = Lookup[template, "arguments", {}];
+  evalArgs = FTEvaluateTemplate[#, bindings] & /@ args;
+  
+  Which[
+    predicate === "BoundaryTerm", Inactive[BoundaryTerm] @@ evalArgs,
+    predicate === "IBPIntegral", Inactive[IBPIntegral] @@ evalArgs,
+    predicate === "FunctionSpace",
+      space = If[Length[evalArgs] >= 2, ToString[evalArgs[[2]]], ""];
+      spaceExpr = Which[
+        space === "Lp", Inactive[Lp][evalArgs[[3]], evalArgs[[4]]],
+        space === "L2", Inactive[Lp][2, evalArgs[[3]]],
+        space === "RegularEnoughForIBP", Inactive[RegularEnoughForIBP][evalArgs[[3]]],
+        True, If[Length[evalArgs] >= 2, evalArgs[[2]], ""]
+      ];
+      Inactive[FunctionSpace][evalArgs[[1]], spaceExpr],
+    True, template
+  ]
+];
+
+FTEvaluateTemplate[list_List, bindings_Association] := FTEvaluateTemplate[#, bindings] & /@ list;
+
 FTEvaluateTemplate[value_, bindings_Association] := value;
 
 FTApplyGenericStructuralTransform[compiled_Association, selected_, direction_, parameters_, assumptions_, assumptionsText_, contextText_, state_, trace_] := Module[
@@ -1702,6 +1732,57 @@ FTHeuristicSearch[compiled_Association, selected_, parameters_Association] := Mo
     "SearchTree" -> searchTree,
     "HeuristicNames" -> names
   |>
+];
+
+FTCompiledCondition[template_Association, bindings_Association, source_String] := Module[
+  {predicate, args, evalArgs, expr, kind, machine, space, spaceExpr},
+  predicate = Lookup[template, "predicate"];
+  args = Lookup[template, "arguments", {}];
+  evalArgs = FTEvaluateTemplate[#, bindings] & /@ args;
+  
+  expr = Which[
+    predicate === "FunctionSpace",
+      space = If[Length[evalArgs] >= 2, ToString[evalArgs[[2]]], ""];
+      spaceExpr = Which[
+        space === "Lp", Inactive[Lp][evalArgs[[3]], evalArgs[[4]]],
+        space === "L2", Inactive[Lp][2, evalArgs[[3]]],
+        space === "RegularEnoughForIBP", Inactive[RegularEnoughForIBP][evalArgs[[3]]],
+        True, If[Length[evalArgs] >= 2, evalArgs[[2]], ""]
+      ];
+      Inactive[FunctionSpace][evalArgs[[1]], spaceExpr],
+    predicate === "Measurable",
+      Inactive[Measurable][evalArgs[[1]], evalArgs[[2]]],
+    predicate === "RealValued",
+      Inactive[RealValued][evalArgs[[1]]],
+    predicate === "Regularity",
+      Inactive[Regularity][evalArgs[[1]]],
+    predicate === "BoundaryCondition" || predicate === "BoundaryTerm",
+      Inactive[BoundaryTerm] @@ evalArgs,
+    predicate === "ExponentConjugacy",
+      1/evalArgs[[1]] + 1/evalArgs[[2]] == 1,
+    predicate === "MeasurableIntegrable",
+      Inactive[MeasurableIntegrable][evalArgs[[1]], evalArgs[[2]]],
+    predicate === "Greater" || predicate === "GreaterThan",
+      evalArgs[[1]] > evalArgs[[2]],
+    True,
+      $Failed
+  ];
+  
+  If[expr === $Failed, Return[FTCondition["TemplateCondition", ToString[template], source, False]]];
+  
+  kind = Which[
+    predicate === "RealValued", "RealValued",
+    predicate === "FunctionSpace", "FunctionSpaceMembership",
+    predicate === "Measurable", "Measurability",
+    predicate === "MeasurableIntegrable", "MeasurabilityIntegrability",
+    predicate === "Regularity", "Regularity",
+    predicate === "BoundaryCondition" || predicate === "BoundaryTerm", "BoundaryCondition",
+    predicate === "ExponentConjugacy", "ExponentConjugacy",
+    True, "TemplateCondition"
+  ];
+  
+  machine = kind =!= "BoundaryCondition" && FreeQ[expr, Inactive[RealValued] | Inactive[FunctionSpace] | Inactive[Measurable] | Inactive[BoundaryTerm] | Inactive[RegularEnoughForIBP]];
+  FTCondition[kind, expr, source, machine]
 ];
 
 FTCompiledCondition[template_String, bindings_Association, source_String] := Module[{expr, kind, machine},
@@ -2198,6 +2279,9 @@ FTEstimateSeedTextTemplate[text_String, bindings_Association] := Module[{result 
   ];
   result
 ];
+
+FTEstimateSeedCondition[condition_Association, bindings_Association, source_String] /; KeyExistsQ[condition, "predicate"] :=
+  FTCompiledCondition[condition, bindings, source];
 
 FTEstimateSeedCondition[condition_Association, bindings_Association, source_String] := Module[
   {kind, exprTemplate, machine, expr},

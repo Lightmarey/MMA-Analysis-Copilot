@@ -33,7 +33,12 @@
       "relation": "LessEqual",
       "lhs": "$selected",
       "rhs": "$standardBound",
-      "conditions": ["RealValued[$selected]"]
+      "conditions": [
+        {
+          "predicate": "RealValued",
+          "arguments": ["$selected"]
+        }
+      ]
     },
     {
       "name": "SignedLower",
@@ -41,20 +46,39 @@
       "relation": "LessEqual",
       "lhs": "-$standardBound",
       "rhs": "$selected",
-      "conditions": ["RealValued[$selected]"]
+      "conditions": [
+        {
+          "predicate": "RealValued",
+          "arguments": ["$selected"]
+        }
+      ]
     },
     {
       "name": "SignedTwoSided",
       "direction": "TwoSided",
       "relation": "LessEqualChain",
       "terms": ["-$standardBound", "$selected", "$standardBound"],
-      "conditions": ["RealValued[$selected]"]
+      "conditions": [
+        {
+          "predicate": "RealValued",
+          "arguments": ["$selected"]
+        }
+      ]
     }
   ],
   "conditions": [
-    "p > 1",
-    "q > 1",
-    "1/p + 1/q == 1"
+    {
+      "predicate": "Greater",
+      "arguments": ["$p", 1]
+    },
+    {
+      "predicate": "Greater",
+      "arguments": ["$q", 1]
+    },
+    {
+      "predicate": "ExponentConjugacy",
+      "arguments": ["$p", "$q"]
+    }
   ],
   "compatibleHeuristics": ["ExplicitProduct", "SplitSqrt", "MultiplyByOne"]
 }
