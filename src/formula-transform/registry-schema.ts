@@ -30,7 +30,8 @@ const allowedRuntimes = new Set([
   "Young",
   "IntegrationByParts",
   "WeightedHolder",
-  "YoungAbsorption"
+  "YoungAbsorption",
+  "GenericTargetPlanner"
 ]);
 
 const allowedTargetPlannerPrimitives = new Set([
@@ -293,11 +294,15 @@ function collectStrings(value: unknown): string[] {
 
 function readJson(file: string, issues: FormulaRegistryIssue[]): unknown {
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
+    return JSON.parse(stripBom(fs.readFileSync(file, "utf8"))) as unknown;
   } catch (error) {
     issues.push({ file, message: error instanceof Error ? error.message : String(error) });
     return null;
   }
+}
+
+function stripBom(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
 function requireString(file: string, name: string | undefined, key: string, value: unknown, issues: FormulaRegistryIssue[]): void {
