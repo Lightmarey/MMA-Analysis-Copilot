@@ -103,6 +103,7 @@ export class MathAgent {
     }
 
     for (let iteration = 0; iteration < config.maxIterations; iteration += 1) {
+      const abortController = new AbortController();
       const stream = await this.client.chat.completions.create({
         model: effectiveModel,
         messages: this.messages,
@@ -111,9 +112,9 @@ export class MathAgent {
         max_tokens: config.maxTokens,
         temperature: config.temperature,
         stream: true
-      });
+      }, { signal: abortController.signal });
 
-      const streamed = await collectStreamedMessage(stream, callbacks);
+      const streamed = await collectStreamedMessage(stream, callbacks, abortController);
       const message = streamed.message;
       const hasAssistantPayload = Boolean(message.content || message.tool_calls?.length);
       if (hasAssistantPayload) {
@@ -164,6 +165,7 @@ export class MathAgent {
         return collected.join("\n\n").trim();
       }
 
+      const accumulatedHooks: AgentHookResult[] = [];
       for (const toolCall of message.tool_calls) {
         if (toolCall.type !== "function") {
           continue;
@@ -181,6 +183,7 @@ export class MathAgent {
           firedHookIds
         });
         emitHooks(beforeToolHooks, callbacks, firedHookIds);
+        accumulatedHooks.push(...beforeToolHooks);
         callbacks.onToolCall?.(name, args);
 
         const result = await this.callTool(name, args);
@@ -204,7 +207,10 @@ export class MathAgent {
           firedHookIds
         });
         emitHooks(afterToolHooks, callbacks, firedHookIds);
-        pushHookPrompt(this.messages, [...beforeToolHooks, ...afterToolHooks]);
+        accumulatedHooks.push(...afterToolHooks);
+      }
+      if (accumulatedHooks.length > 0) {
+        pushHookPrompt(this.messages, accumulatedHooks);
       }
     }
 

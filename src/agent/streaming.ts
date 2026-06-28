@@ -12,13 +12,25 @@ export type StreamedToolCall = {
 
 export async function collectStreamedMessage(
   stream: AsyncIterable<unknown>,
-  callbacks: Pick<AgentCallbacks, "onThinkingDelta" | "onOutputDelta">
+  callbacks: Pick<AgentCallbacks, "onThinkingDelta" | "onOutputDelta">,
+  abortController?: AbortController
 ): Promise<{ message: ChatCompletionMessageParam & { tool_calls?: StreamedToolCall[] }; finishReason: string | null }> {
   let content = "";
   let finishReason: string | null = null;
   const toolCalls = new Map<number, StreamedToolCall>();
 
-  for await (const chunk of stream) {
+  let idleTimer: NodeJS.Timeout | null = null;
+  const resetIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (abortController) {
+      idleTimer = setTimeout(() => abortController.abort(new Error("LLM stream idle timeout (60s)")), 60000);
+    }
+  };
+  resetIdleTimer();
+
+  try {
+    for await (const chunk of stream) {
+      resetIdleTimer();
     const choice = readFirstChoice(chunk);
     if (!choice) continue;
     if (typeof choice.finish_reason === "string") finishReason = choice.finish_reason;
@@ -40,6 +52,9 @@ export async function collectStreamedMessage(
         mergeToolCallDelta(toolCalls, rawToolCall);
       }
     }
+  }
+  } finally {
+    if (idleTimer) clearTimeout(idleTimer);
   }
 
   const normalizedToolCalls = [...toolCalls.entries()]
