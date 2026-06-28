@@ -242,7 +242,7 @@ try {
   assert.equal(formulaRegistryReload.ok, true);
   const reloadJson = formulaRegistryReload.json as Record<string, any>;
   assert.equal(reloadJson.Kind, "FormulaTransformRegistryReload");
-  assert.equal(reloadJson.Loaded.RuleFiles, 4);
+  assert.equal(reloadJson.Loaded.RuleFiles, 6);
   assert.equal(reloadJson.Registry.RuleCount, 4);
 
   const derivativeProduct = await backend.call("formula_transform", {

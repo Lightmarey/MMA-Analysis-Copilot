@@ -7,6 +7,15 @@
   "families": ["pointwise-product-inequality"],
   "objective": "absorption-target",
   "runtime": "GenericTargetPlanner",
+  "primitives": [
+    "ParseTargetRelation",
+    "MatchTargetLHS",
+    "ExtractProductFactors",
+    "InferAbsorbedQuadraticFactor",
+    "InferResidualFactor",
+    "ComputeProductCoefficient",
+    "BuildResidualCoefficientCondition"
+  ],
   "selectedTemplate": "$coeff * $f * $g",
   "targetTemplate": "$c1 * Abs[$f]^$p + $c2 * Abs[$g]^$q",
   "unknownParameters": ["$epsilon"],

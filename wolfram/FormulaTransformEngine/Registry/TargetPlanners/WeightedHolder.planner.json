@@ -7,6 +7,14 @@
   "families": ["holder-product-inequality"],
   "objective": "weighted-holder-target",
   "runtime": "GenericTargetPlanner",
+  "primitives": [
+    "ParseIntegralOrSumProduct",
+    "ParseWeightParameter",
+    "InferWeightFromNormPair",
+    "BuildWeightedHolderBound",
+    "BuildWeightPositiveCondition",
+    "BuildFunctionSpaceObligations"
+  ],
   "selectedTemplate": "$op[$f * $g, $domain]",
   "targetTemplate": "Inactive[Power][$op[Abs[$arg1]^$p, $domain], $outer1] * Inactive[Power][$op[Abs[$arg2]^$q, $domain], $outer2]",
   "unknownParameters": ["$weight"],
