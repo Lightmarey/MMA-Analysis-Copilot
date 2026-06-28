@@ -1,0 +1,28 @@
+﻿{
+  "schemaVersion": 1,
+  "name": "GreenFirstIdentity",
+  "family": "integration-by-parts",
+  "runtime": "GenericTemplate",
+  "description": "Multidimensional integration by parts for the Laplacian using Green's First Identity.",
+  "matchers": [
+    {
+      "name": "LaplacianProduct",
+      "operator": "Integral",
+      "selectedTemplate": "Inactive[Integrate][Inactive[Laplacian][, ] * , Element[, ]]"
+    }
+  ],
+  "orientations": [
+    {
+      "name": "Equality",
+      "direction": "Equal",
+      "relation": "Equal",
+      "lhs": "",
+      "rhs": "Inactive[Integrate][Inactive[Dot][Inactive[Grad][, ], Inactive[NormalVector][, RegionBoundary[]]] * , Element[, RegionBoundary[]]] - Inactive[Integrate][Inactive[Dot][Inactive[Grad][, ], Inactive[Grad][, ]], Element[, ]]"
+    }
+  ],
+  "conditions": [
+    "FunctionSpace[, TwiceRegularEnoughForIBP[]]",
+    "FunctionSpace[, RegularEnoughForIBP[]]"
+  ],
+  "compatibleHeuristics": []
+}

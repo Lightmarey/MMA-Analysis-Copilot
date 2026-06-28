@@ -1,4 +1,4 @@
-{
+﻿{
   "schemaVersion": 1,
   "name": "IntegrationByParts",
   "family": "integration-by-parts",
@@ -8,14 +8,7 @@
     {
       "name": "OneDimensionalProductDerivative",
       "operator": "Integral",
-      "body": {
-        "kind": "DerivativeProduct",
-        "slots": [
-          "u",
-          "v"
-        ]
-      },
-      "domainSlot": "domain"
+      "selectedTemplate": "Inactive[Integrate][Derivative[1][][] * [], {, , }]"
     }
   ],
   "orientations": [
@@ -23,67 +16,14 @@
       "name": "Equality",
       "direction": "Equal",
       "relation": "Equal",
-      "lhs": "$selected",
-      "rhs": "BoundaryTerm[$u,$v,$domain] - IBPIntegral[$u,$v,$domain]"
+      "lhs": "",
+      "rhs": "[] * [] - [] * [] - Inactive[Integrate][[] * Derivative[1][][], {, , }]"
     }
   ],
   "conditions": [
-    {
-      "predicate": "BoundaryTerm",
-      "arguments": [
-        "$u",
-        "$v",
-        "$domain"
-      ]
-    },
-    {
-      "predicate": "FunctionSpace",
-      "arguments": [
-        "$u",
-        {
-          "kind": "RegularEnoughForIBP",
-          "args": [
-            "$domain"
-          ]
-        }
-      ]
-    },
-    {
-      "predicate": "FunctionSpace",
-      "arguments": [
-        "$v",
-        {
-          "kind": "RegularEnoughForIBP",
-          "args": [
-            "$domain"
-          ]
-        }
-      ]
-    },
-    {
-      "predicate": "MeasurableIntegrable",
-      "arguments": [
-        [
-          {
-            "kind": "BoundaryTerm",
-            "args": [
-              "$u",
-              "$v",
-              "$domain"
-            ]
-          },
-          {
-            "kind": "IBPIntegral",
-            "args": [
-              "$u",
-              "$v",
-              "$domain"
-            ]
-          }
-        ],
-        "$domain"
-      ]
-    }
+    "FunctionSpace[, RegularEnoughForIBP[{, , }]]",
+    "FunctionSpace[, RegularEnoughForIBP[{, , }]]",
+    "MeasurableIntegrable[{[] * [] - [] * [], -Inactive[Integrate][[] * Derivative[1][][], {, , }]}, {, , }]"
   ],
   "compatibleHeuristics": []
 }

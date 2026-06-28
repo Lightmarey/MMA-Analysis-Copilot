@@ -1,4 +1,4 @@
-BeginPackage["FormulaTransformEngine`"];
+﻿BeginPackage["FormulaTransformEngine`"];
 
 ApplyFormulaTransform::usage = "ApplyFormulaTransform[rule, opts][expr] deterministically transforms a held formula and returns a relation, trace, conditions, obligations, and state.";
 PlanFormulaTransform::usage = "PlanFormulaTransform[rule, opts][expr] builds a target-guided one-shot transform plan without mutating the JSON rule registry.";
@@ -30,7 +30,7 @@ ClearAll[
   CompileFormulaObligationDischarger,
   FTResolveRule, FTResolveTransform, FTMergeRule, InspectFormulaTransformRegistry, ReloadFormulaTransformRegistry,
   ApplyFormulaTransform, PlanFormulaTransform, PlanFormulaTransformParts, FormulaTransformHandleRequest,
-  FTApplyRule, FTApplyHolderLike, FTApplyYoung, FTApplyIntegrationByParts,
+  FTApplyRule, FTApplyHolderLike, FTApplyYoung,
   FTIntegralQ, FTSumQ, FTIntegralParts, FTSumParts, FTProductFactors,
   FTLpBound, FTBuildOrientedRelation, FTBuildConditions,
   FTParseMaybeExpression, FTPlanRule, FTPlanYoungTarget, FTPlanYoungGeneric,
@@ -1051,8 +1051,6 @@ FTApplyRule[compiled_Association, selected_, direction_, parameters_, assumption
       FTApplyHolderLike[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
     effectiveName === "young" || StringContainsQ[family, "young"] || StringContainsQ[family, "pointwise-product"],
       FTApplyYoung[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
-    effectiveName === "integrationbyparts" || StringContainsQ[family, "integration"],
-      FTApplyIntegrationByParts[compiled, selected, direction, parameters, assumptions, assumptionsText, context, contextText, state, trace],
     True,
       FTFailure["CompilerPrimitiveMissing", "No runtime primitive exists for compiled rule family: " <> family, <|"Trace" -> trace, "State" -> state|>]
   ]
@@ -2522,45 +2520,6 @@ FTApplyYoung[compiled_, selected_, direction_, parameters_, assumptions_, assump
 ];
 
 FTApplyIntegrationByParts[compiled_, selected_, direction_, parameters_, assumptions_, assumptionsText_, context_, contextText_, state_, trace_] := Module[
-  {name = Lookup[compiled, "Name", "IntegrationByParts"], x, a, b, u, v, integrand, boundary, interior, relation, conditions, discharged, state2, trace2},
-  If[direction =!= "Auto" && direction =!= "Equal",
-    Return[FTFailure["DirectionUnavailable", "IntegrationByParts is an equality transform; use direction=Equal or Auto.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  Which[
-    MatchQ[selected, Inactive[Integrate][Derivative[1][_][_] * _, {_, _, _}]],
-      {integrand, {x, a, b}} = List @@ selected,
-    MatchQ[selected, Integrate[Derivative[1][_][_] * _, {_, _, _}]],
-      {integrand, {x, a, b}} = List @@ selected,
-    True,
-      Return[FTFailure["Inapplicable", "IntegrationByParts currently matches one-dimensional integrals of u'[x] v.", <|"Trace" -> trace, "State" -> state|>]]
-  ];
-  integrand /. Derivative[1][uu_][xx_] * vv_ :> (u = uu; v = vv);
-  boundary = u[b] * (v /. x -> b) - u[a] * (v /. x -> a);
-  interior = -Inactive[Integrate][u[x] * D[v, x], {x, a, b}];
-  relation = Equal[selected, boundary + interior];
-  trace2 = FTAppendTrace[trace, "MatchRule", <|"Rule" -> name, "Operator" -> "OneDimensionalIntegral"|>];
-  conditions = {
-    FTBoundaryCondition[boundary, name],
-    FTFunctionSpaceCondition[u, Inactive[RegularEnoughForIBP][{x, a, b}], name],
-    FTFunctionSpaceCondition[v, Inactive[RegularEnoughForIBP][{x, a, b}], name],
-    FTMeasurableIntegrableCondition[{boundary, interior}, {x, a, b}, name]
-  };
-  discharged = FTDischargeConditions[conditions, assumptions, assumptionsText, context, contextText];
-  state2 = FTAddObligations[state, Lookup[discharged, "Deferred", {}], trace2];
-  FTSuccess[<|
-    "Rule" -> name,
-    "Direction" -> "Equal",
-    "Part" -> "Whole",
-    "Original" -> selected,
-    "Selected" -> selected,
-    "Relation" -> relation,
-    "RelationInputForm" -> ToString[relation, InputForm, PageWidth -> Infinity],
-    "RelationLatex" -> Quiet@Check[ToString[TeXForm[relation], PageWidth -> Infinity], ""],
-    "Trace" -> FTAppendTrace[trace2, "BuildRelation", <|"Direction" -> "Equal"|>],
-    "Conditions" -> discharged,
-    "Obligations" -> Lookup[discharged, "Deferred", {}],
-    "State" -> state2
-  |>]
 ];
 
 FTConditionDischargedByTextQ[condition_Association, assumptionsText_String, contextText_String] := Module[
