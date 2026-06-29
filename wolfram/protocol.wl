@@ -1,6 +1,40 @@
 $HistoryLength = 0;
 
-Get[FileNameJoin[{DirectoryName[$InputFileName], "FormulaTransformEngine.wl"}]];
+ClearAll[
+  WMAResolveFormulaTransformEngineRoot,
+  WMALoadFormulaTransformEngine
+];
+
+WMAResolveFormulaTransformEngineRoot[] := Module[{env, base, candidates},
+  env = Quiet@Check[Environment["FORMULA_TRANSFORM_ENGINE_PACLET_DIR"], ""];
+  base = DirectoryName[$InputFileName];
+  candidates = DeleteDuplicates@Select[
+    {
+      env,
+      FileNameJoin[{base, "FormulaTransformEngine"}],
+      FileNameJoin[{base, "..", "FormulaTransformEngine"}],
+      FileNameJoin[{base, "..", "..", "FormulaTransformEngine"}]
+    },
+    StringQ[#] && StringLength[StringTrim[#]] > 0 && DirectoryQ[#] &
+  ];
+  If[Length[candidates] > 0, First[candidates], Missing["NotFound"]]
+];
+
+WMALoadFormulaTransformEngine[] := Module[{root},
+  root = WMAResolveFormulaTransformEngineRoot[];
+  If[root =!= Missing["NotFound"], PacletDirectoryLoad[root]];
+  Quiet@Check[
+    Needs["FormulaTransformEngine`"];
+    True,
+    If[root =!= Missing["NotFound"],
+      Get[FileNameJoin[{root, "FormulaTransformEngine", "Kernel", "init.wl"}]];
+      True,
+      False
+    ]
+  ]
+];
+
+WMALoadFormulaTransformEngine[];
 
 ClearAll[
   WMASafeString, WMASafeTeX, WMAParseInput, WMAParseAssumptions,

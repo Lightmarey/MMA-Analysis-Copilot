@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .*/**
+!.github/
+!.github/**
 *.und/**
 wma.config.json
 wma.local.json
@@ -12,3 +14,6 @@ auxiliary-scripts/
 *.md
 !README.md
 .ai_refs/
+release/
+wolfram/FormulaTransformEngine/build/
+build.wls

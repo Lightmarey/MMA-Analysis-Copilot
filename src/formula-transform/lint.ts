@@ -2,7 +2,7 @@
 import { config } from "../config.js";
 import { formulaRegistryJsonFiles, lintFormulaRegistry } from "./registry-schema.js";
 
-const issues = lintFormulaRegistry(config.rootDir);
+const issues = lintFormulaRegistry(config.rootDir, config.formulaTransformEnginePath);
 
 if (issues.length) {
   for (const issue of issues) {
@@ -12,4 +12,4 @@ if (issues.length) {
   process.exit(1);
 }
 
-console.log(`formula registry lint passed (${formulaRegistryJsonFiles(config.rootDir).length} files)`);
+console.log(`formula registry lint passed (${formulaRegistryJsonFiles(config.rootDir, config.formulaTransformEnginePath).length} files)`);

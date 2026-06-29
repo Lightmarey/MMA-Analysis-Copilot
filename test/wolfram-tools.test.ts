@@ -217,14 +217,14 @@ try {
   assert.equal(formulaRegistryJson.TargetPlannerCount, 2);
 
   const formulaTopLevelLoad = await backend.call("wolfram_eval", {
-    code: "Get[\"wolfram/FormulaTransformEngine.wl\"]; FormulaTransformEngine`InspectFormulaTransformRegistry[]"
+    code: "PacletDirectoryLoad[Environment[\"FORMULA_TRANSFORM_ENGINE_PACLET_DIR\"]]; Needs[\"FormulaTransformEngine`\"]; FormulaTransformEngine`InspectFormulaTransformRegistry[]"
   });
   assert.equal(formulaTopLevelLoad.ok, true);
   assert.match(formulaTopLevelLoad.output ?? "", /FormulaTransformEngine/);
   assert.match(formulaTopLevelLoad.output ?? "", /"TargetPlannerCount" -> 2/);
 
   const formulaKernelLoad = await backend.call("wolfram_eval", {
-    code: "Get[\"wolfram/FormulaTransformEngine/Kernel/init.wl\"]; FormulaTransformEngine`InspectFormulaTransformRegistry[]"
+    code: "Get[FileNameJoin[{Environment[\"FORMULA_TRANSFORM_ENGINE_PACLET_DIR\"], \"FormulaTransformEngine\", \"Kernel\", \"init.wl\"}]]; FormulaTransformEngine`InspectFormulaTransformRegistry[]"
   });
   assert.equal(formulaKernelLoad.ok, true);
   assert.match(formulaKernelLoad.output ?? "", /FormulaTransformEngine/);

@@ -69,6 +69,7 @@ export class WolframBackend {
     const command = this.command || findDefaultWolframCommand();
     const child = spawn(command, workerLaunchArgs(), {
       cwd: config.rootDir,
+      env: wolframProcessEnv(),
       stdio: "pipe",
       windowsHide: true
     });
@@ -185,6 +186,7 @@ export class WolframBackend {
     return await new Promise<WolframResponse>((resolve, reject) => {
       const child = spawn(command, ["-code", code], {
         cwd: config.rootDir,
+        env: wolframProcessEnv(),
         stdio: "pipe",
         windowsHide: true
       });
@@ -239,6 +241,13 @@ type PendingRequest = {
   reject: (error: Error) => void;
   timer: NodeJS.Timeout;
 };
+
+function wolframProcessEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    FORMULA_TRANSFORM_ENGINE_PACLET_DIR: config.formulaTransformEnginePath
+  };
+}
 
 function workerLaunchArgs(): string[] {
   if (!config.wolframWorkerArgs) return [];

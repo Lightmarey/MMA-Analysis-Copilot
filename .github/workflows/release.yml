@@ -1,0 +1,90 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+      - 'release/**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-agent:
+    name: Build Agent SEA (${{ runner.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout agent
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SEA bundle
+        run: npm run build:sea
+
+      - name: Archive release bundle
+        shell: pwsh
+        run: |
+          $archive = "math-copilot-${{ runner.os }}.zip"
+          Compress-Archive -Path dist/release/* -DestinationPath $archive -Force
+          "archive=$archive" >> $env:GITHUB_OUTPUT
+        id: archive
+
+      - name: Upload agent artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: math-copilot-${{ runner.os }}
+          path: ${{ steps.archive.outputs.archive }}
+
+      - name: Attach agent artifact to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.archive.outputs.archive }}
+
+  build-paclet:
+    name: Build FormulaTransformEngine Paclet
+    if: vars.FORMULA_TRANSFORM_ENGINE_REPOSITORY != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout FormulaTransformEngine
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.FORMULA_TRANSFORM_ENGINE_REPOSITORY }}
+          path: FormulaTransformEngine
+
+      - name: Setup Wolfram Engine
+        uses: WolframResearch/setup-wolfram-engine@v1
+        with:
+          wolfram-id: ${{ secrets.WOLFRAM_ID }}
+          wolfram-password: ${{ secrets.WOLFRAM_PASSWORD }}
+
+      - name: Build paclet
+        run: wolframscript -code 'PacletBuild["FormulaTransformEngine"]'
+
+      - name: Upload paclet artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FormulaTransformEngine-Paclet
+          path: FormulaTransformEngine/build/*.paclet
+
+      - name: Attach paclet to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: FormulaTransformEngine/build/*.paclet

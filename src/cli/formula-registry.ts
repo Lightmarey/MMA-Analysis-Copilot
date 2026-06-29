@@ -11,7 +11,7 @@ import {
 import { WolframBackend } from "../wolfram/backend.js";
 
 export function runFormulaRegistryLint(): void {
-  const issues = lintFormulaRegistry(config.rootDir);
+  const issues = lintFormulaRegistry(config.rootDir, config.formulaTransformEnginePath);
   if (issues.length) {
     printIssues(issues);
     process.exit(1);
@@ -28,7 +28,7 @@ export function runFormulaRegistryDiff(file: string): void {
     throw new Error(`Cannot infer formula registry kind for ${file}`);
   }
   const name = typeof incoming.name === "string" && incoming.name.trim() ? incoming.name.trim() : path.basename(incomingPath, suffix.suffix);
-  const installedPath = formulaRegistryTargetPath(config.rootDir, suffix, name);
+  const installedPath = formulaRegistryTargetPath(config.rootDir, suffix, name, config.formulaTransformEnginePath);
   if (!fs.existsSync(installedPath)) {
     console.log(`new ${suffix.key}: ${name}`);
     console.log(`target: ${installedPath}`);
@@ -104,7 +104,10 @@ export async function runFormulaRegistryPersist(file: string, options: { force?:
   }
   await runFormulaRegistryTest(incomingPath);
   if (process.exitCode) return;
-  const persisted = persistFormulaRegistryCandidate(incomingPath, config.rootDir, { force: options.force });
+  const persisted = persistFormulaRegistryCandidate(incomingPath, config.rootDir, {
+    force: options.force,
+    formulaTransformEnginePath: config.formulaTransformEnginePath
+  });
   console.log(`persisted ${persisted.kind}: ${persisted.name}`);
   console.log(`target: ${persisted.targetPath}`);
   if (options.reload) {
@@ -130,7 +133,7 @@ export async function runFormulaRegistryPersist(file: string, options: { force?:
   }
 }
 
-export function persistFormulaRegistryCandidate(file: string, rootDir: string, options: { force?: boolean } = {}): { kind: string; name: string; targetPath: string } {
+export function persistFormulaRegistryCandidate(file: string, rootDir: string, options: { force?: boolean; formulaTransformEnginePath?: string } = {}): { kind: string; name: string; targetPath: string } {
   const incomingPath = path.resolve(file);
   const payload = readJson(incomingPath);
   const issues = lintFormulaRegistryCandidate(incomingPath, payload);
@@ -140,7 +143,7 @@ export function persistFormulaRegistryCandidate(file: string, rootDir: string, o
   const kind = inferFormulaRegistryKind(incomingPath, payload);
   if (!kind) throw new Error(`Cannot infer formula registry kind for ${file}`);
   const name = typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : path.basename(incomingPath, kind.suffix);
-  const installedPath = formulaRegistryTargetPath(rootDir, kind, name);
+  const installedPath = formulaRegistryTargetPath(rootDir, kind, name, options.formulaTransformEnginePath);
   if (fs.existsSync(installedPath) && !options.force && stableJson(readJson(installedPath)) !== stableJson(payload)) {
     throw new Error(`${installedPath} already exists with different content; rerun with --force to overwrite.`);
   }

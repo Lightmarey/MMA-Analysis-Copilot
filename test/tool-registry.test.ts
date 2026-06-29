@@ -96,7 +96,7 @@ for (const toolName of publicWolframToolNames) {
   assert.match(protocol, new RegExp(`tool === "${toolName}"`), `${toolName} is missing from protocol dispatcher`);
 }
 assert.match(protocol, /FormulaTransformEngine`FormulaTransformHandleRequest/);
-const formulaTransformRoot = path.join(process.cwd(), "wolfram", "FormulaTransformEngine");
+const formulaTransformRoot = path.resolve(process.cwd(), "..", "FormulaTransformEngine");
 const formulaTransformFiles = [
   "Registry/Rules/Holder.transform.json",
   "Registry/Rules/CauchySchwarz.transform.json",
@@ -122,7 +122,7 @@ for (const relativePath of formulaTransformFiles) {
   assert.ok(fs.existsSync(path.join(formulaTransformRoot, ...relativePath.split("/"))), `${relativePath} is missing`);
 }
 
-const formulaTransformCompiler = fs.readFileSync(path.join(process.cwd(), "wolfram", "FormulaTransformEngine.wl"), "utf8");
+const formulaTransformCompiler = fs.readFileSync(path.join(formulaTransformRoot, "FormulaTransformEngine", "FormulaTransformEngine.wl"), "utf8");
 assert.match(formulaTransformCompiler, /CompileFormulaTransformRule/);
 assert.match(formulaTransformCompiler, /CompileFormulaHeuristicRule/);
 assert.match(formulaTransformCompiler, /CompileFormulaStructuralTransform/);

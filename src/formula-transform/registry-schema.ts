@@ -67,8 +67,14 @@ const forbiddenJsonText = [
   "CompoundExpression"
 ];
 
-export function formulaRegistryRoot(rootDir: string): string {
-  return path.join(rootDir, "wolfram", "FormulaTransformEngine", "Registry");
+export function formulaTransformEngineRoot(rootDir: string, formulaTransformEnginePath?: string): string {
+  return formulaTransformEnginePath?.trim()
+    ? path.resolve(formulaTransformEnginePath)
+    : path.resolve(rootDir, "..", "FormulaTransformEngine");
+}
+
+export function formulaRegistryRoot(rootDir: string, formulaTransformEnginePath?: string): string {
+  return path.join(formulaTransformEngineRoot(rootDir, formulaTransformEnginePath), "Registry");
 }
 
 export function inferFormulaRegistryKind(file: string, payload?: Record<string, unknown>): FormulaRegistryKind | undefined {
@@ -78,12 +84,12 @@ export function inferFormulaRegistryKind(file: string, payload?: Record<string, 
   return formulaRegistryKinds.find(kind => kind.kind === kindName);
 }
 
-export function formulaRegistryTargetPath(rootDir: string, kind: FormulaRegistryKind, name: string): string {
-  return path.join(formulaRegistryRoot(rootDir), kind.directory, `${name}${kind.suffix}`);
+export function formulaRegistryTargetPath(rootDir: string, kind: FormulaRegistryKind, name: string, formulaTransformEnginePath?: string): string {
+  return path.join(formulaRegistryRoot(rootDir, formulaTransformEnginePath), kind.directory, `${name}${kind.suffix}`);
 }
 
-export function formulaRegistryJsonFiles(rootDir: string): string[] {
-  const registryRoot = formulaRegistryRoot(rootDir);
+export function formulaRegistryJsonFiles(rootDir: string, formulaTransformEnginePath?: string): string[] {
+  const registryRoot = formulaRegistryRoot(rootDir, formulaTransformEnginePath);
   return formulaRegistryKinds.flatMap(kind => {
     const directory = path.join(registryRoot, kind.directory);
     if (!fs.existsSync(directory)) return [];
@@ -101,8 +107,8 @@ export function lintFormulaRegistryCandidate(file: string, payload: unknown): Fo
   return issues;
 }
 
-export function lintFormulaRegistry(rootDir: string): FormulaRegistryIssue[] {
-  const registryRoot = formulaRegistryRoot(rootDir);
+export function lintFormulaRegistry(rootDir: string, formulaTransformEnginePath?: string): FormulaRegistryIssue[] {
+  const registryRoot = formulaRegistryRoot(rootDir, formulaTransformEnginePath);
   const issues: FormulaRegistryIssue[] = [];
   for (const kind of formulaRegistryKinds) {
     const directory = path.join(registryRoot, kind.directory);

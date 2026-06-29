@@ -6,6 +6,7 @@ import { persistFormulaRegistryCandidate } from "../src/cli/formula-registry.js"
 import { lintFormulaRegistryCandidate } from "../src/formula-transform/registry-schema.js";
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "wma-formula-registry-"));
+const tempPacletRoot = path.join(tempRoot, "FormulaTransformEngine");
 const candidate = path.join(tempRoot, "TemporaryRule.transform.json");
 
 const rule = {
@@ -51,20 +52,23 @@ assert.match(
   /LessEqualChain requires at least three terms/
 );
 
-const persisted = persistFormulaRegistryCandidate(candidate, tempRoot);
+const persisted = persistFormulaRegistryCandidate(candidate, tempRoot, { formulaTransformEnginePath: tempPacletRoot });
 assert.equal(persisted.kind, "rule");
 assert.equal(persisted.name, "TemporaryRule");
 assert.equal(
   persisted.targetPath,
-  path.join(tempRoot, "wolfram", "FormulaTransformEngine", "Registry", "Rules", "TemporaryRule.transform.json")
+  path.join(tempPacletRoot, "Registry", "Rules", "TemporaryRule.transform.json")
 );
 assert.equal(JSON.parse(fs.readFileSync(persisted.targetPath, "utf8")).name, "TemporaryRule");
 
 const changedRule = { ...rule, description: "changed" };
 fs.writeFileSync(candidate, `${JSON.stringify(changedRule, null, 2)}\n`);
-assert.throws(() => persistFormulaRegistryCandidate(candidate, tempRoot), /already exists with different content/);
+assert.throws(
+  () => persistFormulaRegistryCandidate(candidate, tempRoot, { formulaTransformEnginePath: tempPacletRoot }),
+  /already exists with different content/
+);
 
-const overwritten = persistFormulaRegistryCandidate(candidate, tempRoot, { force: true });
+const overwritten = persistFormulaRegistryCandidate(candidate, tempRoot, { force: true, formulaTransformEnginePath: tempPacletRoot });
 assert.equal(overwritten.targetPath, persisted.targetPath);
 assert.equal(JSON.parse(fs.readFileSync(overwritten.targetPath, "utf8")).description, "changed");
 

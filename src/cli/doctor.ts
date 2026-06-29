@@ -16,6 +16,7 @@ export async function runDoctor(): Promise<void> {
   }
   console.log(`${chalk.bold("Protocol:")} ${config.wolframProtocolPath}`);
   console.log(`${chalk.bold("Worker:")} ${config.wolframWorkerPath}`);
+  console.log(`${chalk.bold("FormulaTransformEngine:")} ${config.formulaTransformEnginePath}`);
   console.log(`${chalk.bold("Daemon:")} ${config.wolframDaemonHost}:${config.wolframDaemonPort}`);
   console.log(`${chalk.bold("Wolfram command:")} ${command || "(not found)"}`);
   console.log(`${chalk.bold("Wolfram version:")} ${readWolframVersion(command)}`);
