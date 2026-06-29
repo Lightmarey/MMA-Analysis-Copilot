@@ -1,6 +1,7 @@
 $HistoryLength = 0;
 
-Get[FileNameJoin[{DirectoryName[$InputFileName], "FormulaTransformEngine.wl"}]];
+PacletDirectoryLoad[FileNameJoin[{DirectoryName[$InputFileName], "FormulaTransformEngine"}]];
+<< FormulaTransformEngine`
 
 ClearAll[
   WMASafeString, WMASafeTeX, WMAParseInput, WMAParseAssumptions,

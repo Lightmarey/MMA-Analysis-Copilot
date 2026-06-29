@@ -5,8 +5,11 @@ import dotenv from "dotenv";
 
 dotenv.config({ quiet: true });
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const configPath = path.join(rootDir, "wma.config.json");
+const isSEA = (process as any).isCompiled || process.env.NODE_SEA === "true";
+const appDir = isSEA ? path.dirname(process.execPath) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const configPath = process.env.WMA_CONFIG_PATH || (fs.existsSync(path.join(process.cwd(), "wma.config.json")) 
+  ? path.join(process.cwd(), "wma.config.json") 
+  : path.join(appDir, "wma.config.json"));
 
 type WmaConfigFile = {
   openai?: {
@@ -132,12 +135,12 @@ const proModel =
   stringValue(fileConfig.openai?.proModel, model);
 
 export const config = {
-  rootDir,
+  rootDir: appDir,
   configPath,
   configFileLoaded: fs.existsSync(configPath),
   configDiagnostics: configRead.diagnostics,
-  wolframWorkerPath: path.resolve(rootDir, "wolfram", "worker.wls"),
-  wolframProtocolPath: path.resolve(rootDir, "wolfram", "protocol.wl"),
+  wolframWorkerPath: path.resolve(appDir, "wolfram", "worker.wls"),
+  wolframProtocolPath: path.resolve(appDir, "wolfram", "protocol.wl"),
   wolframCommand: process.env.WOLFRAM_COMMAND?.trim() || stringValue(fileConfig.wolfram?.command),
   wolframBackendMode: process.env.WOLFRAM_BACKEND_MODE?.trim() || stringValue(fileConfig.wolfram?.backendMode, "worker"),
   wolframWorkerTimeoutMs: intEnv("WOLFRAM_WORKER_TIMEOUT_MS", numberValue(fileConfig.wolfram?.workerTimeoutMs, 120_000)),
@@ -146,7 +149,7 @@ export const config = {
   wolframBootstrapStdin: optionalBoolEnv("WOLFRAM_BOOTSTRAP_STDIN", fileConfig.wolfram?.bootstrapStdin ?? null),
   wolframDaemonHost: process.env.WOLFRAM_DAEMON_HOST?.trim() || stringValue(fileConfig.wolfram?.daemonHost, "127.0.0.1"),
   wolframDaemonPort: intEnv("WOLFRAM_DAEMON_PORT", numberValue(fileConfig.wolfram?.daemonPort, 37623)),
-  wolframDaemonPidPath: process.env.WOLFRAM_DAEMON_PID_PATH?.trim() || stringValue(fileConfig.wolfram?.daemonPidPath, path.join(rootDir, ".wma-wolfram-daemon.pid")),
+  wolframDaemonPidPath: process.env.WOLFRAM_DAEMON_PID_PATH?.trim() || stringValue(fileConfig.wolfram?.daemonPidPath, path.join(appDir, ".wma-wolfram-daemon.pid")),
   openaiApiKey: process.env.OPENAI_API_KEY?.trim() || stringValue(fileConfig.openai?.apiKey),
   openaiBaseUrl: process.env.OPENAI_BASE_URL?.trim() || stringValue(fileConfig.openai?.baseUrl) || undefined,
   model,
@@ -160,7 +163,7 @@ export const config = {
   maxTokens: intEnv("WOLFRAM_AGENT_MAX_TOKENS", numberValue(fileConfig.openai?.maxTokens, 8192)),
   temperature: floatEnv("WOLFRAM_AGENT_TEMPERATURE", numberValue(fileConfig.openai?.temperature, 0)),
   theoremSource: process.env.WOLFRAM_THEOREM_SOURCE?.trim() || process.env.AI4MATH_THEOREM_SOURCE?.trim() || stringValue(fileConfig.theorems?.source, "merge"),
-  theoremExternalPath: process.env.WOLFRAM_THEOREM_EXTERNAL_PATH?.trim() || process.env.AI4MATH_THEOREM_EXTERNAL_PATH?.trim() || stringValue(fileConfig.theorems?.externalPath),
+  theoremExternalPath: process.env.WOLFRAM_THEOREM_EXTERNAL_PATH?.trim() || process.env.AI4MATH_THEOREM_EXTERNAL_PATH?.trim() || stringValue(fileConfig.theorems?.externalPath, path.join(appDir, "theorems")),
   systemPromptPath: process.env.WOLFRAM_AGENT_SYSTEM_PROMPT_PATH?.trim() || process.env.AI4MATH_SYSTEM_PROMPT_PATH?.trim() || stringValue(fileConfig.prompts?.systemPromptPath),
   systemPromptAddendum: process.env.WOLFRAM_AGENT_SYSTEM_PROMPT_APPEND?.trim() || process.env.AI4MATH_SYSTEM_PROMPT_APPEND?.trim() || stringValue(fileConfig.prompts?.systemAddendum),
   plannerPromptPath: process.env.WOLFRAM_AGENT_PLANNER_PROMPT_PATH?.trim() || process.env.AI4MATH_PLANNER_PROMPT_PATH?.trim() || stringValue(fileConfig.prompts?.plannerPromptPath),

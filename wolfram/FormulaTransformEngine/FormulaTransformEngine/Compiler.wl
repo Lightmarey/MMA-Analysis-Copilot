@@ -3,11 +3,15 @@ FTImportJSON[file_] := Module[{data},
   If[AssociationQ[data], data, <|"__InvalidFile" -> file|>]
 ];
 
-FTLoadDataFiles[subdir_String, compiler_] := Module[{dir, files, compiled},
-  dir = FileNameJoin[{$FTPackageDirectory, "Registry", subdir}];
-  files = Sort@FileNames["*.json", dir];
-  compiled = compiler /@ (FTImportJSON /@ files);
-  <|"Directory" -> dir, "Files" -> files, "Compiled" -> compiled|>
+FTLoadDataFiles[subdir_String, compiler_] := Module[{dirs, allFiles, compiled},
+  dirs = Flatten[{
+    FileNameJoin[{$FTPackageDirectory, "Registry", subdir}],
+    FileNameJoin[{$UserBaseDirectory, "ApplicationData", "FormulaTransformEngine", "Registry", subdir}],
+    FileNameJoin[{#, subdir}]& /@ $FTCustomRegistryPaths
+  }];
+  allFiles = Flatten[Function[d, If[DirectoryQ[d], Sort@FileNames["*.json", d], {}]] /@ dirs];
+  compiled = compiler /@ (FTImportJSON /@ allFiles);
+  <|"Directories" -> dirs, "Files" -> allFiles, "Compiled" -> compiled|>
 ];
 
 FTLoadBuiltInRegistry[] := Module[{ruleLoad, heuristicLoad, estimateLoad, structuralLoad, targetPlannerLoad, dischargerLoad},
@@ -563,4 +567,4 @@ ReloadFormulaTransformRegistry[] := Module[{load},
 
 FTLoadBuiltInRegistry[];
 
-
+AddFormulaTransformRegistryPath[path_String] := AppendTo[$FTCustomRegistryPaths, path];

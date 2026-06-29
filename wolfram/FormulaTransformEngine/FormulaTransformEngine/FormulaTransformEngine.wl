@@ -10,6 +10,7 @@ CompileFormulaTargetPlanner::usage = "CompileFormulaTargetPlanner[json] validate
 CompileFormulaObligationDischarger::usage = "CompileFormulaObligationDischarger[json] validates and compiles a restricted obligation-discharger JSON association.";
 InspectFormulaTransformRegistry::usage = "InspectFormulaTransformRegistry[] summarizes compiled transform rules and heuristics.";
 ReloadFormulaTransformRegistry::usage = "ReloadFormulaTransformRegistry[] reloads FormulaTransformEngine JSON registry files into the current Wolfram kernel.";
+AddFormulaTransformRegistryPath::usage = "AddFormulaTransformRegistryPath[path] adds a custom directory to search for FormulaTransformEngine JSON registries.";
 GetFormulaTransformObligations::usage = "GetFormulaTransformObligations[state] returns deferred formula-transform proof obligations.";
 FormulaTransformHandleRequest::usage = "FormulaTransformHandleRequest[args] handles formula_transform tool requests.";
 FTMatchAlgebraicStructure::usage = "FTMatchAlgebraicStructure[expr, template] matches an expression against a template string.";
@@ -30,7 +31,7 @@ ClearAll[
   FTCompileHeuristic, FTCompileEstimateSeed, FTCompileStructuralTransform, FTCompileTargetPlanner, FTCompileObligationDischarger,
   CompileFormulaTransformRule, CompileFormulaHeuristicRule, CompileFormulaStructuralTransform, CompileFormulaTargetPlanner,
   CompileFormulaObligationDischarger,
-  FTResolveRule, FTResolveTransform, FTMergeRule, InspectFormulaTransformRegistry, ReloadFormulaTransformRegistry,
+  FTResolveRule, FTResolveTransform, FTMergeRule, InspectFormulaTransformRegistry, ReloadFormulaTransformRegistry, AddFormulaTransformRegistryPath,
   ApplyFormulaTransform, PlanFormulaTransform, PlanFormulaTransformParts, FormulaTransformHandleRequest,
   FTApplyRule, FTApplyHolderLike, FTApplyYoung,
   FTIntegralQ, FTSumQ, FTIntegralParts, FTSumParts, FTProductFactors,
@@ -62,7 +63,8 @@ ClearAll[
   FTReadAction, FTReadAssociationField
 ];
 
-$FTPackageDirectory = FileNameJoin[{DirectoryName[$InputFileName], "FormulaTransformEngine"}];
+$FTPackageDirectory = DirectoryName[$InputFileName];
+$FTCustomRegistryPaths = {};
 $FTRuleRegistry = <||>;
 $FTHeuristicRegistry = <||>;
 $FTEstimateSeedRegistry = <||>;

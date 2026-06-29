@@ -12,3 +12,6 @@ auxiliary-scripts/
 *.md
 !README.md
 .ai_refs/
+release/
+wolfram/FormulaTransformEngine/build/
+build.wls
