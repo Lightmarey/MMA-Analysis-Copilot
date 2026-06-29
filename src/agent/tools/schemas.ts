@@ -13,11 +13,14 @@ const groupedToolDefinitions = [
   ...algebraicToolDefinitions,
   ...calculusToolDefinitions,
   ...equationSolvingToolDefinitions,
-  ...transformConvergenceToolDefinitions
+  ...transformConvergenceToolDefinitions,
+  ...discoveryToolDefinitions
 ];
 
 const toolDefinitionOrder = [
-  "formula_transform",
+  "formula_transform",
+
+  "load_tool",
   "theorem_advisor",
   "verification_template",
   "wolfram_eval",

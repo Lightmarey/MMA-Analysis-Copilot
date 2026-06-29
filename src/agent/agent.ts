@@ -4,6 +4,7 @@ import { config } from "../config.js";
 import { WolframBackend } from "../wolfram/backend.js";
 import { formatToolResult, formatToolResultMarkdown, isWolframToolName, runLocalTool, runVerificationTemplate, toolDefinitions } from "./tools.js";
 import { analyzeProblem, buildPreplanContext, classifyDifficulty, createPreplan, decomposeProblem } from "./planning.js";
+import type { ProblemAnalysis } from "./planning/types.js";
 import { getModelRoute } from "./model-routing.js";
 import { buildLlmPlanContext, createLlmExecutionPlan } from "./llm-planning.js";
 import type { LlmExecutionPlan } from "./llm-planning.js";
@@ -58,7 +59,7 @@ export class MathAgent {
     const modelRoute = await getModelRoute(this.client);
     const plannerModelToUse = config.plannerModel || modelRoute.flashModel;
     const llmPlan = await createLlmExecutionPlan(this.client, userMessage, plannerModelToUse);
-    const analysis = analyzeProblem(userMessage);
+    const analysis = await analyzeProblem(this.client, userMessage);
     const preplan = createPreplan(userMessage, analysis);
     const decomposition = decomposeProblem(userMessage, analysis);
     const localDifficulty = classifyDifficulty(userMessage, analysis);
@@ -253,7 +254,7 @@ export class MathAgent {
     if (name === "verification_template") {
       return await runVerificationTemplate(this.wolfram, args);
     }
-    return runLocalTool(name as LocalToolName, args);
+    return await runLocalTool(this.client, name as LocalToolName, args);
   }
 }
 
@@ -279,7 +280,7 @@ function shouldInjectBeforeFinalPrompt(results: AgentHookResult[]): boolean {
 function resolveDifficulty(
   llmPlan: LlmExecutionPlan | null,
   localDifficulty: "simple" | "complex",
-  analysis: ReturnType<typeof analyzeProblem>
+  analysis: ProblemAnalysis
 ): "simple" | "complex" {
   if (!llmPlan) return localDifficulty;
   if (llmPlan.difficulty === "complex") return "complex";
