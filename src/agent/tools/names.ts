@@ -1,7 +1,7 @@
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import type { WolframToolName } from "../../wolfram/types.js";
 
-export type LocalToolName = "theorem_advisor" | "verification_template";
+export type LocalToolName = "load_tool" | "theorem_advisor" | "verification_template" | "delegate_to_subagent";
 export type AgentToolName = WolframToolName | LocalToolName;
 
 export type ToolDefinition = {
@@ -40,8 +40,10 @@ export const compatWolframToolNames = [
 ] as const satisfies readonly WolframToolName[];
 
 export const localToolNames = [
+  "load_tool",
   "theorem_advisor",
-  "verification_template"
+  "verification_template",
+  "delegate_to_subagent"
 ] as const satisfies readonly LocalToolName[];
 
 export const publicAgentToolNames = [

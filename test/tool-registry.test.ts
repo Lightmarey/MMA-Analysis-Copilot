@@ -2,25 +2,30 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  type AgentToolName,
   compatWolframToolNames,
   publicAgentToolNames,
   publicWolframToolNames,
   toolDefinitions
 } from "../src/agent/tools.js";
+import { runLocalTool } from "../src/agent/tools/local.js";
 import { algebraicToolDefinitions } from "../src/agent/tools/definitions/algebraic-tools.js";
 import { calculusToolDefinitions } from "../src/agent/tools/definitions/calculus-tools.js";
 import { equationSolvingToolDefinitions } from "../src/agent/tools/definitions/equation-solving-tools.js";
 import { localToolDefinitions } from "../src/agent/tools/definitions/local-tools.js";
 import { proofToolDefinitions } from "../src/agent/tools/definitions/proof-tools.js";
 import { transformConvergenceToolDefinitions } from "../src/agent/tools/definitions/transform-convergence-tools.js";
+import { discoveryToolDefinitions } from "../src/agent/tools/definitions/discovery-tools.js";
 
 const toolDefinitionNames = toolDefinitions.map(tool => tool.name).sort();
 assert.deepEqual(toolDefinitionNames, [...publicAgentToolNames].sort());
 
 assert.deepEqual(toolDefinitions.map(tool => tool.name), [
   "formula_transform",
+  "load_tool",
   "theorem_advisor",
   "verification_template",
+  "delegate_to_subagent",
   "wolfram_eval",
   "wolfram_simplify",
   "wolfram_equivalence_check",
@@ -45,11 +50,46 @@ const groupedDefinitions = [
   ...algebraicToolDefinitions,
   ...calculusToolDefinitions,
   ...equationSolvingToolDefinitions,
-  ...transformConvergenceToolDefinitions
+  ...transformConvergenceToolDefinitions,
+  ...discoveryToolDefinitions
 ];
 const groupedNames = groupedDefinitions.map(tool => tool.name);
 assert.equal(new Set(groupedNames).size, groupedNames.length);
 assert.deepEqual([...groupedNames].sort(), toolDefinitionNames);
+assert.equal(toolDefinitions.filter(tool => tool.name === "load_tool").length, 1);
+assert.equal(toolDefinitions.filter(tool => tool.name === "delegate_to_subagent").length, 1);
+
+const activeToolNames = new Set<AgentToolName>(["load_tool"]);
+const loadResult = await runLocalTool({} as never, "load_tool", {
+  tool_names: "wolfram_integrate, missing_tool, delegate_to_subagent"
+}, {
+  activeToolNames,
+  blockedToolNames: new Set<AgentToolName>(["delegate_to_subagent"])
+});
+assert.equal(loadResult.ok, false);
+assert.ok(activeToolNames.has("wolfram_integrate"));
+assert.equal(activeToolNames.has("delegate_to_subagent"), false);
+assert.match(loadResult.output ?? "", /missing_tool \(unknown\)/);
+assert.match(loadResult.output ?? "", /delegate_to_subagent \(disabled\)/);
+
+const delegateResult = await runLocalTool({} as never, "delegate_to_subagent", {
+  role: "checker",
+  task: "check one identity"
+}, {
+  activeToolNames,
+  delegateToSubagent: async args => ({
+    id: null,
+    ok: true,
+    title: "delegate_to_subagent",
+    output: `delegated:${String(args.role)}`
+  })
+});
+assert.equal(delegateResult.ok, true);
+assert.equal(delegateResult.output, "delegated:checker");
+
+const disabledDelegate = await runLocalTool({} as never, "delegate_to_subagent", {}, { activeToolNames });
+assert.equal(disabledDelegate.ok, false);
+assert.match(disabledDelegate.error ?? "", /disabled/);
 
 const protocol = fs.readFileSync(path.join(process.cwd(), "wolfram", "protocol.wl"), "utf8");
 for (const toolName of publicWolframToolNames) {

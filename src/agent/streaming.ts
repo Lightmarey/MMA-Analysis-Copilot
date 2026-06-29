@@ -31,28 +31,28 @@ export async function collectStreamedMessage(
   try {
     for await (const chunk of stream) {
       resetIdleTimer();
-    const choice = readFirstChoice(chunk);
-    if (!choice) continue;
-    if (typeof choice.finish_reason === "string") finishReason = choice.finish_reason;
-    const delta = choice.delta;
-    if (!delta || typeof delta !== "object") continue;
+      const choice = readFirstChoice(chunk);
+      if (!choice) continue;
+      if (typeof choice.finish_reason === "string") finishReason = choice.finish_reason;
+      const delta = choice.delta;
+      if (!delta || typeof delta !== "object") continue;
 
-    const thinking = readStringProperty(delta, "reasoning_content") || readStringProperty(delta, "reasoning");
-    if (thinking) callbacks.onThinkingDelta?.(thinking);
+      const thinking = readStringProperty(delta, "reasoning_content") || readStringProperty(delta, "reasoning");
+      if (thinking) callbacks.onThinkingDelta?.(thinking);
 
-    const output = readStringProperty(delta, "content");
-    if (output) {
-      content += output;
-      callbacks.onOutputDelta?.(output);
-    }
+      const output = readStringProperty(delta, "content");
+      if (output) {
+        content += output;
+        callbacks.onOutputDelta?.(output);
+      }
 
-    const rawToolCalls = (delta as { tool_calls?: unknown }).tool_calls;
-    if (Array.isArray(rawToolCalls)) {
-      for (const rawToolCall of rawToolCalls) {
-        mergeToolCallDelta(toolCalls, rawToolCall);
+      const rawToolCalls = (delta as { tool_calls?: unknown }).tool_calls;
+      if (Array.isArray(rawToolCalls)) {
+        for (const rawToolCall of rawToolCalls) {
+          mergeToolCallDelta(toolCalls, rawToolCall);
+        }
       }
     }
-  }
   } finally {
     if (idleTimer) clearTimeout(idleTimer);
   }

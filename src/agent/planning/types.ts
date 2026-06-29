@@ -1,4 +1,13 @@
-import type { EstimatePatternSuggestion } from "../planning-hints/estimate-patterns.js";
+export type EstimatePatternSuggestion = {
+  id: string;
+  name: string;
+  why: string;
+  mayUse: string[];
+  verificationTargets: string[];
+  tools: string[];
+  score: number;
+  firstToolHint: string;
+};
 
 export type TheoremEntry = {
   id: string;
@@ -55,6 +64,11 @@ export type ProblemAnalysis = {
   recommendedApproach: string;
   detectedDomains: string[];
   allowBruteforce: boolean;
+};
+
+export type PlanningLlmOptions = {
+  model?: string;
+  useLlm?: boolean;
 };
 
 export type Preplan = {

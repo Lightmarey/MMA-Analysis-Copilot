@@ -1,29 +1,50 @@
+import OpenAI from "openai";
+import { config } from "../../config.js";
+import { llmCallJson } from "../json-utils.js";
 import { matchEstimatePatterns } from "../planning-hints/estimate-patterns.js";
 import { ANALYSIS_DOMAINS } from "./theorem-library.js";
 import { matchTheorems, suggestInvariants } from "./theorem-matching.js";
-import type { ProblemAnalysis, TheoremSuggestion } from "./types.js";
+import type { PlanningLlmOptions, ProblemAnalysis, TheoremSuggestion } from "./types.js";
 
 const CONSTRAINT_RE = /\b(such that|given that|subject to|let|define|denote|suppose|assume|where)\b|\u6ee1\u8db3|\u4f7f\u5f97|\u6761\u4ef6/gim;
 const MULTISTEP_RE = /\b(then|subsequently|furthermore|compute|find|determine)\b|\u8fdb\u4e00\u6b65|\u7136\u540e|\u518d[\u6c42\u7b97\u8ba1]/gim;
 const POLY_DEGREE_RE = /[a-zA-Z]\s*\^\s*\{?(\d+)\}?/g;
 const SENTENCE_SPLIT_RE = /[.;\n\u3002\uff1b]+/g;
 
-export function analyzeProblem(problem: string, detectedObjects = ""): ProblemAnalysis {
+export async function analyzeProblem(client: OpenAI | null, problem: string, detectedObjects = "", options: PlanningLlmOptions = {}): Promise<ProblemAnalysis> {
   const combined = `${problem} ${detectedObjects}`.trim();
-  const scaleInfo = estimateScale(combined);
-  const matched = matchTheorems(combined);
-  const estimatePatterns = matchEstimatePatterns(combined);
+  const llmOptions = {
+    model: options.model || config.plannerModel || config.flashModel,
+    useLlm: options.useLlm
+  };
+
+  const [scaleInfoAndComplexity, matched, estimatePatterns] = await Promise.all([
+    analyzeScaleAndComplexity(client, combined, llmOptions),
+    matchTheorems(client, combined, llmOptions),
+    matchEstimatePatterns(client, combined, llmOptions)
+  ]);
+
   const detectedDomains = [...new Set(matched.flatMap(item => item.domains))].sort();
-  const suggestedInvariants = suggestInvariants(scaleInfo, matched);
+  const suggestedInvariants = suggestInvariants(scaleInfoAndComplexity.scaleInfo, matched);
+
   const verificationChecks = [
     ...uniqueFlatMap(matched, item => item.verificationHints),
     ...uniqueFlatMap(estimatePatterns, item => item.verificationTargets)
   ];
-  const scale = scaleInfo.scale;
+
+  const scale = scaleInfoAndComplexity.scaleInfo.scale;
+
   const theoryFirst = scale === "heavy" || scale === "infeasible_brute_force" || shouldPrioritizeAnalysisTheory(combined, matched);
-  const structuralComplexity = assessStructuralComplexity(combined, detectedDomains.length, matched);
+  const structuralComplexity = scaleInfoAndComplexity.structuralComplexity;
+  structuralComplexity.domainCount = Math.max(structuralComplexity.domainCount, detectedDomains.length);
+  if (requiresTheoryFirstConstruction(combined, matched) && !structuralComplexity.reasons.includes("analysis theorem-first task")) {
+    structuralComplexity.reasons.push("analysis theorem-first task");
+    structuralComplexity.isComplex = true;
+  }
+
   const shouldUseTheoryFirst = theoryFirst || structuralComplexity.reasons.includes("analysis theorem-first task");
   const allowBruteforce = (scale === "trivial" || scale === "moderate") && !shouldUseTheoryFirst;
+
   const softConstraints = matched.filter(item => item.preferredRecipe.length > 0 || item.avoidPatterns.length > 0 || item.wolframHint);
   const recommendedApproach = buildRecommendedApproach(scale, matched, suggestedInvariants, verificationChecks, shouldUseTheoryFirst);
 
@@ -31,7 +52,7 @@ export function analyzeProblem(problem: string, detectedObjects = ""): ProblemAn
     title: "Theorem advisor",
     scale,
     scaleDetail: Object.fromEntries(
-      Object.entries(scaleInfo)
+      Object.entries(scaleInfoAndComplexity.scaleInfo)
         .filter(([key]) => key !== "scale")
         .map(([key, value]) => [key, String(value)])
     ),
@@ -49,6 +70,45 @@ export function analyzeProblem(problem: string, detectedObjects = ""): ProblemAn
     detectedDomains,
     allowBruteforce
   };
+}
+
+async function analyzeScaleAndComplexity(client: OpenAI | null, text: string, options: PlanningLlmOptions) {
+  const fallback = {
+    scaleInfo: estimateScale(text),
+    structuralComplexity: assessStructuralComplexity(text, 0, [])
+  };
+  if (!client || options.useLlm === false) return fallback;
+
+  const systemPrompt = `You are a mathematical problem analyzer.
+Given a problem description, evaluate its structural complexity and computational scale.
+Return only JSON:
+{"scale":"trivial|moderate|heavy|infeasible_brute_force","max_polynomial_degree":number|null,"scaleReason":"string","structuralComplexity":{"isComplex":boolean,"reasons":["string"],"domainCount":number,"constraintCount":number,"length":number}}`;
+
+  const extracted = await llmCallJson<{
+    scale: "trivial" | "moderate" | "heavy" | "infeasible_brute_force";
+    max_polynomial_degree: number | null;
+    scaleReason: string;
+    structuralComplexity: {
+      isComplex: boolean;
+      reasons: string[];
+      domainCount: number;
+      constraintCount: number;
+      length: number;
+    };
+  }>(client, options.model || config.plannerModel || config.flashModel, systemPrompt, text, 600);
+
+  if (extracted) {
+    return {
+      scaleInfo: {
+        scale: extracted.scale,
+        ...(extracted.max_polynomial_degree ? { max_polynomial_degree: extracted.max_polynomial_degree } : {}),
+        ...(extracted.scaleReason ? { reason: extracted.scaleReason } : {})
+      },
+      structuralComplexity: extracted.structuralComplexity
+    };
+  }
+
+  return fallback;
 }
 
 function estimateScale(text: string): Record<string, string | number> & { scale: ProblemAnalysis["scale"] } {
@@ -89,7 +149,7 @@ function assessStructuralComplexity(text: string, domainCount: number, matched: 
 }
 
 function requiresTheoryFirstConstruction(text: string, matched: TheoremSuggestion[]): boolean {
-  const patterns = [/uniform/i, /compact/i, /dominat/i, /holomorphic/i, /contour/i, /asymptotic/i, /weak/i];
+  const patterns = [/uniform/i, /compact/i, /dominat/i, /holomorphic/i, /contour/i, /asymptotic/i, /weak/i, /maximum principle/i, /barrier/i, /hessian/i, /variational/i];
   const signalCount = patterns.filter(pattern => pattern.test(text)).length;
   const hasAnalysisTheorem = matched.some(item => item.domains.some(domain => ANALYSIS_DOMAINS.has(domain)));
   return signalCount >= 3 || (signalCount >= 2 && hasAnalysisTheorem);

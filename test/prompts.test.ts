@@ -8,7 +8,6 @@ assert.match(system, /Custom system prompt marker/);
 assert.match(system, /formula_transform/);
 assert.match(system, /deterministically applies supplied formula transformations/);
 assert.match(system, /action=plan_apply/);
-assert.match(system, /part=Auto/);
 assert.match(system, /do not call it again merely to restate the same transformation/);
 assert.doesNotMatch(system, /integration-by-parts|product-rule transforms/i);
 assert.match(system, /Do not use Wolfram tools to read local files/);

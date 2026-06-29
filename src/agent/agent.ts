@@ -4,6 +4,7 @@ import { config } from "../config.js";
 import { WolframBackend } from "../wolfram/backend.js";
 import { formatToolResult, formatToolResultMarkdown, isWolframToolName, runLocalTool, runVerificationTemplate, toolDefinitions } from "./tools.js";
 import { analyzeProblem, buildPreplanContext, classifyDifficulty, createPreplan, decomposeProblem } from "./planning.js";
+import type { ProblemAnalysis } from "./planning/types.js";
 import { getModelRoute } from "./model-routing.js";
 import { buildLlmPlanContext, createLlmExecutionPlan } from "./llm-planning.js";
 import type { LlmExecutionPlan } from "./llm-planning.js";
@@ -23,6 +24,22 @@ export type AgentCallbacks = {
   onOutputDelta?: (text: string) => void;
 };
 
+type MathAgentOptions = {
+  isSubagent?: boolean;
+};
+
+const defaultActiveToolNames: AgentToolName[] = [
+  "theorem_advisor",
+  "verification_template",
+  "wolfram_eval",
+  "wolfram_simplify",
+  "load_tool",
+  "wolfram_equivalence_check",
+  "formula_transform",
+  "wolfram_solve",
+  "delegate_to_subagent"
+];
+
 export class MathAgent {
   private readonly client: OpenAI;
   private readonly systemPrompt = buildAgentSystemPrompt();
@@ -30,8 +47,10 @@ export class MathAgent {
     { role: "system", content: this.systemPrompt }
   ];
   private forcedModel: string | null = null;
+  private readonly activeToolNames = new Set<AgentToolName>(defaultActiveToolNames);
+  private readonly blockedToolNames = new Set<AgentToolName>();
 
-  constructor(private readonly wolfram = new WolframBackend()) {
+  constructor(private readonly wolfram = new WolframBackend(), private readonly options: MathAgentOptions = {}) {
     if (!config.openaiApiKey) {
       throw new Error("openai.apiKey is required for agent mode. Set it in ignored wma.config.json or as a temporary OPENAI_API_KEY override.");
     }
@@ -39,6 +58,10 @@ export class MathAgent {
       apiKey: config.openaiApiKey,
       baseURL: config.openaiBaseUrl
     });
+    if (this.options.isSubagent) {
+      this.activeToolNames.delete("delegate_to_subagent");
+      this.blockedToolNames.add("delegate_to_subagent");
+    }
   }
 
   reset(): void {
@@ -55,8 +78,9 @@ export class MathAgent {
 
   async chat(userMessage: string, callbacks: AgentCallbacks = {}): Promise<string> {
     const modelRoute = await getModelRoute(this.client);
-    const llmPlan = await createLlmExecutionPlan(this.client, userMessage, modelRoute.flashModel);
-    const analysis = analyzeProblem(userMessage);
+    const plannerModelToUse = config.plannerModel || modelRoute.flashModel;
+    const llmPlan = await createLlmExecutionPlan(this.client, userMessage, plannerModelToUse);
+    const analysis = await analyzeProblem(this.client, userMessage, "", { model: plannerModelToUse });
     const preplan = createPreplan(userMessage, analysis);
     const decomposition = decomposeProblem(userMessage, analysis);
     const localDifficulty = classifyDifficulty(userMessage, analysis);
@@ -102,12 +126,13 @@ export class MathAgent {
       pushHookPrompt(this.messages, afterPlanHooks);
     }
 
-    for (let iteration = 0; iteration < config.maxIterations; iteration += 1) {
+    const iterationLimit = this.options.isSubagent ? Math.min(config.maxIterations, 3) : config.maxIterations;
+    for (let iteration = 0; iteration < iterationLimit; iteration += 1) {
       const abortController = new AbortController();
       const stream = await this.client.chat.completions.create({
         model: effectiveModel,
         messages: this.messages,
-        tools: toolDefinitions.map(t => t.schema),
+        tools: toolDefinitions.filter(t => this.activeToolNames.has(t.name)).map(t => t.schema),
         tool_choice: "auto",
         max_tokens: config.maxTokens,
         temperature: config.temperature,
@@ -214,7 +239,7 @@ export class MathAgent {
       }
     }
 
-    return `${collected.join("\n\n").trim()}\n\n> Reached max tool iterations (${config.maxIterations}).`;
+    return `${collected.join("\n\n").trim()}\n\n> Reached max tool iterations (${iterationLimit}).`;
   }
 
   close(): void {
@@ -228,7 +253,67 @@ export class MathAgent {
     if (name === "verification_template") {
       return await runVerificationTemplate(this.wolfram, args);
     }
-    return runLocalTool(name as LocalToolName, args);
+    return await runLocalTool(this.client, name as LocalToolName, args, {
+      activeToolNames: this.activeToolNames,
+      blockedToolNames: this.blockedToolNames,
+      delegateToSubagent: args => this.delegateToSubagent(args)
+    });
+  }
+
+  private async delegateToSubagent(args: Record<string, unknown>): Promise<WolframResponse> {
+    if (this.options.isSubagent) {
+      return {
+        id: null,
+        ok: false,
+        title: "delegate_to_subagent",
+        error: "Recursive subagent delegation is disabled"
+      };
+    }
+
+    const role = typeof args.role === "string" && args.role.trim() ? args.role.trim() : "subagent";
+    const task = typeof args.task === "string" ? args.task.trim() : "";
+    const context = typeof args.context === "string" ? args.context.trim() : "";
+    if (!task) {
+      return {
+        id: null,
+        ok: false,
+        title: "delegate_to_subagent",
+        error: "Missing required subagent task"
+      };
+    }
+
+    const subagent = new MathAgent(new WolframBackend(), { isSubagent: true });
+    const subPrompt = [
+      `Role: ${role}.`,
+      "Solve only the delegated subtask. Keep the answer compact.",
+      "Use at most three tool-calling iterations. Do not delegate further.",
+      "Return: result, checked evidence, and remaining assumptions.",
+      "",
+      "Task:",
+      task,
+      "",
+      "Context:",
+      context || "None"
+    ].join("\n");
+
+    try {
+      const result = await subagent.chat(subPrompt);
+      return {
+        id: null,
+        ok: true,
+        title: "delegate_to_subagent",
+        output: result.length > 4000 ? `${result.slice(0, 4000)}\n\n[truncated subagent result]` : result
+      };
+    } catch (error) {
+      return {
+        id: null,
+        ok: false,
+        title: "delegate_to_subagent",
+        error: error instanceof Error ? error.message : String(error)
+      };
+    } finally {
+      subagent.close();
+    }
   }
 }
 
@@ -254,7 +339,7 @@ function shouldInjectBeforeFinalPrompt(results: AgentHookResult[]): boolean {
 function resolveDifficulty(
   llmPlan: LlmExecutionPlan | null,
   localDifficulty: "simple" | "complex",
-  analysis: ReturnType<typeof analyzeProblem>
+  analysis: ProblemAnalysis
 ): "simple" | "complex" {
   if (!llmPlan) return localDifficulty;
   if (llmPlan.difficulty === "complex") return "complex";
