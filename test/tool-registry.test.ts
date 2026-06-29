@@ -13,12 +13,14 @@ import { equationSolvingToolDefinitions } from "../src/agent/tools/definitions/e
 import { localToolDefinitions } from "../src/agent/tools/definitions/local-tools.js";
 import { proofToolDefinitions } from "../src/agent/tools/definitions/proof-tools.js";
 import { transformConvergenceToolDefinitions } from "../src/agent/tools/definitions/transform-convergence-tools.js";
+import { discoveryToolDefinitions } from "../src/agent/tools/definitions/discovery-tools.js";
 
 const toolDefinitionNames = toolDefinitions.map(tool => tool.name).sort();
 assert.deepEqual(toolDefinitionNames, [...publicAgentToolNames].sort());
 
 assert.deepEqual(toolDefinitions.map(tool => tool.name), [
   "formula_transform",
+  "load_tool",
   "theorem_advisor",
   "verification_template",
   "wolfram_eval",
@@ -45,7 +47,8 @@ const groupedDefinitions = [
   ...algebraicToolDefinitions,
   ...calculusToolDefinitions,
   ...equationSolvingToolDefinitions,
-  ...transformConvergenceToolDefinitions
+  ...transformConvergenceToolDefinitions,
+  ...discoveryToolDefinitions
 ];
 const groupedNames = groupedDefinitions.map(tool => tool.name);
 assert.equal(new Set(groupedNames).size, groupedNames.length);

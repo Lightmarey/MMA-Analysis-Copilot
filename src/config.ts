@@ -14,6 +14,7 @@ type WmaConfigFile = {
     baseUrl?: string;
     model?: string;
     flashModel?: string;
+    plannerModel?: string;
     proModel?: string;
     autoDiscoverModels?: boolean;
     autoRoute?: boolean;
@@ -121,6 +122,8 @@ const model =
   process.env.AI4MATH_MODEL?.trim() ||
   stringValue(fileConfig.openai?.model, "gpt-4.1-mini");
 
+const plannerModel = process.env.WOLFRAM_AGENT_PLANNER_MODEL?.trim() || process.env.AI4MATH_PLANNER_MODEL?.trim() || fileConfig.openai?.plannerModel?.trim();
+
 const flashModel =
   process.env.WOLFRAM_AGENT_FLASH_MODEL?.trim() ||
   process.env.AI4MATH_FLASH_MODEL?.trim() ||
@@ -151,6 +154,7 @@ export const config = {
   openaiBaseUrl: process.env.OPENAI_BASE_URL?.trim() || stringValue(fileConfig.openai?.baseUrl) || undefined,
   model,
   flashModel,
+  plannerModel: plannerModel as string | undefined,
   proModel,
   autoRoute: boolEnv("WOLFRAM_AGENT_AUTO_ROUTE", booleanValue(fileConfig.openai?.autoRoute, true)),
   autoDiscoverModels: boolEnv("WOLFRAM_AGENT_AUTO_DISCOVER_MODELS", booleanValue(fileConfig.openai?.autoDiscoverModels, true)),
@@ -204,6 +208,7 @@ export function validateConfigPayload(payload: unknown): ConfigDiagnostic[] {
       baseUrl: "string",
       model: "string",
       flashModel: "string",
+      plannerModel: "string",
       proModel: "string",
       autoDiscoverModels: "boolean",
       autoRoute: "boolean",

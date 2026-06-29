@@ -3,6 +3,7 @@ import { config } from "../config.js";
 export type RuntimeOptions = {
   temperature?: number;
   maxIterations?: number;
+  plannerModel?: string;
 };
 
 export function applyRuntimeOptions(options: RuntimeOptions): void {
@@ -18,5 +19,9 @@ export function applyRuntimeOptions(options: RuntimeOptions): void {
       throw new Error("--max-iterations must be a positive integer");
     }
     config.maxIterations = options.maxIterations;
+  }
+
+  if (options.plannerModel !== undefined) {
+    config.plannerModel = options.plannerModel;
   }
 }

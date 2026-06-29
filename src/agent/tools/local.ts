@@ -1,10 +1,11 @@
+import OpenAI from "openai";
 import { theoremAdvisorTool } from "../planning/theorem-advisor.js";
 import type { WolframResponse } from "../../wolfram/types.js";
 import type { LocalToolName } from "./names.js";
 
-export function runLocalTool(name: LocalToolName, args: Record<string, unknown>): WolframResponse {
+export async function runLocalTool(client: OpenAI, name: LocalToolName, args: Record<string, unknown>): Promise<WolframResponse> {
   if (name === "theorem_advisor") {
-    return theoremAdvisorTool(args);
+    return theoremAdvisorTool(client, args);
   }
   return {
     id: null,

@@ -2,7 +2,7 @@ import { inferRecommendedTools } from "../tool-hints.js";
 import { analyzeProblem } from "./analysis.js";
 import type { Preplan, ProblemAnalysis } from "./types.js";
 
-export function createPreplan(problem: string, analysis = analyzeProblem(problem)): Preplan {
+export function createPreplan(problem: string, analysis: ProblemAnalysis): Preplan {
   const theoremFocus = analysis.suggestedTheorems.map(item => item.theorem);
   const recommendedTools = [
     ...inferRecommendedTools(problem, analysis.suggestedTheorems, analysis.workflow.theoryFirst),

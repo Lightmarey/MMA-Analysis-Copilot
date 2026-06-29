@@ -1,13 +1,14 @@
+import OpenAI from "openai";
 import { analyzeProblem } from "./analysis.js";
 
-export function theoremAdvisorTool(args: Record<string, unknown>) {
+export async function theoremAdvisorTool(client: OpenAI, args: Record<string, unknown>) {
   const problem = typeof args.problem === "string" ? args.problem : "";
   const detectedObjects = typeof args.detected_objects === "string"
     ? args.detected_objects
     : typeof args.detectedObjects === "string"
       ? args.detectedObjects
       : "";
-  const analysis = analyzeProblem(problem, detectedObjects);
+  const analysis = await analyzeProblem(client, problem, detectedObjects);
   return {
     id: null,
     ok: true,

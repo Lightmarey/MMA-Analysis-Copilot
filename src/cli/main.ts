@@ -32,6 +32,7 @@ program
   .option("-n, --max-iterations <number>", "override maximum tool-calling iterations for this run", parsePositiveInteger)
   .option("--trace [mode]", "include route, preplanning, and tool trace in saved Markdown: compact or full")
   .option("--thinking <mode>", "show streamed reasoning: off, brief, or full", parseThinkingMode, "brief")
+  .option("--planner-model <model>", "override the AI model to use for planning")
   .option("--direct-wolfram", "evaluate the question as raw Wolfram Language code without LLM")
   .action(async (
     questionParts: string[],

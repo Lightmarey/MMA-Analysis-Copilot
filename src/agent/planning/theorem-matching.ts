@@ -1,47 +1,65 @@
+import OpenAI from "openai";
+import { config } from "../../config.js";
+import { llmCallText, jsonifyWithWeakModel } from "../json-utils.js";
 import { loadTheorems } from "./theorem-library.js";
 import type { TheoremEntry, TheoremSuggestion } from "./types.js";
 
-export function matchTheorems(text: string): TheoremSuggestion[] {
-  const lowered = text.toLowerCase();
-  const scored: Array<{ score: number; theorem: TheoremEntry }> = [];
+export async function matchTheorems(client: OpenAI, text: string): Promise<TheoremSuggestion[]> {
+  const library = loadTheorems();
+  const librarySummary = library.map(t => `- **${t.name}**. Keywords: ${t.keywords.join(", ")}\n  Reduces: ${t.reduces}`).join("\n");
 
-  for (const theorem of loadTheorems()) {
-    let score = 0;
-    for (const keyword of theorem.keywords) {
-      if (lowered.includes(keyword.toLowerCase())) score += 1;
-    }
-    for (const signal of theorem.signals ?? []) {
-      try {
-        if (new RegExp(signal, "i").test(text)) score += 2;
-      } catch {
-        // Ignore invalid theorem-library patterns.
-      }
-    }
-    if (score > 0) scored.push({ score, theorem });
+  const systemPrompt = `You are a mathematical theorem recommender. 
+Given the user's problem description, select the most relevant theorems from the following library that could help solve or simplify the problem.
+If no theorems apply, say so.
+Explain your reasoning for each selected theorem.
+
+Library:
+${librarySummary}
+`;
+  
+  const reasoning = await llmCallText(client, config.proModel, systemPrompt, text);
+  if (!reasoning) {
+    return [];
   }
 
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, 6).map(({ score, theorem }) => ({
-    theorem: theorem.name,
-    why: theorem.reduces ?? "",
-    domains: theorem.domains,
-    prerequisites: theorem.prerequisites ?? [],
-    invariantHints: theorem.invariantHints ?? [],
-    verificationHints: theorem.verificationHints ?? [],
-    preferredRecipe: theorem.preferredRecipe ?? [],
-    avoidPatterns: theorem.avoidPatterns ?? [],
-    wolframHint: theorem.wolframHint ?? "",
-    casHint: theorem.casHint || theorem.wolframHint || "",
-    confidence: normalizeConfidence(theorem.confidence, score),
-    score
-  }));
-}
+  const schema = `{
+  "matches": [
+    {
+      "theoremName": "string (must match a theorem name from the library)",
+      "score": "number (1 to 5, where 5 is highly relevant)",
+      "confidence": "'high' | 'medium' | 'low'"
+    }
+  ]
+}`;
 
-function normalizeConfidence(prior: TheoremEntry["confidence"], score: number): TheoremSuggestion["confidence"] {
-  if (prior) return prior;
-  if (score >= 4) return "high";
-  if (score >= 2) return "medium";
-  return "low";
+  const extracted = await jsonifyWithWeakModel<{
+    matches?: { theoremName: string; score: number; confidence: "high" | "medium" | "low" }[]
+  }>(client, reasoning, schema);
+
+  const matchedSuggestions: TheoremSuggestion[] = [];
+  if (extracted && extracted.matches) {
+    for (const match of extracted.matches) {
+      const entry = library.find(t => t.name.toLowerCase() === match.theoremName.toLowerCase());
+      if (entry) {
+        matchedSuggestions.push({
+          theorem: entry.name,
+          why: entry.reduces ?? "",
+          domains: entry.domains,
+          prerequisites: entry.prerequisites ?? [],
+          invariantHints: entry.invariantHints ?? [],
+          verificationHints: entry.verificationHints ?? [],
+          preferredRecipe: entry.preferredRecipe ?? [],
+          avoidPatterns: entry.avoidPatterns ?? [],
+          wolframHint: entry.wolframHint ?? "",
+          casHint: entry.casHint || entry.wolframHint || "",
+          confidence: match.confidence,
+          score: match.score
+        });
+      }
+    }
+  }
+
+  return matchedSuggestions.sort((a, b) => b.score - a.score);
 }
 
 export function suggestInvariants(scaleInfo: Record<string, string | number>, matched: TheoremSuggestion[]): string[] {

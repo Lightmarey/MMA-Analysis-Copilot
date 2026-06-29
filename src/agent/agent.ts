@@ -4,6 +4,7 @@ import { config } from "../config.js";
 import { WolframBackend } from "../wolfram/backend.js";
 import { formatToolResult, formatToolResultMarkdown, isWolframToolName, runLocalTool, runVerificationTemplate, toolDefinitions } from "./tools.js";
 import { analyzeProblem, buildPreplanContext, classifyDifficulty, createPreplan, decomposeProblem } from "./planning.js";
+import type { ProblemAnalysis } from "./planning/types.js";
 import { getModelRoute } from "./model-routing.js";
 import { buildLlmPlanContext, createLlmExecutionPlan } from "./llm-planning.js";
 import type { LlmExecutionPlan } from "./llm-planning.js";
@@ -30,6 +31,7 @@ export class MathAgent {
     { role: "system", content: this.systemPrompt }
   ];
   private forcedModel: string | null = null;
+    private activeToolNames = new Set<string>(["theorem_advisor", "verification_template", "wolfram_eval", "wolfram_simplify", "load_tool", "wolfram_equivalence_check", "formula_transform", "wolfram_solve"]);
 
   constructor(private readonly wolfram = new WolframBackend()) {
     if (!config.openaiApiKey) {
@@ -55,8 +57,9 @@ export class MathAgent {
 
   async chat(userMessage: string, callbacks: AgentCallbacks = {}): Promise<string> {
     const modelRoute = await getModelRoute(this.client);
-    const llmPlan = await createLlmExecutionPlan(this.client, userMessage, modelRoute.flashModel);
-    const analysis = analyzeProblem(userMessage);
+    const plannerModelToUse = config.plannerModel || modelRoute.flashModel;
+    const llmPlan = await createLlmExecutionPlan(this.client, userMessage, plannerModelToUse);
+    const analysis = await analyzeProblem(this.client, userMessage);
     const preplan = createPreplan(userMessage, analysis);
     const decomposition = decomposeProblem(userMessage, analysis);
     const localDifficulty = classifyDifficulty(userMessage, analysis);
@@ -107,7 +110,7 @@ export class MathAgent {
       const stream = await this.client.chat.completions.create({
         model: effectiveModel,
         messages: this.messages,
-        tools: toolDefinitions.map(t => t.schema),
+        tools: toolDefinitions.filter(t => this.activeToolNames.has(t.name)).map(t => t.schema),
         tool_choice: "auto",
         max_tokens: config.maxTokens,
         temperature: config.temperature,
@@ -222,13 +225,36 @@ export class MathAgent {
   }
 
   private async callTool(name: AgentToolName, args: Record<string, unknown>) {
+    if (name === "load_tool") {
+      const toolNames = Array.isArray(args.tool_names) ? args.tool_names : [];
+      const loaded: string[] = [];
+      for (const t of toolNames) {
+        if (typeof t === "string") {
+          this.activeToolNames.add(t);
+          loaded.push(t);
+        }
+      }
+      return { id: null, ok: true, title: "load_tool", result: "Loaded tools: " + loaded.join(", ") };
+    }
+    if ((name as string) === "load_tool") {
+      const raw = typeof args.tool_names === "string" ? args.tool_names : "";
+      const toolNames = raw.split(",").map(s => s.trim()).filter(Boolean);
+      const loaded = [];
+      for (const t of toolNames) {
+        if (typeof t === "string") {
+          this.activeToolNames.add(t);
+          loaded.push(t);
+        }
+      }
+      return { id: null, ok: true, title: "load_tool", result: "Loaded tools: " + loaded.join(", ") };
+    }
     if (isWolframToolName(name)) {
       return await this.wolfram.call(name, args);
     }
     if (name === "verification_template") {
       return await runVerificationTemplate(this.wolfram, args);
     }
-    return runLocalTool(name as LocalToolName, args);
+    return await runLocalTool(this.client, name as LocalToolName, args);
   }
 }
 
@@ -254,7 +280,7 @@ function shouldInjectBeforeFinalPrompt(results: AgentHookResult[]): boolean {
 function resolveDifficulty(
   llmPlan: LlmExecutionPlan | null,
   localDifficulty: "simple" | "complex",
-  analysis: ReturnType<typeof analyzeProblem>
+  analysis: ProblemAnalysis
 ): "simple" | "complex" {
   if (!llmPlan) return localDifficulty;
   if (llmPlan.difficulty === "complex") return "complex";

@@ -97,7 +97,11 @@ async function handleReplInput(line: string, agent: MathAgent, thinkingMode: Thi
     for (const tool of toolDefinitions) console.log(`${tool.name} - ${tool.description}`);
     return true;
   }
-  if (line.startsWith("/model")) {
+  if (line.startsWith("/planner-model")) {
+      await handlePlannerModelCommand(line);
+      return true;
+    }
+    if (line.startsWith("/model")) {
     await handleModelCommand(line, agent);
     return true;
   }
@@ -185,7 +189,7 @@ async function handleModelCommand(line: string, agent: MathAgent): Promise<void>
 function banner(): void {
   console.log(chalk.cyan.bold("Wolfram Math Agent"));
   console.log(chalk.dim(`model=${config.model} route=${config.autoRoute ? "auto" : "off"} backend=${config.wolframBackendMode}`));
-  console.log(chalk.dim("Commands: /help /tools /model [id|auto] /reset /last /save [path] /quit"));
+  console.log(chalk.dim("Commands: /help /tools /model [id|auto] /planner-model [id|auto] /reset /last /save [path] /quit"));
   console.log(chalk.dim("Multiline paste is collected as one question."));
   console.log();
 }
@@ -199,6 +203,7 @@ Commands:
   /model         list discovered models and show current selection
   /model <id>    force the current session to use a model
   /model auto    return to automatic flash/pro routing
+    /planner-model set planner model override
   /reset         reset conversation
   /last          show last Markdown answer
   /save [path]   save last Markdown answer
@@ -209,3 +214,19 @@ as one question.
 `);
 }
 
+
+async function handlePlannerModelCommand(line: string): Promise<void> {
+  const [, rawModel] = line.split(/\s+/, 2);
+  if (!rawModel) {
+    console.log("Current planner model: " + (config.plannerModel || "auto (uses flash model)"));
+    return;
+  }
+  const model = rawModel.trim();
+  if (model === "auto" || model === "clear" || model === "default") {
+    config.plannerModel = undefined;
+    console.log(chalk.green("Planner model override cleared."));
+    return;
+  }
+  config.plannerModel = model;
+  console.log(chalk.green("Planner model set to: " + model));
+}

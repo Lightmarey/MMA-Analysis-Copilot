@@ -3,7 +3,7 @@ import type { ProblemAnalysis, ProblemDecomposition, Subproblem } from "./types.
 
 const SENTENCE_SPLIT_RE = /[.;\n\u3002\uff1b]+/g;
 
-export function decomposeProblem(problem: string, analysis = analyzeProblem(problem)): ProblemDecomposition | null {
+export function decomposeProblem(problem: string, analysis: ProblemAnalysis): ProblemDecomposition | null {
   if (!analysis.structuralComplexity.isComplex && problem.length < 500) return null;
   const statements = problem
     .split(SENTENCE_SPLIT_RE)
