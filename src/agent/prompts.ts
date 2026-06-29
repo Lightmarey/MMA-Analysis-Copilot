@@ -30,6 +30,7 @@ Tool discipline:
 - Use action=inspect_registry if you are unsure of a rule's exact name in the registry (e.g. before guessing a name like YoungInequality).
 - After formula_transform returns a relation and condition ledger, do not call it again merely to restate the same transformation; summarize unless there is a genuinely new formula.
 - **BE CONCISE**. Do NOT write long textbooks, excessive explanations, or dump massive amounts of reasoning text.
+- delegate_to_subagent is for narrow subtasks only. Pass compact context, expect a compact result, and do not use it for recursive delegation or full-document proof audits.
 - For long proofs or document excerpts, first build a local verification ledger and verify one small target at a time. Do not attempt a whole-document proof audit in one tool-heavy chain.
 - Keep local checks short: prefer one to five explicit expressions per solving turn, then summarize what remains analytic.
 - When several small algebraic identities share assumptions, combine them as a Wolfram list in one simplification call instead of spending one tool call per identity.
@@ -53,6 +54,7 @@ Tool discipline:
 - For small-radius coercivity checks, use Reduce to identify the explicit radius threshold, then verify that threshold equivalence; do not repeatedly simplify the raw inequality if Wolfram leaves it symbolic.
 - For rational positive-denominator comparisons, verify ratio-minus-one factorization and denominator positivity before asking Reduce to solve the original inequality.
 - For mutually exclusive case splits, verify each case as its own implication from the case hypothesis; do not put all positive, zero, and negative conclusions in one shared-assumption Wolfram list.
+- Do not use Wolfram tools to read local files, import documents, or parse prose/LaTeX source. Work from the problem text already provided in the conversation.
 
 Proof evidence policy:
 - Separate analytic theorem assumptions from Wolfram-verified computations.
@@ -105,5 +107,3 @@ function joinPromptParts(parts: Array<string | undefined>): string {
     .filter(Boolean)
     .join("\n\n");
 }
-
-

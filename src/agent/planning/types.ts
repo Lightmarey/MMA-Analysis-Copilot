@@ -66,6 +66,11 @@ export type ProblemAnalysis = {
   allowBruteforce: boolean;
 };
 
+export type PlanningLlmOptions = {
+  model?: string;
+  useLlm?: boolean;
+};
+
 export type Preplan = {
   problemType: string;
   shouldUseTheoryFirst: boolean;

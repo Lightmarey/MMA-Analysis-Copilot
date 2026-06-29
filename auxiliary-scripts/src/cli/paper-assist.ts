@@ -3,7 +3,6 @@ import path from "node:path";
 import OpenAI from "openai";
 import { config } from "../../../src/config.js";
 import { analyzePaperPreflight, formatPaperPreflight, type PaperPreflight } from "../agent/paper-preflight.js";
-import { llmCallText } from "../../../src/agent/json-utils.js";
 
 type Scenario = {
   file: string;
@@ -37,22 +36,22 @@ async function main(): Promise<void> {
     const text = await fs.readFile(file, "utf8");
     // Chunk TeX by paragraphs (double newlines)
     const paragraphs = text.split(/\r?\n\s*\r?\n/);
-    
+
     let currentLine = 1;
 
     for (const para of paragraphs) {
       if (scenarios.length >= 40) break;
       const lineCount = para.split(/\r?\n/).length;
-      
+
       // Lightweight pre-filter to skip purely text paragraphs and save tokens
       if (containsMath(para)) {
         try {
-          const score = await scoreSnippetWithLLM(client, para);
-          
+          const score = scoreSnippet(para);
+
           if (score >= 3) {
             console.log(`  [Score ${score}] Analyzing snippet at line ${currentLine}...`);
             const preflight = await analyzePaperPreflight(client, para);
-            
+
             if (preflight.method && preflight.method !== "unknown") {
               console.log(`    -> Selected as ${preflight.method}`);
               scenarios.push({
@@ -70,7 +69,7 @@ async function main(): Promise<void> {
           console.error(`Error analyzing snippet in ${file}:${currentLine}:`, error);
         }
       }
-      
+
       currentLine += lineCount + 1; // +1 for the blank line separator
     }
   }
@@ -104,7 +103,7 @@ function selectScenarios(scenarios: Scenario[]): Scenario[] {
   const selected: Scenario[] = [];
   const ranked = scenarios
     .sort((a, b) => b.score - a.score || a.file.localeCompare(b.file) || a.line - b.line);
-  
+
   for (const scenario of ranked) {
     const key = `${scenario.method}:${scenario.file}`;
     if (seen.has(key)) continue;
@@ -128,22 +127,19 @@ function containsMath(text: string): boolean {
   return /\\begin\{(?:equation|align|aligned|lemma|proposition|theorem|proof)\}|\$\$|\\\[|\\\(|\$/.test(text);
 }
 
-async function scoreSnippetWithLLM(client: OpenAI, snippet: string): Promise<number> {
-  const prompt = `Evaluate the following LaTeX snippet for its potential to be automatically verified by a symbolic math assistant.
-Score it from 1 to 5:
-1: Purely text, qualitative, or trivial definitions.
-3: Contains some formulas but they are standard or mostly qualitative.
-5: Contains critical inequalities, PDE bounds, complex algebraic identities, or non-trivial parameter choices that strongly benefit from symbolic verification.
-
-Provide only the integer score (1, 2, 3, 4, or 5).
-
-Snippet:
-${snippet}`;
-
-  // Use the weaker/faster model for bulk scoring
-  const result = await llmCallText(client, config.flashModel || "gemini-2.5-flash", prompt, "");
-  const match = result.match(/\d/);
-  return match ? parseInt(match[0], 10) : 1;
+function scoreSnippet(snippet: string): number {
+  let score = containsMath(snippet) ? 2 : 1;
+  const signals = [
+    /\\begin\{(?:equation|align|aligned|gather|multline)\}|\$\$|\\\[/,
+    /\\le|\\ge|\\int|\\sum|\\Delta|\\nabla|=|<|>/,
+    /estimate|inequality|absorb|barrier|pohozaev|kelvin|rescal|blow-?up|harnack/i,
+    /epsilon|lambda|rho|tau|M\^|r\^|\^\{?[a-z0-9+\-/*]+/i,
+    /operator|residual|coerciv|principal minor|hessian/i
+  ];
+  for (const signal of signals) {
+    if (signal.test(snippet)) score += 1;
+  }
+  return Math.min(score, 5);
 }
 
 function buildPrompt(method: string, toolHints: string[], preflight: PaperPreflight): string {

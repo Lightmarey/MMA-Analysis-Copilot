@@ -1,39 +1,50 @@
 import OpenAI from "openai";
 import { config } from "../../config.js";
-import { llmCallText, jsonifyWithWeakModel } from "../json-utils.js";
+import { llmCallJson } from "../json-utils.js";
 import { matchEstimatePatterns } from "../planning-hints/estimate-patterns.js";
 import { ANALYSIS_DOMAINS } from "./theorem-library.js";
 import { matchTheorems, suggestInvariants } from "./theorem-matching.js";
-import type { ProblemAnalysis, TheoremSuggestion } from "./types.js";
+import type { PlanningLlmOptions, ProblemAnalysis, TheoremSuggestion } from "./types.js";
 
-export async function analyzeProblem(client: OpenAI, problem: string, detectedObjects = ""): Promise<ProblemAnalysis> {
+const CONSTRAINT_RE = /\b(such that|given that|subject to|let|define|denote|suppose|assume|where)\b|\u6ee1\u8db3|\u4f7f\u5f97|\u6761\u4ef6/gim;
+const MULTISTEP_RE = /\b(then|subsequently|furthermore|compute|find|determine)\b|\u8fdb\u4e00\u6b65|\u7136\u540e|\u518d[\u6c42\u7b97\u8ba1]/gim;
+const POLY_DEGREE_RE = /[a-zA-Z]\s*\^\s*\{?(\d+)\}?/g;
+const SENTENCE_SPLIT_RE = /[.;\n\u3002\uff1b]+/g;
+
+export async function analyzeProblem(client: OpenAI | null, problem: string, detectedObjects = "", options: PlanningLlmOptions = {}): Promise<ProblemAnalysis> {
   const combined = `${problem} ${detectedObjects}`.trim();
+  const llmOptions = {
+    model: options.model || config.plannerModel || config.flashModel,
+    useLlm: options.useLlm
+  };
 
-  // 1. Concurrent LLM calls for properties, patterns, theorems
   const [scaleInfoAndComplexity, matched, estimatePatterns] = await Promise.all([
-    analyzeScaleAndComplexity(client, combined),
-    matchTheorems(client, combined),
-    matchEstimatePatterns(client, combined)
+    analyzeScaleAndComplexity(client, combined, llmOptions),
+    matchTheorems(client, combined, llmOptions),
+    matchEstimatePatterns(client, combined, llmOptions)
   ]);
 
   const detectedDomains = [...new Set(matched.flatMap(item => item.domains))].sort();
   const suggestedInvariants = suggestInvariants(scaleInfoAndComplexity.scaleInfo, matched);
-  
+
   const verificationChecks = [
     ...uniqueFlatMap(matched, item => item.verificationHints),
     ...uniqueFlatMap(estimatePatterns, item => item.verificationTargets)
   ];
-  
+
   const scale = scaleInfoAndComplexity.scaleInfo.scale;
-  
+
   const theoryFirst = scale === "heavy" || scale === "infeasible_brute_force" || shouldPrioritizeAnalysisTheory(combined, matched);
   const structuralComplexity = scaleInfoAndComplexity.structuralComplexity;
-  // Fallback domain counting since LLM extracted it or we computed it
   structuralComplexity.domainCount = Math.max(structuralComplexity.domainCount, detectedDomains.length);
+  if (requiresTheoryFirstConstruction(combined, matched) && !structuralComplexity.reasons.includes("analysis theorem-first task")) {
+    structuralComplexity.reasons.push("analysis theorem-first task");
+    structuralComplexity.isComplex = true;
+  }
 
   const shouldUseTheoryFirst = theoryFirst || structuralComplexity.reasons.includes("analysis theorem-first task");
   const allowBruteforce = (scale === "trivial" || scale === "moderate") && !shouldUseTheoryFirst;
-  
+
   const softConstraints = matched.filter(item => item.preferredRecipe.length > 0 || item.avoidPatterns.length > 0 || item.wolframHint);
   const recommendedApproach = buildRecommendedApproach(scale, matched, suggestedInvariants, verificationChecks, shouldUseTheoryFirst);
 
@@ -61,48 +72,30 @@ export async function analyzeProblem(client: OpenAI, problem: string, detectedOb
   };
 }
 
-async function analyzeScaleAndComplexity(client: OpenAI, text: string) {
+async function analyzeScaleAndComplexity(client: OpenAI | null, text: string, options: PlanningLlmOptions) {
+  const fallback = {
+    scaleInfo: estimateScale(text),
+    structuralComplexity: assessStructuralComplexity(text, 0, [])
+  };
+  if (!client || options.useLlm === false) return fallback;
+
   const systemPrompt = `You are a mathematical problem analyzer.
 Given a problem description, evaluate its structural complexity and computational scale.
-Answer these specific questions:
-1. What is the maximum polynomial degree mentioned in the problem? (If none, say null)
-2. Is the computational scale trivial, moderate, heavy, or infeasible_brute_force? (Usually moderate unless very high degree polynomials are present, or it's clearly intractable to compute directly).
-3. Count the number of constraints in the problem (e.g. "such that", "given", "assume").
-4. Count the number of steps if it's a multi-step problem (e.g. "then", "furthermore", "compute X then Y").
-5. Is this problem structurally complex? (long, multi-domain, many constraints, multi-step, analysis theorem-first task) Give reasons.
+Return only JSON:
+{"scale":"trivial|moderate|heavy|infeasible_brute_force","max_polynomial_degree":number|null,"scaleReason":"string","structuralComplexity":{"isComplex":boolean,"reasons":["string"],"domainCount":number,"constraintCount":number,"length":number}}`;
 
-Provide your reasoning clearly.`;
-
-  const reasoning = await llmCallText(client, config.proModel, systemPrompt, text);
-  
-  const schema = `{
-  "scale": "trivial" | "moderate" | "heavy" | "infeasible_brute_force",
-  "max_polynomial_degree": number | null,
-  "scaleReason": "string",
-  "structuralComplexity": {
-    "isComplex": boolean,
-    "reasons": ["string (e.g., 'multi-step (2 steps)', 'many constraints (3)', 'long problem')"],
-    "domainCount": number,
-    "constraintCount": number,
-    "length": number
-  }
-}`;
-
-  let extracted = null;
-  if (reasoning) {
-    extracted = await jsonifyWithWeakModel<{
-      scale: "trivial" | "moderate" | "heavy" | "infeasible_brute_force";
-      max_polynomial_degree: number | null;
-      scaleReason: string;
-      structuralComplexity: {
-        isComplex: boolean;
-        reasons: string[];
-        domainCount: number;
-        constraintCount: number;
-        length: number;
-      };
-    }>(client, reasoning, schema);
-  }
+  const extracted = await llmCallJson<{
+    scale: "trivial" | "moderate" | "heavy" | "infeasible_brute_force";
+    max_polynomial_degree: number | null;
+    scaleReason: string;
+    structuralComplexity: {
+      isComplex: boolean;
+      reasons: string[];
+      domainCount: number;
+      constraintCount: number;
+      length: number;
+    };
+  }>(client, options.model || config.plannerModel || config.flashModel, systemPrompt, text, 600);
 
   if (extracted) {
     return {
@@ -115,17 +108,51 @@ Provide your reasoning clearly.`;
     };
   }
 
-  // Fallback to defaults if LLM extraction fails
-  return {
-    scaleInfo: { scale: "moderate" as const },
-    structuralComplexity: {
-      isComplex: false,
-      reasons: [],
-      domainCount: 1,
-      constraintCount: 1,
-      length: text.length
+  return fallback;
+}
+
+function estimateScale(text: string): Record<string, string | number> & { scale: ProblemAnalysis["scale"] } {
+  const degrees = [...text.matchAll(POLY_DEGREE_RE)].map(match => Number.parseInt(match[1], 10));
+  if (degrees.length) {
+    const maxDegree = Math.max(...degrees);
+    if (maxDegree > 20) {
+      return {
+        max_polynomial_degree: maxDegree,
+        reason: `polynomial degree ${maxDegree} may make symbolic computation expensive`,
+        scale: "heavy"
+      };
     }
+  }
+  return { scale: "moderate" };
+}
+
+function assessStructuralComplexity(text: string, domainCount: number, matched: TheoremSuggestion[]) {
+  const reasons: string[] = [];
+  const length = text.length;
+  const sentenceCount = text.split(SENTENCE_SPLIT_RE).filter(part => part.trim()).length;
+  const constraintCount = countMatches(text, CONSTRAINT_RE);
+  const multistepCount = countMatches(text, MULTISTEP_RE);
+
+  if (length > 500 || sentenceCount > 6) reasons.push(`long problem (length=${length}, sentences=${sentenceCount})`);
+  if (domainCount >= 3) reasons.push(`multi-domain (${domainCount} domains)`);
+  if (constraintCount >= 3) reasons.push(`many constraints (${constraintCount})`);
+  if (multistepCount >= 2) reasons.push(`multi-step (${multistepCount} steps)`);
+  if (requiresTheoryFirstConstruction(text, matched)) reasons.push("analysis theorem-first task");
+
+  return {
+    isComplex: reasons.length >= 2,
+    reasons,
+    domainCount,
+    constraintCount,
+    length
   };
+}
+
+function requiresTheoryFirstConstruction(text: string, matched: TheoremSuggestion[]): boolean {
+  const patterns = [/uniform/i, /compact/i, /dominat/i, /holomorphic/i, /contour/i, /asymptotic/i, /weak/i, /maximum principle/i, /barrier/i, /hessian/i, /variational/i];
+  const signalCount = patterns.filter(pattern => pattern.test(text)).length;
+  const hasAnalysisTheorem = matched.some(item => item.domains.some(domain => ANALYSIS_DOMAINS.has(domain)));
+  return signalCount >= 3 || (signalCount >= 2 && hasAnalysisTheorem);
 }
 
 function shouldPrioritizeAnalysisTheory(text: string, matched: TheoremSuggestion[]): boolean {
@@ -178,4 +205,12 @@ function appendUnique(target: string[], values: string[]): void {
     target.push(cleaned);
     seen.add(cleaned);
   }
+}
+
+function countMatches(text: string, regex: RegExp): number {
+  regex.lastIndex = 0;
+  let count = 0;
+  while (regex.exec(text)) count += 1;
+  regex.lastIndex = 0;
+  return count;
 }

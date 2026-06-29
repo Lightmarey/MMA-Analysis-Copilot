@@ -1,3 +1,6 @@
+import OpenAI from "openai";
+import { config } from "../config.js";
+
 export function extractJson<T = any>(text: string): T | null {
   try {
     // 1. Try to parse directly first
@@ -7,29 +10,25 @@ export function extractJson<T = any>(text: string): T | null {
     const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
     const match = text.match(jsonBlockRegex);
     let jsonStr = match ? match[1] : text;
-    
+
     // 3. Fallback: try to find the first '{' or '[' and the last '}' or ']'
     if (!match) {
       const startObj = text.indexOf('{');
       const startArr = text.indexOf('[');
       const endObj = text.lastIndexOf('}');
       const endArr = text.lastIndexOf(']');
-      
+
       let start = -1;
       let end = -1;
-      
+
       if (startObj !== -1 && startArr !== -1) {
         start = Math.min(startObj, startArr);
       } else {
         start = Math.max(startObj, startArr);
       }
-      
-      if (endObj !== -1 && endArr !== -1) {
-        end = Math.max(endObj, endArr);
-      } else {
-        end = Math.max(endObj, endArr);
-      }
-      
+
+      end = Math.max(endObj, endArr);
+
       if (start !== -1 && end !== -1 && end > start) {
         jsonStr = text.substring(start, end + 1);
       }
@@ -45,22 +44,19 @@ export function extractJson<T = any>(text: string): T | null {
       // Note: this might break actual newlines outside strings, but is a basic repair
       try {
         return JSON.parse(jsonStr) as T;
-      } catch (e) {
-        console.error("Failed to parse JSON even after repairs:", e);
+      } catch {
         return null;
       }
     }
   }
 }
 
-import OpenAI from "openai";
-import { config } from "../config.js";
-
 export async function llmCallText(
   client: OpenAI,
   model: string,
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  maxTokens = 2000
 ): Promise<string | null> {
   try {
     const response = await client.chat.completions.create({
@@ -70,7 +66,7 @@ export async function llmCallText(
         { role: "user", content: userPrompt }
       ],
       temperature: 0,
-      max_tokens: 4000
+      max_tokens: maxTokens
     });
     return response.choices[0]?.message?.content || null;
   } catch (e) {
@@ -83,7 +79,8 @@ export async function llmCallJson<T>(
   client: OpenAI,
   model: string,
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  maxTokens = 1200
 ): Promise<T | null> {
   try {
     const response = await client.chat.completions.create({
@@ -93,10 +90,10 @@ export async function llmCallJson<T>(
         { role: "user", content: userPrompt }
       ],
       temperature: 0,
-      max_tokens: 2000,
+      max_tokens: maxTokens,
       response_format: { type: "json_object" }
     });
-    
+
     const content = response.choices[0]?.message?.content;
     if (!content) return null;
     return extractJson<T>(content);
@@ -109,9 +106,9 @@ export async function llmCallJson<T>(
 export async function jsonifyWithWeakModel<T>(
   client: OpenAI,
   text: string,
-  jsonSchemaDescription: string
+  jsonSchemaDescription: string,
+  model = config.plannerModel || config.flashModel
 ): Promise<T | null> {
   const systemPrompt = `You are a data extraction utility. Your only job is to extract the relevant information from the user's text and output it STRICTLY as a valid JSON object. Do not output any markdown formatting, explanations, or text outside the JSON object.\n\nThe JSON must follow this structure:\n${jsonSchemaDescription}`;
-  return await llmCallJson<T>(client, config.flashModel, systemPrompt, text);
+  return await llmCallJson<T>(client, model, systemPrompt, text);
 }
-

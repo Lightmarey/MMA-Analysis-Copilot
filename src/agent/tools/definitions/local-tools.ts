@@ -53,5 +53,23 @@ export const localToolDefinitions: ToolDefinition[] = [
       description: "Wolfram replacement rules for boundary substitutions, e.g. {ux0 -> u0}, or empty string. Use camelCase/plain symbols, not underscores, because underscore is Wolfram pattern syntax."
     }
   }
-)
+),
+  defineTool(
+    "delegate_to_subagent",
+    "Delegate a narrow, self-contained mathematical subtask to a bounded subagent. Use only when the subtask can be answered compactly and its result will reduce the main context or tool loop.",
+    {
+      role: {
+        type: "string",
+        description: "Short role label for the subagent, e.g. lemma checker, local algebra verifier, or proof outline reviewer."
+      },
+      task: {
+        type: "string",
+        description: "The exact subtask to solve. Keep it narrow and include the expected output shape."
+      },
+      context: {
+        type: "string",
+        description: "Only the formulas, assumptions, and current proof state needed for this subtask. Do not pass full documents or traces."
+      }
+    }
+  )
 ];

@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { config } from "../../config.js";
-import { llmCallText, jsonifyWithWeakModel } from "../json-utils.js";
-import type { EstimatePatternSuggestion } from "../planning/types.js";
+import { llmCallJson } from "../json-utils.js";
+import type { EstimatePatternSuggestion, PlanningLlmOptions } from "../planning/types.js";
 
 type EstimatePatternEntry = {
   id: string;
@@ -11,6 +11,7 @@ type EstimatePatternEntry = {
   verificationTargets: string[];
   tools: string[];
   firstToolHint?: string;
+  signals: RegExp[];
 };
 
 const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
@@ -28,7 +29,8 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
       "residual powers of the scaling parameter",
       "homogeneity or balance condition equations"
     ],
-    tools: ["wolfram_simplify"]
+    tools: ["wolfram_simplify"],
+    signals: [/scale|scaling|rescal|homogene|power|rho|tau|lambda|dyadic/i, /\^[({]?\s*[a-z0-9+\-/*]+/i]
   },
   {
     id: "parameter_absorption",
@@ -42,7 +44,8 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
     verificationTargets: [
       "positivity of the absorption coefficient (1 - C * epsilon) > 0"
     ],
-    tools: ["verification_template:parameter_absorption_check", "wolfram_simplify"]
+    tools: ["verification_template:parameter_absorption_check", "wolfram_simplify"],
+    signals: [/absorb|absorption|epsilon|small parameter|left[- ]hand side/i, /C\s*\*\s*epsilon|1\s*-\s*C\s*\*\s*epsilon/i]
   },
   {
     id: "small_parameter_residual",
@@ -58,7 +61,8 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
       "limit or sign of the normalized residual",
       "analytic assumptions left outside Wolfram"
     ],
-    tools: ["wolfram_simplify", "wolfram_limit"]
+    tools: ["wolfram_simplify", "wolfram_limit"],
+    signals: [/residual|error term|small[- ]parameter|limit|normalized ratio/i]
   },
   {
     id: "flat_pohozaev_profile_algebra",
@@ -73,7 +77,8 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
       "A+B==1 with A==B gives A==B==1/2",
       "v(1), radial derivative, and flat Pohozaev coefficient"
     ],
-    tools: ["wolfram_simplify"]
+    tools: ["wolfram_simplify"],
+    signals: [/pohozaev|radial derivative|flat pohozaev|v\(r\)|integrand/i]
   },
   {
     id: "transition_rescaling_powers",
@@ -88,7 +93,8 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
       "rho power cancellation after tau and s are both rescaled",
       "remaining rho factor bounded by 2*c0"
     ],
-    tools: ["wolfram_simplify"]
+    tools: ["wolfram_simplify"],
+    signals: [/transition|dyadic|rho|tau_y|s_y|tauy|sy|rescaling/i]
   },
   {
     id: "appendix_lower_bound_scaling",
@@ -105,7 +111,8 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
       "outer radius scaling cancellation",
       "coercivity threshold r <= Sqrt[cn/(2*CR*CP)]"
     ],
-    tools: ["wolfram_simplify"]
+    tools: ["wolfram_simplify"],
+    signals: [/appendix|lower bound|coerciv|outer radius|lax-milgram|harnack|hopf/i, /u\s*>=|v\s*=\s*M\^-?1/i]
   },
   {
     id: "kelvin_base_comparison",
@@ -123,37 +130,27 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
       "baseV/baseK minus one sign numerator",
       "lambda < a, lambda == a, lambda > a sign cases"
     ],
-    tools: ["wolfram_simplify"]
+    tools: ["wolfram_simplify"],
+    signals: [/kelvin|baseV|baseK|moving spheres|lambda\s*[<=>]\s*a|r2\s*>\s*lambda/i]
   }
 ];
 
-export async function matchEstimatePatterns(client: OpenAI, text: string): Promise<EstimatePatternSuggestion[]> {
-  const librarySummary = ESTIMATE_PATTERNS.map(p => `- **${p.name}** (ID: ${p.id}): ${p.why}`).join("\n");
+export async function matchEstimatePatterns(client: OpenAI | null, text: string, options: PlanningLlmOptions = {}): Promise<EstimatePatternSuggestion[]> {
+  const fallback = matchEstimatePatternsDeterministic(text);
+  if (!client || options.useLlm === false) return fallback;
+
+  const librarySummary = ESTIMATE_PATTERNS.map(p => `- ${p.name} (ID: ${p.id}): ${p.why}`).join("\n");
 
   const systemPrompt = `You are an expert at identifying estimation and bounding patterns in mathematical proofs.
 Given the user's problem description or text snippet, identify up to 4 estimation patterns from the following list that are likely to be useful for the analysis.
-Explain why you selected them.
+Return only JSON with a "matches" array. If none apply, return {"matches":[]}.
 
 Patterns:
 ${librarySummary}`;
 
-  const reasoning = await llmCallText(client, config.proModel, systemPrompt, text);
-  if (!reasoning) {
-    return [];
-  }
-
-  const schema = `{
-  "matches": [
-    {
-      "patternId": "string (must exactly match the id from the list)",
-      "score": "number (1 to 5, where 5 is highly confident)"
-    }
-  ]
-}`;
-
-  const extracted = await jsonifyWithWeakModel<{
+  const extracted = await llmCallJson<{
     matches?: { patternId: string; score: number }[]
-  }>(client, reasoning, schema);
+  }>(client, options.model || config.plannerModel || config.flashModel, systemPrompt, text, 700);
 
   const suggestions: EstimatePatternSuggestion[] = [];
   if (extracted && extracted.matches) {
@@ -174,5 +171,30 @@ ${librarySummary}`;
     }
   }
 
-  return suggestions.sort((a, b) => b.score - a.score);
+  return suggestions.length
+    ? suggestions.sort((a, b) => b.score - a.score).slice(0, 4)
+    : fallback;
+}
+
+function matchEstimatePatternsDeterministic(text: string): EstimatePatternSuggestion[] {
+  const suggestions: EstimatePatternSuggestion[] = [];
+  for (const entry of ESTIMATE_PATTERNS) {
+    const hits = entry.signals.filter(signal => signal.test(text)).length;
+    if (!hits) continue;
+    suggestions.push(toSuggestion(entry, Math.min(5, 2 + hits)));
+  }
+  return suggestions.sort((a, b) => b.score - a.score).slice(0, 4);
+}
+
+function toSuggestion(entry: EstimatePatternEntry, score: number): EstimatePatternSuggestion {
+  return {
+    id: entry.id,
+    name: entry.name,
+    why: entry.why,
+    mayUse: entry.mayUse,
+    verificationTargets: entry.verificationTargets,
+    tools: entry.tools,
+    firstToolHint: entry.firstToolHint ?? "",
+    score
+  };
 }

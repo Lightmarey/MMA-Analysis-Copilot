@@ -1,22 +1,12 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import OpenAI from "openai";
-import { config } from "../src/config.js";
 import { analyzeProblem, buildPreplanContext, classifyDifficulty, createPreplan, decomposeProblem, loadTheorems } from "../src/agent/planning.js";
 
-if (!config.openaiApiKey) {
-  console.log("Skipping planning tests (OpenAI API key not set)");
-  process.exit(0);
-}
-
-const client = new OpenAI({
-  apiKey: config.openaiApiKey,
-  baseURL: config.openaiBaseUrl
-});
+const offlinePlanning = { useLlm: false };
 
 const dctProblem = "Show that the limit may pass under the integral because f_n converges pointwise and is dominated by Exp[-x] on [0, Infinity).";
-const dctAnalysis = await analyzeProblem(client, dctProblem);
+const dctAnalysis = await analyzeProblem(null, dctProblem, "", offlinePlanning);
 assert.ok(dctAnalysis.suggestedTheorems.some(item => item.theorem === "Dominated convergence theorem" || item.theorem === "Monotone convergence theorem"));
 assert.equal(dctAnalysis.workflow.theoryFirst, true);
 assert.equal(classifyDifficulty(dctProblem, dctAnalysis), "complex");
@@ -24,7 +14,7 @@ assert.ok(dctAnalysis.suggestedInvariants.some(item => /dominat/i.test(item) || 
 assert.ok(dctAnalysis.verificationChecks.some(item => /integrab/i.test(item) || /bound/i.test(item)));
 
 const residueProblem = "Evaluate a contour integral by finding the residues of 1/(z^2 + 1) at its poles.";
-const residueAnalysis = await analyzeProblem(client, residueProblem);
+const residueAnalysis = await analyzeProblem(null, residueProblem, "", offlinePlanning);
 const residuePlan = createPreplan(residueProblem, residueAnalysis);
 assert.ok(residueAnalysis.suggestedTheorems.some(item => item.theorem === "Residue theorem"));
 
@@ -32,57 +22,46 @@ assert.match(buildPreplanContext(residueAnalysis, residuePlan), /workflow_hint: 
 assert.match(buildPreplanContext(residueAnalysis, residuePlan), /local_tool_hints: .*wolfram_residue/);
 
 const negativePartProblem = "Yamabe equation test example: v = v^+ - v^-, and checking negative part parameter absorption C * epsilon * norm(u) into the left hand side";
-const negativePartAnalysis = await analyzeProblem(client, negativePartProblem);
-const negativePartPlan = createPreplan(negativePartProblem, negativePartAnalysis);
-const negativePartContext = buildPreplanContext(negativePartAnalysis, negativePartPlan);
-// The LLM may not always perfectly extract exactly the exact IDs from estimates, but it should find parameter absorption
+const negativePartAnalysis = await analyzeProblem(null, negativePartProblem, "", offlinePlanning);
 assert.ok(negativePartAnalysis.estimatePatterns.length > 0);
 
 const pohozaevProfileProblem = "Yamabe Pohozaev local algebra: v(r)=A*r^(2-n)+B, D[r^alpha*v(r), r] at r=1, radial derivative v(1), and flat Pohozaev integrand.";
-const pohozaevProfileAnalysis = await analyzeProblem(client, pohozaevProfileProblem);
-const pohozaevProfilePlan = createPreplan(pohozaevProfileProblem, pohozaevProfileAnalysis);
-const pohozaevProfileContext = buildPreplanContext(pohozaevProfileAnalysis, pohozaevProfilePlan);
+const pohozaevProfileAnalysis = await analyzeProblem(null, pohozaevProfileProblem, "", offlinePlanning);
 assert.ok(pohozaevProfileAnalysis.estimatePatterns.length > 0);
 
 const transitionRescaleProblem = "Transition barrier dyadic rescaling: rho^(n/2+1)*(tau_y*s_y^(-n/2-1)) with tau_y -> rho*tau_hat, s_y -> rho*s_hat and rho <= 2 c0 a.";
-const transitionRescaleAnalysis = await analyzeProblem(client, transitionRescaleProblem);
-const transitionRescalePlan = createPreplan(transitionRescaleProblem, transitionRescaleAnalysis);
-const transitionRescaleContext = buildPreplanContext(transitionRescaleAnalysis, transitionRescalePlan);
+const transitionRescaleAnalysis = await analyzeProblem(null, transitionRescaleProblem, "", offlinePlanning);
 assert.ok(transitionRescaleAnalysis.estimatePatterns.length > 0);
 
 const appendixLowerProblem = "Yamabe appendix lower bound: u>=Lambda, v=M^-1*u, outer radius M^(-2/(n-2))*Y with Y <= delta/2*M^(2/(n-2)), and coercivity cn - CR*CP*r^2 >= cn/2.";
-const appendixLowerAnalysis = await analyzeProblem(client, appendixLowerProblem);
-const appendixLowerPlan = createPreplan(appendixLowerProblem, appendixLowerAnalysis);
-const appendixLowerContext = buildPreplanContext(appendixLowerAnalysis, appendixLowerPlan);
+const appendixLowerAnalysis = await analyzeProblem(null, appendixLowerProblem, "", offlinePlanning);
 assert.ok(appendixLowerAnalysis.estimatePatterns.length > 0);
 
 const kelvinBaseProblem = "Yamabe Kelvin baseV=a^2/(r2+2*a*yn+a^2), baseK=a^2*lambda^2/(lambda^4+a^2*r2+2*a*lambda^2*yn), with r2>lambda^2. Compare baseV/baseK - 1 and cases lambda<a, lambda=a, lambda>a.";
-const kelvinBaseAnalysis = await analyzeProblem(client, kelvinBaseProblem);
-const kelvinBasePlan = createPreplan(kelvinBaseProblem, kelvinBaseAnalysis);
-const kelvinBaseContext = buildPreplanContext(kelvinBaseAnalysis, kelvinBasePlan);
+const kelvinBaseAnalysis = await analyzeProblem(null, kelvinBaseProblem, "", offlinePlanning);
 assert.ok(kelvinBaseAnalysis.estimatePatterns.length > 0);
 
 const equivalenceProblem = "Verify that the before/after expressions are equivalent: lhs and rhs should be the same under the stated assumptions.";
-const equivalenceAnalysis = await analyzeProblem(client, equivalenceProblem);
+const equivalenceAnalysis = await analyzeProblem(null, equivalenceProblem, "", offlinePlanning);
 const equivalencePlan = createPreplan(equivalenceProblem, equivalenceAnalysis);
 
 const coefficientProblem = "Check the Laurent series coefficient and residual order for an explicit local expansion.";
-const coefficientAnalysis = await analyzeProblem(client, coefficientProblem);
+const coefficientAnalysis = await analyzeProblem(null, coefficientProblem, "", offlinePlanning);
 const coefficientPlan = createPreplan(coefficientProblem, coefficientAnalysis);
 
 const variationalProblem = "Check the first variation and Euler-Lagrange equation for a constrained nonlinear functional on a Nehari manifold.";
-const variationalAnalysis = await analyzeProblem(client, variationalProblem);
+const variationalAnalysis = await analyzeProblem(null, variationalProblem, "", offlinePlanning);
 const variationalPlan = createPreplan(variationalProblem, variationalAnalysis);
 assert.equal(classifyDifficulty(variationalProblem, variationalAnalysis), "complex");
 assert.ok(variationalAnalysis.suggestedTheorems.some(item => item.theorem.includes("Direct method") || item.theorem.includes("Mountain pass") || item.theorem.includes("Nehari")));
 
 const barrierProblem = "Construct a barrier auxiliary function and verify the maximum principle residual for upper and lower solutions.";
-const barrierAnalysis = await analyzeProblem(client, barrierProblem);
+const barrierAnalysis = await analyzeProblem(null, barrierProblem, "", offlinePlanning);
 const barrierPlan = createPreplan(barrierProblem, barrierAnalysis);
 assert.equal(classifyDifficulty(barrierProblem, barrierAnalysis), "complex");
 
 const hessianProblem = "Compute Hessian quotient matrix principal minors and Maclaurin inequality side conditions.";
-const hessianAnalysis = await analyzeProblem(client, hessianProblem);
+const hessianAnalysis = await analyzeProblem(null, hessianProblem, "", offlinePlanning);
 const hessianPlan = createPreplan(hessianProblem, hessianAnalysis);
 assert.equal(classifyDifficulty(hessianProblem, hessianAnalysis), "complex");
 
@@ -91,7 +70,7 @@ const longProblem = (
   "Assume |f_n(x)| is dominated by g(x) and g is integrable, then compute the limit of the integrals. " +
   "Furthermore, define a related contour integral with poles at I and -I, and determine the residue contribution."
 ).repeat(3);
-const longAnalysis = await analyzeProblem(client, longProblem);
+const longAnalysis = await analyzeProblem(null, longProblem, "", offlinePlanning);
 const decomposition = decomposeProblem(longProblem, longAnalysis);
 assert.ok(decomposition);
 assert.ok(decomposition.subproblems.length >= 3);
@@ -125,7 +104,7 @@ try {
 
   process.env.WOLFRAM_THEOREM_EXTERNAL_PATH = externalPath;
   process.env.WOLFRAM_THEOREM_SOURCE = "merge";
-  const merged = await analyzeProblem(client, "please use the special marker");
+  const merged = await analyzeProblem(null, "please use the special marker", "", offlinePlanning);
   assert.ok(merged.suggestedTheorems.some(item => item.theorem === "External marker theorem"));
   assert.ok(merged.suggestedInvariants.includes("external invariant"));
   assert.ok(merged.verificationChecks.includes("external verification"));

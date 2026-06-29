@@ -4,13 +4,7 @@ import path from "node:path";
 import { analyzeProblem, createPreplan, loadTheorems } from "../src/agent/planning.js";
 import { createTheoremDraft, lintTheoremFiles } from "../src/theorems/schema.js";
 
-import OpenAI from "openai";
-import { config } from "../src/config.js";
-
-const client = new OpenAI({
-  apiKey: config.openaiApiKey || "test-key",
-  baseURL: config.openaiBaseUrl || "http://127.0.0.1:11434/v1"
-});
+const offlinePlanning = { useLlm: false };
 
 const theoremIds = new Set(loadTheorems().map(theorem => theorem.id));
 assert.ok(theoremIds.has("elliptic_maximum_principle"));
@@ -20,7 +14,7 @@ assert.equal(theoremIds.has("holder_inequality"), false);
 assert.equal(theoremIds.has("cauchy_schwarz_inequality"), false);
 
 const pdeProblem = "Use the maximum principle for a uniformly elliptic equation to bound the solution by boundary values.";
-const pdeAnalysis = await analyzeProblem(client, pdeProblem);
+const pdeAnalysis = await analyzeProblem(null, pdeProblem, "", offlinePlanning);
 assert.ok(pdeAnalysis.suggestedTheorems.some(item => item.theorem === "Elliptic maximum principle"));
 assert.ok(pdeAnalysis.detectedDomains.includes("elliptic_pde"));
 const pdePlan = createPreplan(pdeProblem, pdeAnalysis);
@@ -30,19 +24,19 @@ assert.ok(pdePlan.recommendedTools.includes("wolfram_differentiate"));
 assert.ok(pdePlan.recommendedTools.includes("wolfram_simplify"));
 
 const inequalityProblem = "Apply Young inequality with epsilon to absorb the product term in an energy estimate.";
-const inequalityAnalysis = await analyzeProblem(client, inequalityProblem);
+const inequalityAnalysis = await analyzeProblem(null, inequalityProblem, "", offlinePlanning);
 const inequalityPlan = createPreplan(inequalityProblem, inequalityAnalysis);
 
 
 const holderProblem = "Check Holder inequality with conjugate exponents p=2 and q=2.";
-const holderAnalysis = await analyzeProblem(client, holderProblem);
+const holderAnalysis = await analyzeProblem(null, holderProblem, "", offlinePlanning);
 const holderPlan = createPreplan(holderProblem, holderAnalysis);
 
 
-const movingSpheresAnalysis = await analyzeProblem(client, "Use a Kelvin transform in the moving spheres method and verify the inversion power.");
+const movingSpheresAnalysis = await analyzeProblem(null, "Use a Kelvin transform in the moving spheres method and verify the inversion power.", "", offlinePlanning);
 assert.ok(movingSpheresAnalysis.suggestedTheorems.some(item => item.theorem.includes("Moving spheres")));
 
-const matrixAnalysis = await analyzeProblem(client, "Check Hessian quotient principal minors and Newton-Maclaurin matrix identities.");
+const matrixAnalysis = await analyzeProblem(null, "Check Hessian quotient principal minors and Newton-Maclaurin matrix identities.", "", offlinePlanning);
 assert.ok(matrixAnalysis.suggestedTheorems.some(item => item.theorem.includes("Hessian quotient")));
 
 const draft = createTheoremDraft({

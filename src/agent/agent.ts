@@ -24,6 +24,22 @@ export type AgentCallbacks = {
   onOutputDelta?: (text: string) => void;
 };
 
+type MathAgentOptions = {
+  isSubagent?: boolean;
+};
+
+const defaultActiveToolNames: AgentToolName[] = [
+  "theorem_advisor",
+  "verification_template",
+  "wolfram_eval",
+  "wolfram_simplify",
+  "load_tool",
+  "wolfram_equivalence_check",
+  "formula_transform",
+  "wolfram_solve",
+  "delegate_to_subagent"
+];
+
 export class MathAgent {
   private readonly client: OpenAI;
   private readonly systemPrompt = buildAgentSystemPrompt();
@@ -31,9 +47,10 @@ export class MathAgent {
     { role: "system", content: this.systemPrompt }
   ];
   private forcedModel: string | null = null;
-    private activeToolNames = new Set<string>(["theorem_advisor", "verification_template", "wolfram_eval", "wolfram_simplify", "load_tool", "wolfram_equivalence_check", "formula_transform", "wolfram_solve"]);
+  private readonly activeToolNames = new Set<AgentToolName>(defaultActiveToolNames);
+  private readonly blockedToolNames = new Set<AgentToolName>();
 
-  constructor(private readonly wolfram = new WolframBackend()) {
+  constructor(private readonly wolfram = new WolframBackend(), private readonly options: MathAgentOptions = {}) {
     if (!config.openaiApiKey) {
       throw new Error("openai.apiKey is required for agent mode. Set it in ignored wma.config.json or as a temporary OPENAI_API_KEY override.");
     }
@@ -41,6 +58,10 @@ export class MathAgent {
       apiKey: config.openaiApiKey,
       baseURL: config.openaiBaseUrl
     });
+    if (this.options.isSubagent) {
+      this.activeToolNames.delete("delegate_to_subagent");
+      this.blockedToolNames.add("delegate_to_subagent");
+    }
   }
 
   reset(): void {
@@ -59,7 +80,7 @@ export class MathAgent {
     const modelRoute = await getModelRoute(this.client);
     const plannerModelToUse = config.plannerModel || modelRoute.flashModel;
     const llmPlan = await createLlmExecutionPlan(this.client, userMessage, plannerModelToUse);
-    const analysis = await analyzeProblem(this.client, userMessage);
+    const analysis = await analyzeProblem(this.client, userMessage, "", { model: plannerModelToUse });
     const preplan = createPreplan(userMessage, analysis);
     const decomposition = decomposeProblem(userMessage, analysis);
     const localDifficulty = classifyDifficulty(userMessage, analysis);
@@ -105,7 +126,8 @@ export class MathAgent {
       pushHookPrompt(this.messages, afterPlanHooks);
     }
 
-    for (let iteration = 0; iteration < config.maxIterations; iteration += 1) {
+    const iterationLimit = this.options.isSubagent ? Math.min(config.maxIterations, 3) : config.maxIterations;
+    for (let iteration = 0; iteration < iterationLimit; iteration += 1) {
       const abortController = new AbortController();
       const stream = await this.client.chat.completions.create({
         model: effectiveModel,
@@ -217,7 +239,7 @@ export class MathAgent {
       }
     }
 
-    return `${collected.join("\n\n").trim()}\n\n> Reached max tool iterations (${config.maxIterations}).`;
+    return `${collected.join("\n\n").trim()}\n\n> Reached max tool iterations (${iterationLimit}).`;
   }
 
   close(): void {
@@ -225,36 +247,73 @@ export class MathAgent {
   }
 
   private async callTool(name: AgentToolName, args: Record<string, unknown>) {
-    if (name === "load_tool") {
-      const toolNames = Array.isArray(args.tool_names) ? args.tool_names : [];
-      const loaded: string[] = [];
-      for (const t of toolNames) {
-        if (typeof t === "string") {
-          this.activeToolNames.add(t);
-          loaded.push(t);
-        }
-      }
-      return { id: null, ok: true, title: "load_tool", result: "Loaded tools: " + loaded.join(", ") };
-    }
-    if ((name as string) === "load_tool") {
-      const raw = typeof args.tool_names === "string" ? args.tool_names : "";
-      const toolNames = raw.split(",").map(s => s.trim()).filter(Boolean);
-      const loaded = [];
-      for (const t of toolNames) {
-        if (typeof t === "string") {
-          this.activeToolNames.add(t);
-          loaded.push(t);
-        }
-      }
-      return { id: null, ok: true, title: "load_tool", result: "Loaded tools: " + loaded.join(", ") };
-    }
     if (isWolframToolName(name)) {
       return await this.wolfram.call(name, args);
     }
     if (name === "verification_template") {
       return await runVerificationTemplate(this.wolfram, args);
     }
-    return await runLocalTool(this.client, name as LocalToolName, args);
+    return await runLocalTool(this.client, name as LocalToolName, args, {
+      activeToolNames: this.activeToolNames,
+      blockedToolNames: this.blockedToolNames,
+      delegateToSubagent: args => this.delegateToSubagent(args)
+    });
+  }
+
+  private async delegateToSubagent(args: Record<string, unknown>): Promise<WolframResponse> {
+    if (this.options.isSubagent) {
+      return {
+        id: null,
+        ok: false,
+        title: "delegate_to_subagent",
+        error: "Recursive subagent delegation is disabled"
+      };
+    }
+
+    const role = typeof args.role === "string" && args.role.trim() ? args.role.trim() : "subagent";
+    const task = typeof args.task === "string" ? args.task.trim() : "";
+    const context = typeof args.context === "string" ? args.context.trim() : "";
+    if (!task) {
+      return {
+        id: null,
+        ok: false,
+        title: "delegate_to_subagent",
+        error: "Missing required subagent task"
+      };
+    }
+
+    const subagent = new MathAgent(new WolframBackend(), { isSubagent: true });
+    const subPrompt = [
+      `Role: ${role}.`,
+      "Solve only the delegated subtask. Keep the answer compact.",
+      "Use at most three tool-calling iterations. Do not delegate further.",
+      "Return: result, checked evidence, and remaining assumptions.",
+      "",
+      "Task:",
+      task,
+      "",
+      "Context:",
+      context || "None"
+    ].join("\n");
+
+    try {
+      const result = await subagent.chat(subPrompt);
+      return {
+        id: null,
+        ok: true,
+        title: "delegate_to_subagent",
+        output: result.length > 4000 ? `${result.slice(0, 4000)}\n\n[truncated subagent result]` : result
+      };
+    } catch (error) {
+      return {
+        id: null,
+        ok: false,
+        title: "delegate_to_subagent",
+        error: error instanceof Error ? error.message : String(error)
+      };
+    } finally {
+      subagent.close();
+    }
   }
 }
 
