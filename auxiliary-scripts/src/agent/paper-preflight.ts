@@ -29,16 +29,16 @@ Available Methods and their required targets:
 `;
 
 const SYMBOLIC_TOOLS_MAP: Record<string, string[]> = {
-  "blowup_analysis": ["theorem_advisor", "verification_template:candidate_solution_check", "wolfram_simplify"],
-  "harnack_gradient": ["theorem_advisor", "wolfram_simplify"],
-  "pohozaev_identity": ["theorem_advisor", "verification_template:first_variation_derivative", "wolfram_simplify", "wolfram_integrate"],
-  "variational_functional": ["verification_template:first_variation_derivative", "wolfram_differentiate", "wolfram_simplify"],
-  "barrier_construction": ["verification_template:barrier_operator_check", "wolfram_differentiate", "wolfram_simplify"],
-  "moving_spheres": ["verification_template:kelvin_power_check", "wolfram_simplify", "wolfram_differentiate"],
-  "ode_reduction": ["verification_template:ode_residual_check", "verification_template:radial_laplacian_check", "wolfram_dsolve"],
-  "hessian_matrix": ["verification_template:hessian_matrix_invariants", "wolfram_matrix", "wolfram_simplify"],
-  "manifold_integral": ["wolfram_integrate", "wolfram_simplify", "wolfram_transform"],
-  "inequality_estimate": ["inequality_engine", "wolfram_simplify", "verification_template:parameter_absorption_check"]
+  "blowup_analysis": ["theorem_advisor", "verification_template:candidate_solution_check", "wolfram_simplify", "formula_transform"],
+  "harnack_gradient": ["theorem_advisor", "wolfram_simplify", "formula_transform"],
+  "pohozaev_identity": ["theorem_advisor", "verification_template:first_variation_derivative", "wolfram_simplify", "wolfram_integrate", "formula_transform"],
+  "variational_functional": ["verification_template:first_variation_derivative", "wolfram_differentiate", "wolfram_simplify", "formula_transform"],
+  "barrier_construction": ["verification_template:barrier_operator_check", "wolfram_differentiate", "wolfram_simplify", "formula_transform"],
+  "moving_spheres": ["verification_template:kelvin_power_check", "wolfram_simplify", "wolfram_differentiate", "formula_transform"],
+  "ode_reduction": ["verification_template:ode_residual_check", "verification_template:radial_laplacian_check", "wolfram_dsolve", "formula_transform"],
+  "hessian_matrix": ["verification_template:hessian_matrix_invariants", "wolfram_matrix", "wolfram_simplify", "formula_transform"],
+  "manifold_integral": ["wolfram_integrate", "wolfram_simplify", "wolfram_transform", "formula_transform"],
+  "inequality_estimate": ["inequality_engine", "wolfram_simplify", "verification_template:parameter_absorption_check", "formula_transform"]
 };
 
 export async function analyzePaperPreflight(client: OpenAI, text: string): Promise<PaperPreflight> {
