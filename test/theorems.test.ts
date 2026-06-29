@@ -4,6 +4,14 @@ import path from "node:path";
 import { analyzeProblem, createPreplan, loadTheorems } from "../src/agent/planning.js";
 import { createTheoremDraft, lintTheoremFiles } from "../src/theorems/schema.js";
 
+import OpenAI from "openai";
+import { config } from "../src/config.js";
+
+const client = new OpenAI({
+  apiKey: config.openaiApiKey || "test-key",
+  baseURL: config.openaiBaseUrl || "http://127.0.0.1:11434/v1"
+});
+
 const theoremIds = new Set(loadTheorems().map(theorem => theorem.id));
 assert.ok(theoremIds.has("elliptic_maximum_principle"));
 assert.ok(theoremIds.has("sobolev_poincare_inequality"));
@@ -12,7 +20,7 @@ assert.equal(theoremIds.has("holder_inequality"), false);
 assert.equal(theoremIds.has("cauchy_schwarz_inequality"), false);
 
 const pdeProblem = "Use the maximum principle for a uniformly elliptic equation to bound the solution by boundary values.";
-const pdeAnalysis = analyzeProblem(pdeProblem);
+const pdeAnalysis = await analyzeProblem(client, pdeProblem);
 assert.ok(pdeAnalysis.suggestedTheorems.some(item => item.theorem === "Elliptic maximum principle"));
 assert.ok(pdeAnalysis.detectedDomains.includes("elliptic_pde"));
 const pdePlan = createPreplan(pdeProblem, pdeAnalysis);
@@ -22,19 +30,19 @@ assert.ok(pdePlan.recommendedTools.includes("wolfram_differentiate"));
 assert.ok(pdePlan.recommendedTools.includes("wolfram_simplify"));
 
 const inequalityProblem = "Apply Young inequality with epsilon to absorb the product term in an energy estimate.";
-const inequalityAnalysis = analyzeProblem(inequalityProblem);
+const inequalityAnalysis = await analyzeProblem(client, inequalityProblem);
 const inequalityPlan = createPreplan(inequalityProblem, inequalityAnalysis);
 
 
 const holderProblem = "Check Holder inequality with conjugate exponents p=2 and q=2.";
-const holderAnalysis = analyzeProblem(holderProblem);
+const holderAnalysis = await analyzeProblem(client, holderProblem);
 const holderPlan = createPreplan(holderProblem, holderAnalysis);
 
 
-const movingSpheresAnalysis = analyzeProblem("Use a Kelvin transform in the moving spheres method and verify the inversion power.");
+const movingSpheresAnalysis = await analyzeProblem(client, "Use a Kelvin transform in the moving spheres method and verify the inversion power.");
 assert.ok(movingSpheresAnalysis.suggestedTheorems.some(item => item.theorem.includes("Moving spheres")));
 
-const matrixAnalysis = analyzeProblem("Check Hessian quotient principal minors and Newton-Maclaurin matrix identities.");
+const matrixAnalysis = await analyzeProblem(client, "Check Hessian quotient principal minors and Newton-Maclaurin matrix identities.");
 assert.ok(matrixAnalysis.suggestedTheorems.some(item => item.theorem.includes("Hessian quotient")));
 
 const draft = createTheoremDraft({

@@ -6,7 +6,7 @@ import type { TheoremEntry, TheoremSuggestion } from "./types.js";
 
 export async function matchTheorems(client: OpenAI, text: string): Promise<TheoremSuggestion[]> {
   const library = loadTheorems();
-  const librarySummary = library.map(t => `- ${t.name}: ${t.keywords.join(", ")}\n  Reduces: ${t.reduces}`).join("\n");
+  const librarySummary = library.map(t => `- **${t.name}**. Keywords: ${t.keywords.join(", ")}\n  Reduces: ${t.reduces}`).join("\n");
 
   const systemPrompt = `You are a mathematical theorem recommender. 
 Given the user's problem description, select the most relevant theorems from the following library that could help solve or simplify the problem.
@@ -39,7 +39,7 @@ ${librarySummary}
   const matchedSuggestions: TheoremSuggestion[] = [];
   if (extracted && extracted.matches) {
     for (const match of extracted.matches) {
-      const entry = library.find(t => t.name === match.theoremName);
+      const entry = library.find(t => t.name.toLowerCase() === match.theoremName.toLowerCase());
       if (entry) {
         matchedSuggestions.push({
           theorem: entry.name,

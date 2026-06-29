@@ -128,7 +128,7 @@ const ESTIMATE_PATTERNS: EstimatePatternEntry[] = [
 ];
 
 export async function matchEstimatePatterns(client: OpenAI, text: string): Promise<EstimatePatternSuggestion[]> {
-  const librarySummary = ESTIMATE_PATTERNS.map(p => `- ${p.name} (${p.id}): ${p.why}`).join("\n");
+  const librarySummary = ESTIMATE_PATTERNS.map(p => `- **${p.name}** (ID: ${p.id}): ${p.why}`).join("\n");
 
   const systemPrompt = `You are an expert at identifying estimation and bounding patterns in mathematical proofs.
 Given the user's problem description or text snippet, identify up to 4 estimation patterns from the following list that are likely to be useful for the analysis.
