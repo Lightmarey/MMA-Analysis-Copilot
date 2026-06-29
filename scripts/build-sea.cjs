@@ -5,6 +5,7 @@ const path = require('path');
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'dist');
 const releaseDir = path.join(distDir, 'release');
+const runtimeDir = path.join(rootDir, 'src', 'wolfram', 'runtime');
 const platform = process.platform;
 const nodeExeName = platform === 'win32' ? 'node.exe' : 'node';
 const outputName = platform === 'win32' ? 'math-copilot.exe' : 'math-copilot';
@@ -29,7 +30,7 @@ fs.rmSync(releaseDir, { recursive: true, force: true });
 fs.mkdirSync(path.join(releaseDir, 'wolfram'), { recursive: true });
 fs.copyFileSync(outputPath, releaseOutputPath);
 for (const file of ['protocol.wl', 'worker.wls']) {
-  fs.copyFileSync(path.join(rootDir, 'wolfram', file), path.join(releaseDir, 'wolfram', file));
+  fs.copyFileSync(path.join(runtimeDir, file), path.join(releaseDir, 'wolfram', file));
 }
 fs.writeFileSync(path.join(releaseDir, 'wma.config.example.json'), `${JSON.stringify({
   wolfram: {

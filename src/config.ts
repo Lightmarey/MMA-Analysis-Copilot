@@ -7,6 +7,7 @@ dotenv.config({ quiet: true });
 
 const isSEA = (process as any).isCompiled || process.env.NODE_SEA === "true";
 const appDir = isSEA ? path.dirname(process.execPath) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const wolframRuntimeDir = isSEA ? path.join(appDir, "wolfram") : path.join(appDir, "src", "wolfram", "runtime");
 const configPath = process.env.WMA_CONFIG_PATH || (fs.existsSync(path.join(process.cwd(), "wma.config.json")) 
   ? path.join(process.cwd(), "wma.config.json") 
   : path.join(appDir, "wma.config.json"));
@@ -143,8 +144,8 @@ export const config = {
   configPath,
   configFileLoaded: fs.existsSync(configPath),
   configDiagnostics: configRead.diagnostics,
-  wolframWorkerPath: path.resolve(appDir, "wolfram", "worker.wls"),
-  wolframProtocolPath: path.resolve(appDir, "wolfram", "protocol.wl"),
+  wolframWorkerPath: path.join(wolframRuntimeDir, "worker.wls"),
+  wolframProtocolPath: path.join(wolframRuntimeDir, "protocol.wl"),
   formulaTransformEnginePath: path.resolve(
     process.env.FORMULA_TRANSFORM_ENGINE_PACLET_DIR?.trim() ||
       process.env.WMA_FORMULA_TRANSFORM_ENGINE_PATH?.trim() ||

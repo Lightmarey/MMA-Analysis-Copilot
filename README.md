@@ -89,7 +89,7 @@ Each tool returns both a value and its LaTeX representation, plus any `Condition
 
 ### Formula Transform Engine
 
-A Wolfram package (`wolfram/FormulaTransformEngine.wl`) that powers the public `formula_transform` tool:
+A sibling Wolfram paclet (`../FormulaTransformEngine` by default) powers the public `formula_transform` tool. Override the path with `FORMULA_TRANSFORM_ENGINE_PACLET_DIR`, `WMA_FORMULA_TRANSFORM_ENGINE_PATH`, or `wolfram.formulaTransformEnginePath` in `wma.config.json`.
 
 The remaining full-version work is tracked in [`FORMULA_TRANSFORM_TASKS.md`](FORMULA_TRANSFORM_TASKS.md).
 
@@ -101,7 +101,7 @@ The remaining full-version work is tracked in [`FORMULA_TRANSFORM_TASKS.md`](FOR
 - registry kinds: `CanonicalFormulaTransform`, `HeuristicRewrite`, `EstimateSeed`, `StructuralTransform`, `TargetPlanner`, `ObligationDischarger`
 - directions: `Upper`, `Lower`, `TwoSided`, `Equal`, `Auto`
 
-Rule, heuristic, estimate seed, and obligation discharger files live under `wolfram/FormulaTransformEngine/Registry/`. The compiler accepts only the restricted JSON DSL and a whitelist of primitives such as `Integral`, `Sum`, `Product`, `Abs`, `Power`, `NormIntegral`, `FunctionSpace`, `RealValued`, `Nonnegative`, and `YoungConstant`.
+Rule, heuristic, estimate seed, and obligation discharger files live under the paclet's `Registry/` directory. The compiler accepts only the restricted JSON DSL and a whitelist of primitives such as `Integral`, `Sum`, `Product`, `Abs`, `Power`, `NormIntegral`, `FunctionSpace`, `RealValued`, `Nonnegative`, and `YoungConstant`.
 
 Rules use `runtime: "GenericTemplate"` when their matcher, derived bindings, orientations, and conditions are expressible in the JSON DSL. `Young`, `Holder`, `CauchySchwarz`, and `IntegrationByParts` use this path: Wolfram matches slots, evaluates JSON `derivedBindings`, selects the requested orientation, builds the relation, and compiles JSON conditions into the assumptions/obligations ledger.
 
@@ -245,11 +245,12 @@ npm run test:wolfram # Wolfram integration tests
 src/
   cli/          – REPL, batch processing, reports, CLI overrides
   agent/        – main loop, prompts, planning, routing, tools
-  wolfram/      – Wolfram backend wrapper & types
+  wolfram/      – Wolfram backend wrapper, types, and runtime assets
+    runtime/    – protocol.wl and worker.wls used by source/dev runs
   theorems/     – theorem schema, generator, linter
-wolfram/
-  protocol.wl   – Wolfram request dispatcher
-  FormulaTransformEngine/ – JSON registry for deterministic formula transforms
+../FormulaTransformEngine/
+  PacletInfo.wl
+  Registry/     – JSON registry for deterministic formula transforms
 theorems/       – JSON theorem guidance
 test/           – TypeScript & Wolfram regression tests
 ```
@@ -258,5 +259,5 @@ test/           – TypeScript & Wolfram regression tests
 
 1. Add the tool schema to `src/agent/tools.ts`.
 2. Implement the handler in `src/agent/toolHandlers.ts`.
-3. Add the corresponding Wolfram endpoint in `wolfram/protocol.wl`.
+3. Add the corresponding Wolfram endpoint in `src/wolfram/runtime/protocol.wl`.
 4. Run `npm run test:wolfram` to verify.

@@ -13,7 +13,7 @@ WMAResolveProtocolPath[] := Module[{candidate},
   candidate = If[
     TrueQ[ValueQ[Global`$WMAProtocolPath]] && StringQ[Global`$WMAProtocolPath],
     Global`$WMAProtocolPath,
-    FileNameJoin[{Directory[], "wolfram", "protocol.wl"}]
+    FileNameJoin[{Directory[], "src", "wolfram", "runtime", "protocol.wl"}]
   ];
   If[FileExistsQ[candidate], candidate, FileNameJoin[{DirectoryName[$InputFileName], "protocol.wl"}]]
 ];

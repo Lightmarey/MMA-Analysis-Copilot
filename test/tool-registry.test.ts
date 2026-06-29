@@ -91,7 +91,7 @@ const disabledDelegate = await runLocalTool({} as never, "delegate_to_subagent",
 assert.equal(disabledDelegate.ok, false);
 assert.match(disabledDelegate.error ?? "", /disabled/);
 
-const protocol = fs.readFileSync(path.join(process.cwd(), "wolfram", "protocol.wl"), "utf8");
+const protocol = fs.readFileSync(path.join(process.cwd(), "src", "wolfram", "runtime", "protocol.wl"), "utf8");
 for (const toolName of publicWolframToolNames) {
   assert.match(protocol, new RegExp(`tool === "${toolName}"`), `${toolName} is missing from protocol dispatcher`);
 }
