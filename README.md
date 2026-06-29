@@ -3,7 +3,7 @@
 **Wolfram Math Agent** is a TypeScript CLI that combines large language models (LLM) with a live Wolfram Engine for **interactive mathematical analysis and PDE proof assistance**.
 It does **not** treat analytic assumptions as computer‑verified facts – assumptions remain visible, traceable, and under your control.
 
-[![npm version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/your-org/wolfram-math-agent)
+[![npm version](https://img.shields.io/badge/version-0.2.0-blue)](https://github.com/your-org/wolfram-math-agent)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6)](https://www.typescriptlang.org/)
 [![Wolfram](https://img.shields.io/badge/Wolfram-Engine-DD1100)](https://www.wolfram.com/engine/)
 
