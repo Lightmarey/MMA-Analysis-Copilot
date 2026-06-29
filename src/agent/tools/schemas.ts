@@ -16,9 +16,10 @@ const groupedToolDefinitions = [
 ];
 
 const toolDefinitionOrder = [
-  "formula_transform",
+  "formula_transform",
   "theorem_advisor",
   "verification_template",
+  "delegate_to_subagent",
   "wolfram_eval",
   "wolfram_simplify",
   "wolfram_equivalence_check",
